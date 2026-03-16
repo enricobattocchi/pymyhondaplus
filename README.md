@@ -22,8 +22,23 @@ pymyhondaplus -v JHMZC7840LXXXXXX status
 # Get fresh status from car (wakes TCU)
 pymyhondaplus -v JHMZC7840LXXXXXX status --fresh
 
-# Lock doors
+# Lock / unlock doors
 pymyhondaplus -v JHMZC7840LXXXXXX lock
+pymyhondaplus -v JHMZC7840LXXXXXX unlock
+
+# Request fresh car location (wakes TCU)
+pymyhondaplus -v JHMZC7840LXXXXXX location
+
+# Climate control
+pymyhondaplus -v JHMZC7840LXXXXXX climate-start
+pymyhondaplus -v JHMZC7840LXXXXXX climate-stop
+pymyhondaplus -v JHMZC7840LXXXXXX climate-settings --temp hotter --duration 30
+
+# Set charge limits
+pymyhondaplus -v JHMZC7840LXXXXXX charge-limit --home 80 --away 90
+
+# Horn & lights
+pymyhondaplus -v JHMZC7840LXXXXXX horn
 ```
 
 ## Library usage
