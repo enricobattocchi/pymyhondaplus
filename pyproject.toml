@@ -9,10 +9,27 @@ description = "Python client for the Honda Connect Europe (My Honda+) API"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
+authors = [
+    { name = "Enrico Battocchi" },
+]
+keywords = ["honda", "honda-e", "my-honda-plus", "home-assistant", "ev"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 dependencies = [
     "requests",
     "cryptography",
 ]
+
+[project.urls]
+Homepage = "https://github.com/enricobattocchi/pymyhondaplus"
+Repository = "https://github.com/enricobattocchi/pymyhondaplus"
+Issues = "https://github.com/enricobattocchi/pymyhondaplus/issues"
 
 [project.scripts]
 pymyhondaplus = "pymyhondaplus.cli:main"
