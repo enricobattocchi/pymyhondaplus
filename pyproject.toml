@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "pymyhondaplus"
+version = "0.1.0"
+description = "Python client for the Honda Connect Europe (My Honda+) API"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "requests",
+    "cryptography",
+]
+
+[project.scripts]
+pymyhondaplus = "pymyhondaplus.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

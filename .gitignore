@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.honda_tokens.json
+.honda_device_key.pem
+.env
