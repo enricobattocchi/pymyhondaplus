@@ -181,6 +181,7 @@ def main():
             print(f"Cabin temp:    {ev['cabin_temp_c']}°C")
             print(f"Odometer:      {ev['odometer_km']} km")
             print(f"Doors locked:  {ev['doors_locked']}")
+            print(f"Lights on:     {ev['lights_on']}")
             print(f"Timestamp:     {ev['timestamp']}")
 
     elif args.command == "location":

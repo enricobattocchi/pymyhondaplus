@@ -318,22 +318,44 @@ class HondaAPI:
         resp.raise_for_status()
         return resp.json()
 
-    def get_journey_history(self, vin: str, from_date: str = "",
-                            to_date: str = "", trip_type: str = "end") -> dict:
-        """Get journey history.
+    def get_trips(self, vin: str, month_start: str = "", page: int = 1) -> dict:
+        """Get trip list for a month.
 
         Args:
             vin: Vehicle VIN
-            from_date: ISO 8601 start date (e.g. "2026-03-14T00:00:00+00:00")
-            to_date: ISO 8601 end date
-            trip_type: Trip type filter (default: "end")
+            month_start: First day of month in ISO 8601 (e.g. "2026-03-01T00:00:00.000Z").
+                         Defaults to current month.
+            page: Page number (1-based)
         """
-        params = f"/tsp/journey-history-detail?vin={vin}&type={trip_type}"
-        if from_date:
-            params += f"&fromDate={from_date}"
-        if to_date:
-            params += f"&toDate={to_date}"
-        resp = self._request("GET", params)
+        if not month_start:
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).strftime(
+                "%Y-%m-%dT%H:%M:%S.000Z")
+        import urllib.parse
+        encoded_month = urllib.parse.quote(month_start, safe="")
+        resp = self._request(
+            "GET",
+            f"/tsp/journey-history?vin={vin}&monthStart={encoded_month}&page={page}",
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def get_trip_detail(self, vin: str, from_date: str, to_date: str,
+                        trip_type: str = "end") -> dict:
+        """Get GPS detail for a specific trip.
+
+        Args:
+            vin: Vehicle VIN
+            from_date: Trip start time in ISO 8601
+            to_date: Trip end time in ISO 8601
+            trip_type: "start" or "end" (which end of the trip to get points for)
+        """
+        resp = self._request(
+            "GET",
+            f"/tsp/journey-history-detail?vin={vin}"
+            f"&fromDate={from_date}&toDate={to_date}&type={trip_type}",
+        )
         resp.raise_for_status()
         return resp.json()
 
@@ -377,6 +399,13 @@ def parse_ev_status(dashboard: dict) -> dict:
             for w in dashboard.get("windowStatus", {}).values()
             if isinstance(w, dict)
         ),
+        "lights_on": any(
+            light.get("lightState") == "on"
+            for light in dashboard.get("lightStatus", {}).values()
+            if isinstance(light, dict)
+        ),
+        "headlights": dashboard.get("lightStatus", {}).get("headlights", {}).get("lightState", "unknown"),
+        "parking_lights": dashboard.get("lightStatus", {}).get("parkingLights", {}).get("lightState", "unknown"),
     }
 
 
