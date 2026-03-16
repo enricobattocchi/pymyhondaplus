@@ -30,8 +30,8 @@ def main():
   %(prog)s -v JHMZC... climate-stop                Stop climate control
   %(prog)s -v JHMZC... climate-settings --temp hotter --duration 30
   %(prog)s -v JHMZC... charge-limit --home 80 --away 90
-  %(prog)s -v JHMZC... trips                        Get recent trip history
-  %(prog)s -v JHMZC... trips --from 2026-03-14T00:00:00+00:00
+  %(prog)s -v JHMZC... trips                        Get trips (current month)
+  %(prog)s -v JHMZC... trips --all                   Get all trips (all pages)
 """,
     )
     parser.add_argument("--extract-tokens", action="store_true",
@@ -56,6 +56,8 @@ def main():
     login_parser.add_argument("--password", "-p", required=True, help="Honda account password")
     login_parser.add_argument("--locale", "-l", default="it", help="Locale (default: it)")
 
+    subparsers.add_parser("logout", help="Remove saved tokens and device key")
+
     # vehicle commands
     subparsers.add_parser("status", help="Get vehicle status")
     subparsers.add_parser("location", help="Get car GPS location")
@@ -79,10 +81,11 @@ def main():
                                help="Charge limit away %% (default: 90)")
 
     trips = subparsers.add_parser("trips", help="Get recent trip history")
-    trips.add_argument("--from", dest="from_date", default="",
-                        help="Start date (ISO 8601, e.g. 2026-03-14T00:00:00+00:00)")
-    trips.add_argument("--to", dest="to_date", default="",
-                        help="End date (ISO 8601)")
+    trips.add_argument("--month", default="",
+                        help="Month start (ISO 8601, e.g. 2026-03-01T00:00:00.000Z). Defaults to current month.")
+    trips.add_argument("--page", type=int, default=1, help="Page number (default: 1)")
+    trips.add_argument("--all", dest="all_pages", action="store_true",
+                        help="Fetch all pages")
 
     args = parser.parse_args()
 
@@ -119,6 +122,18 @@ def main():
             user_id=user_id,
         )
         print(f"\nTokens saved to {args.token_file}")
+        return
+
+    if args.command == "logout":
+        removed = []
+        for f in [args.token_file, args.key_file]:
+            if f.exists():
+                f.unlink()
+                removed.append(str(f))
+        if removed:
+            print(f"Removed: {', '.join(removed)}")
+        else:
+            print("Nothing to remove (not logged in)")
         return
 
     api = HondaAPI(token_file=args.token_file)
@@ -208,23 +223,47 @@ def main():
         )
 
     elif args.command == "trips":
-        data = api.get_journey_history(
-            vin, from_date=args.from_date, to_date=args.to_date,
-        )
-        if args.json:
-            print(json.dumps(data, indent=2))
+        if args.all_pages:
+            all_trips = []
+            page = 1
+            while True:
+                data = api.get_trips(vin, month_start=args.month, page=page)
+                payload = data.get("payload", {})
+                all_trips.extend(payload.get("data", []))
+                if page >= data.get("maxPage", 1):
+                    break
+                page += 1
+            # Use fields from last response
+            fields = payload.get("def", [])
+            units = payload.get("unit", [])
         else:
+            data = api.get_trips(vin, month_start=args.month, page=args.page)
+            if args.json:
+                print(json.dumps(data, indent=2))
+                return
             payload = data.get("payload", {})
             fields = payload.get("def", [])
-            trips = payload.get("data", [])
-            if not trips:
-                print("No trips found.")
-            else:
-                for trip in trips:
-                    row = dict(zip(fields, trip))
-                    print(f"  {row.get('date', '?')}  "
-                          f"lat={row.get('lat', '?')} lon={row.get('lon', '?')}  "
-                          f"dir={row.get('dir', '?')}")
+            units = payload.get("unit", [])
+            all_trips = payload.get("data", [])
+            print(f"Page {data.get('page', '?')}/{data.get('maxPage', '?')}")
+
+        if not all_trips:
+            print("No trips found.")
+        else:
+            for trip in all_trips:
+                row = dict(zip(fields, trip))
+                date = row.get("OneTripDate", "?")
+                start = row.get("StartTime", "?")
+                end = row.get("EndTime", "?")
+                km = row.get("Mileage", "?")
+                duration = row.get("DriveTime", "?")
+                avg_speed = row.get("AveSpeed", "?")
+                max_speed = row.get("MaxSpeed", "?")
+                consumption = row.get("AveFuelEconomy", "?")
+                print(f"  {date}  {start} -> {end}  "
+                      f"{km} km  {duration} min  "
+                      f"avg {avg_speed} km/h  max {max_speed} km/h  "
+                      f"{consumption} L/100km")
 
 
 if __name__ == "__main__":
