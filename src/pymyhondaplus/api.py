@@ -288,6 +288,14 @@ class HondaAPI:
         """Activate horn and lights."""
         return self._remote_command("remote-horn-lights", vin)
 
+    def remote_charge_start(self, vin: str) -> str:
+        """Start charging."""
+        return self._remote_command("remote-charge", vin, command="start")
+
+    def remote_charge_stop(self, vin: str) -> str:
+        """Stop charging."""
+        return self._remote_command("remote-charge", vin, command="stop")
+
     def set_charge_limit(self, vin: str, home: int = 80, away: int = 90) -> str:
         """Set charge limits for home and away locations."""
         self._ensure_auth()

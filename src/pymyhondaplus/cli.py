@@ -66,6 +66,8 @@ def main():
     subparsers.add_parser("horn", help="Flash lights & horn")
     subparsers.add_parser("climate-start", help="Start climate control")
     subparsers.add_parser("climate-stop", help="Stop climate control")
+    subparsers.add_parser("charge-start", help="Start charging")
+    subparsers.add_parser("charge-stop", help="Stop charging")
 
     climate_settings = subparsers.add_parser("climate-settings",
                                               help="Configure climate settings")
@@ -204,6 +206,12 @@ def main():
 
     elif args.command == "horn":
         wait_command(api.remote_horn_lights(vin), "Horn & lights")
+
+    elif args.command == "charge-start":
+        wait_command(api.remote_charge_start(vin), "Charge start")
+
+    elif args.command == "charge-stop":
+        wait_command(api.remote_charge_stop(vin), "Charge stop")
 
     elif args.command == "climate-start":
         wait_command(api.remote_climate_start(vin), "Climate start")
