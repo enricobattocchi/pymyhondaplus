@@ -2,7 +2,8 @@
 Honda Connect Europe API client.
 
 Reverse-engineered from the My Honda+ Android app (com.honda_eu.connected.app).
-Works with Honda e, e:Ny1, ZR-V, CR-V, Civic, HR-V, Jazz (2020+) in Europe.
+Tested on Honda e. Should work with other Honda Connect Europe vehicles
+(e:Ny1, ZR-V, CR-V, Civic, HR-V, Jazz 2020+) but these are untested.
 """
 
 import json
