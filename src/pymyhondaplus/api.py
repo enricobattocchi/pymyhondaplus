@@ -337,6 +337,7 @@ def parse_ev_status(dashboard: dict) -> dict:
         "total_range_km": int(ev.get("totalRange", 0)),
         "charge_status": ev.get("chargeStatus", "unknown"),
         "plug_status": ev.get("plugStatus", "unknown"),
+        "home_away": ev.get("homeAway", "unknown").lower(),
         "charge_limit_home": int(ev.get("chargeLimitHome", 0)),
         "charge_limit_away": int(ev.get("chargeLimitAway", 0)),
         "climate_active": dashboard.get("climateControl", {}).get("status", {}).get("isActive", False),

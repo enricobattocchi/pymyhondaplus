@@ -149,6 +149,8 @@ def main():
             print(f"Range:         {ev['range_km']} km")
             print(f"Charge status: {ev['charge_status']}")
             print(f"Plug status:   {ev['plug_status']}")
+            print(f"Location:      {ev['home_away']}")
+            print(f"Coordinates:   {ev['latitude']}, {ev['longitude']}")
             print(f"Charge limit:  {ev['charge_limit_home']}% (home) / {ev['charge_limit_away']}% (away)")
             print(f"Climate:       {'ON' if ev['climate_active'] else 'OFF'}")
             print(f"Cabin temp:    {ev['cabin_temp_c']}°C")
