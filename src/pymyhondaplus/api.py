@@ -228,11 +228,9 @@ class HondaAPI:
 
     # -- Location --
 
-    def get_car_location(self, vin: str) -> dict:
-        """Get the car's last known GPS location."""
-        resp = self._request("GET", f"/tsp/car-location?vin={vin}")
-        resp.raise_for_status()
-        return resp.json()
+    def request_car_location(self, vin: str) -> str:
+        """Request fresh car location (async, wakes TCU). Returns command ID."""
+        return self._remote_command("car-location", vin)
 
     # -- Remote commands --
 
@@ -247,8 +245,12 @@ class HondaAPI:
         return status_url.split("id=")[-1] if "id=" in status_url else ""
 
     def remote_lock(self, vin: str) -> str:
-        """Send remote lock command."""
-        return self._remote_command("remote-lock", vin)
+        """Lock all doors."""
+        return self._remote_command("remote-lock", vin, command="allLock")
+
+    def remote_unlock(self, vin: str) -> str:
+        """Unlock doors."""
+        return self._remote_command("remote-lock", vin, command="doorUnlock")
 
     def remote_climate_on(self, vin: str, temp: str = "normal",
                           duration: int = 30) -> str:
@@ -316,9 +318,22 @@ class HondaAPI:
         resp.raise_for_status()
         return resp.json()
 
-    def get_journey_history(self, vin: str) -> dict:
-        """Get journey history."""
-        resp = self._request("GET", f"/tsp/journey-history-detail?vin={vin}")
+    def get_journey_history(self, vin: str, from_date: str = "",
+                            to_date: str = "", trip_type: str = "end") -> dict:
+        """Get journey history.
+
+        Args:
+            vin: Vehicle VIN
+            from_date: ISO 8601 start date (e.g. "2026-03-14T00:00:00+00:00")
+            to_date: ISO 8601 end date
+            trip_type: Trip type filter (default: "end")
+        """
+        params = f"/tsp/journey-history-detail?vin={vin}&type={trip_type}"
+        if from_date:
+            params += f"&fromDate={from_date}"
+        if to_date:
+            params += f"&toDate={to_date}"
+        resp = self._request("GET", params)
         resp.raise_for_status()
         return resp.json()
 

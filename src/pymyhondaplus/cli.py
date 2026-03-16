@@ -57,6 +57,7 @@ def main():
     subparsers.add_parser("status", help="Get vehicle status")
     subparsers.add_parser("location", help="Get car GPS location")
     subparsers.add_parser("lock", help="Lock doors")
+    subparsers.add_parser("unlock", help="Unlock doors")
     subparsers.add_parser("horn", help="Flash lights & horn")
     subparsers.add_parser("climate-start", help="Start climate control")
     subparsers.add_parser("climate-stop", help="Stop climate control")
@@ -172,6 +173,9 @@ def main():
 
     elif args.command == "lock":
         wait_command(api.remote_lock(vin), "Lock")
+
+    elif args.command == "unlock":
+        wait_command(api.remote_unlock(vin), "Unlock")
 
     elif args.command == "horn":
         wait_command(api.remote_horn_lights(vin), "Horn & lights")
