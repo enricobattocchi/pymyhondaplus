@@ -414,6 +414,17 @@ def parse_ev_status(dashboard: dict) -> dict:
         ),
         "headlights": dashboard.get("lightStatus", {}).get("headlights", {}).get("lightState", "unknown"),
         "parking_lights": dashboard.get("lightStatus", {}).get("parkingLights", {}).get("lightState", "unknown"),
+        "ignition": ev.get("igStatus", "unknown"),
+        "charge_mode": ev.get("chargeMode", "unknown"),
+        "time_to_charge": int(ev.get("timeToTargetSoc", 0)),
+        "hood_open": dashboard.get("doorStatus", {}).get("hood", {}).get("openState", "unknown") != "closed",
+        "trunk_open": dashboard.get("doorStatus", {}).get("trunk", {}).get("openState", "unknown") != "closed",
+        "warning_lamps": [
+            msg.get("lampName", "")
+            for msg in dashboard.get("warningLamps", {}).get("messages", [])
+            if msg.get("condition") == "ON"
+        ],
+        "speed_kmh": float(gps.get("velocity", {}).get("value", 0)),
     }
 
 

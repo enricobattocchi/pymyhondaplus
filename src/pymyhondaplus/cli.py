@@ -172,18 +172,28 @@ def main():
             print(json.dumps(dashboard, indent=2))
         else:
             ev = parse_ev_status(dashboard)
+            print(f"Ignition:      {ev['ignition']}")
+            print(f"Speed:         {ev['speed_kmh']} km/h")
             print(f"Battery:       {ev['battery_level']}%")
             print(f"Range:         {ev['range_km']} km")
             print(f"Charge status: {ev['charge_status']}")
+            print(f"Charge mode:   {ev['charge_mode']}")
             print(f"Plug status:   {ev['plug_status']}")
+            if ev['time_to_charge']:
+                print(f"Time to full:  {ev['time_to_charge']} min")
             print(f"Location:      {ev['home_away']}")
             print(f"Coordinates:   {ev['latitude']}, {ev['longitude']}")
             print(f"Charge limit:  {ev['charge_limit_home']}% (home) / {ev['charge_limit_away']}% (away)")
             print(f"Climate:       {'ON' if ev['climate_active'] else 'OFF'}")
             print(f"Cabin temp:    {ev['cabin_temp_c']}°C")
+            print(f"Interior temp: {ev['interior_temp_c']}°C")
             print(f"Odometer:      {ev['odometer_km']} km")
             print(f"Doors locked:  {ev['doors_locked']}")
+            print(f"Hood:          {'open' if ev['hood_open'] else 'closed'}")
+            print(f"Trunk:         {'open' if ev['trunk_open'] else 'closed'}")
             print(f"Lights on:     {ev['lights_on']}")
+            if ev['warning_lamps']:
+                print(f"Warnings:      {', '.join(ev['warning_lamps'])}")
             print(f"Timestamp:     {ev['timestamp']}")
 
     elif args.command == "location":
