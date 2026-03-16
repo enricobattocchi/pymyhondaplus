@@ -183,7 +183,7 @@ class HondaAuth:
         return self.session.post(f"{API_BASE}{path}", json=json_data, **kwargs)
 
     def reset_device_authenticator(self, email: str, password: str,
-                                    reset_type: str = "Replace") -> dict:
+                                    reset_type: str = "Add") -> dict:
         """Register/replace device authenticator. Triggers email verification."""
         payload = encrypt_request({
             "emailAddress": email,
@@ -326,7 +326,7 @@ class HondaAuth:
         print("\nRequesting device verification...")
         try:
             reset_result = self.reset_device_authenticator(
-                email, password, reset_type="Replace")
+                email, password)
             logger.info("reset-device-authenticator response: %s", reset_result)
             print("Verification email sent!")
         except RuntimeError as e:
