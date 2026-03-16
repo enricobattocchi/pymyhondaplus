@@ -40,9 +40,9 @@ pymyhondaplus -v JHMZC7840LXXXXXX charge-limit --home 80 --away 90
 # Horn & lights
 pymyhondaplus -v JHMZC7840LXXXXXX horn
 
-# Trip history
+# Trip history (current month)
 pymyhondaplus -v JHMZC7840LXXXXXX trips
-pymyhondaplus -v JHMZC7840LXXXXXX trips --from 2026-03-14T00:00:00+00:00
+pymyhondaplus -v JHMZC7840LXXXXXX trips --all
 ```
 
 ## Library usage
@@ -60,3 +60,12 @@ api = HondaAPI()
 api.set_tokens(**tokens)
 status = api.get_dashboard("JHMZC7840LXXXXXX")
 ```
+
+## Disclaimer
+
+This project is **unofficial** and **not affiliated with, endorsed by, or connected to Honda Motor Co., Ltd.** in any way.
+
+- Use at your own risk. The authors accept no responsibility for any damage to your vehicle, account, or warranty.
+- Honda may change their API at any time, which could break this library without notice.
+- Sending remote commands (lock, unlock, climate, charging) to your vehicle is your responsibility. Make sure you understand what each command does before using it.
+- This project does not store or transmit your credentials to any third party. Authentication is performed directly with Honda's servers.

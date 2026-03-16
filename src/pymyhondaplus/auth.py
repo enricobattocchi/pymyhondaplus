@@ -2,7 +2,6 @@
 Honda Connect Europe authentication module.
 
 Implements the full login flow including device registration and email verification.
-Reverse-engineered from the My Honda+ Android app.
 """
 
 import base64
