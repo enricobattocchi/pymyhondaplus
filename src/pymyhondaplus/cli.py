@@ -24,6 +24,7 @@ def main():
   %(prog)s -v JHMZC... status --fresh              Get fresh status from car
   %(prog)s -v JHMZC... location                    Get car GPS location
   %(prog)s -v JHMZC... lock                        Lock doors
+  %(prog)s -v JHMZC... unlock                      Unlock doors
   %(prog)s -v JHMZC... horn                        Flash lights & horn
   %(prog)s -v JHMZC... climate-start               Start climate control
   %(prog)s -v JHMZC... climate-stop                Stop climate control
