@@ -30,6 +30,8 @@ def main():
   %(prog)s -v JHMZC... climate-stop                Stop climate control
   %(prog)s -v JHMZC... climate-settings --temp hotter --duration 30
   %(prog)s -v JHMZC... charge-limit --home 80 --away 90
+  %(prog)s -v JHMZC... trips                        Get recent trip history
+  %(prog)s -v JHMZC... trips --from 2026-03-14T00:00:00+00:00
 """,
     )
     parser.add_argument("--extract-tokens", action="store_true",
@@ -75,6 +77,12 @@ def main():
                                help="Charge limit at home %% (default: 80)")
     charge_limit.add_argument("--away", type=int, default=90,
                                help="Charge limit away %% (default: 90)")
+
+    trips = subparsers.add_parser("trips", help="Get recent trip history")
+    trips.add_argument("--from", dest="from_date", default="",
+                        help="Start date (ISO 8601, e.g. 2026-03-14T00:00:00+00:00)")
+    trips.add_argument("--to", dest="to_date", default="",
+                        help="End date (ISO 8601)")
 
     args = parser.parse_args()
 
@@ -198,6 +206,25 @@ def main():
             api.set_charge_limit(vin, home=args.home, away=args.away),
             f"Charge limit ({args.home}% home, {args.away}% away)",
         )
+
+    elif args.command == "trips":
+        data = api.get_journey_history(
+            vin, from_date=args.from_date, to_date=args.to_date,
+        )
+        if args.json:
+            print(json.dumps(data, indent=2))
+        else:
+            payload = data.get("payload", {})
+            fields = payload.get("def", [])
+            trips = payload.get("data", [])
+            if not trips:
+                print("No trips found.")
+            else:
+                for trip in trips:
+                    row = dict(zip(fields, trip))
+                    print(f"  {row.get('date', '?')}  "
+                          f"lat={row.get('lat', '?')} lon={row.get('lon', '?')}  "
+                          f"dir={row.get('dir', '?')}")
 
 
 if __name__ == "__main__":

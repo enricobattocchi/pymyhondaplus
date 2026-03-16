@@ -39,6 +39,10 @@ pymyhondaplus -v JHMZC7840LXXXXXX charge-limit --home 80 --away 90
 
 # Horn & lights
 pymyhondaplus -v JHMZC7840LXXXXXX horn
+
+# Trip history
+pymyhondaplus -v JHMZC7840LXXXXXX trips
+pymyhondaplus -v JHMZC7840LXXXXXX trips --from 2026-03-14T00:00:00+00:00
 ```
 
 ## Library usage
