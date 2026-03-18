@@ -285,7 +285,7 @@ class HondaAPI:
 
     def remote_horn_lights(self, vin: str) -> str:
         """Activate horn and lights."""
-        return self._remote_command("remote-horn-lights", vin)
+        return self._remote_command("remote-horn-light", vin, command="horn")
 
     def remote_charge_start(self, vin: str) -> str:
         """Start charging."""
