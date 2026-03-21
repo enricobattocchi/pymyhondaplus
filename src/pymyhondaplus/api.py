@@ -11,9 +11,12 @@ import time
 import logging
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import requests
+
+if TYPE_CHECKING:
+    from .storage import SecretStorage
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +70,8 @@ class AuthTokens:
     def is_expired(self) -> bool:
         return time.time() >= self.expires_at - 60  # 1 min buffer
 
-    def save(self, path: Path):
-        """Save tokens to a JSON file."""
+    def to_dict(self) -> dict:
+        """Serialize to a dict for storage."""
         data = {
             "access_token": self.access_token,
             "refresh_token": self.refresh_token,
@@ -78,14 +81,11 @@ class AuthTokens:
         }
         if self.vehicles:
             data["vehicles"] = self.vehicles
-        path.write_text(json.dumps(data))
-        path.chmod(0o600)
+        return data
 
     @classmethod
-    def load(cls, path: Path) -> "AuthTokens":
-        if not path.exists():
-            return cls()
-        data = json.loads(path.read_text())
+    def from_dict(cls, data: dict) -> "AuthTokens":
+        """Deserialize from a dict."""
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
 
@@ -99,17 +99,32 @@ class HondaAPI:
     """Honda Connect Europe API client.
 
     Args:
-        token_file: Path to token file for persistence. None disables file I/O.
+        storage: SecretStorage backend for token persistence. None disables persistence.
+        token_file: Deprecated — use storage instead. Kept for backward compatibility.
     """
 
-    def __init__(self, token_file: Optional[Path] = None):
+    def __init__(self, storage: Optional["SecretStorage"] = None,
+                 token_file: Optional[Path] = None):
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
-        self._token_file = token_file
-        if token_file is not None:
-            self.tokens = AuthTokens.load(token_file)
+        self._storage = storage
+
+        # Backward compatibility: token_file without storage
+        if storage is None and token_file is not None:
+            from .storage import PlainFileStorage
+            from .auth import DEFAULT_DEVICE_KEY_FILE
+            self._storage = PlainFileStorage(token_file, DEFAULT_DEVICE_KEY_FILE)
+
+        if self._storage is not None:
+            data = self._storage.load_tokens()
+            self.tokens = AuthTokens.from_dict(data) if data else AuthTokens()
         else:
             self.tokens = AuthTokens()
+
+    def _save_tokens(self):
+        """Persist tokens via storage backend if available."""
+        if self._storage is not None:
+            self._storage.save_tokens(self.tokens.to_dict())
 
     def set_tokens(self, access_token: str, refresh_token: str,
                    expires_in: int = 3599, personal_id: str = "",
@@ -123,9 +138,7 @@ class HondaAPI:
             user_id=user_id,
             vehicles=vehicles or [],
         )
-        if self._token_file is not None:
-            self.tokens.save(self._token_file)
-            logger.info("Tokens saved to %s", self._token_file)
+        self._save_tokens()
 
     def refresh_auth(self) -> AuthTokens:
         """Refresh the access token via Honda's auth API."""
@@ -145,8 +158,7 @@ class HondaAPI:
         self.tokens.access_token = data["access_token"]
         self.tokens.refresh_token = data.get("refresh_token", self.tokens.refresh_token)
         self.tokens.expires_at = time.time() + data.get("expires_in", 3599)
-        if self._token_file is not None:
-            self.tokens.save(self._token_file)
+        self._save_tokens()
         logger.info("Token refreshed, expires in %ds", data.get("expires_in", 3599))
         return self.tokens
 

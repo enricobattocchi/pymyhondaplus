@@ -104,17 +104,22 @@ def encrypt_request(data: dict) -> dict:
 class DeviceKey:
     """Manages the device RSA keypair used for authentication.
 
-    Can be created in three ways:
+    Can be created in several ways:
     - DeviceKey() — generates a new ephemeral key
     - DeviceKey(pem_data=b"...") — loads from PEM bytes
     - DeviceKey(key_file=Path(...)) — loads from file or generates and saves
+    - DeviceKey(storage=SecretStorage(...)) — loads/saves via storage backend
     """
 
     def __init__(self, pem_data: Optional[bytes] = None,
-                 key_file: Optional[Path] = None):
+                 key_file: Optional[Path] = None,
+                 storage=None):
         self._key_file = key_file
+        self._storage = storage
         if pem_data:
             self._private_key = serialization.load_pem_private_key(pem_data, password=None)
+        elif storage is not None:
+            self._load_or_generate_via_storage(storage)
         elif key_file is not None:
             self._load_or_generate(key_file)
         else:
@@ -122,6 +127,19 @@ class DeviceKey:
                 public_exponent=65537,
                 key_size=2048,
             )
+
+    def _load_or_generate_via_storage(self, storage):
+        pem_data = storage.load_device_key()
+        if pem_data and pem_data.startswith(b"-----BEGIN"):
+            self._private_key = serialization.load_pem_private_key(pem_data, password=None)
+            logger.info("Loaded existing device key from storage")
+        else:
+            self._private_key = rsa.generate_private_key(
+                public_exponent=65537,
+                key_size=2048,
+            )
+            storage.save_device_key(self.pem_bytes)
+            logger.info("Generated new device key (saved to storage)")
 
     def _load_or_generate(self, key_file: Path):
         if key_file.exists():
@@ -307,6 +325,11 @@ class HondaAuth:
             result = self.initiate_login(email, password, locale=locale)
         except RuntimeError as e:
             error_text = str(e)
+            if "locked-account" in error_text:
+                raise RuntimeError(
+                    "Account is locked (too many attempts). "
+                    "Wait a while or reset your password via the My Honda+ app."
+                ) from None
             if "device-authenticator-not-registered" in error_text:
                 logger.info("Device not registered, starting registration flow")
                 return self._handle_device_registration(email, password, locale)

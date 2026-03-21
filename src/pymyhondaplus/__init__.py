@@ -2,6 +2,7 @@
 
 from .api import AuthTokens, HondaAPI, HondaAPIError, parse_ev_status
 from .auth import DeviceKey, HondaAuth, encrypt_request
+from .storage import SecretStorage, get_storage
 
 __all__ = [
     "AuthTokens",
@@ -11,4 +12,6 @@ __all__ = [
     "DeviceKey",
     "HondaAuth",
     "encrypt_request",
+    "SecretStorage",
+    "get_storage",
 ]

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, extract_tokens_from_captures, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
+from .storage import get_storage
 
 
 def main():
@@ -47,6 +48,9 @@ vehicle selection (only needed with multiple vehicles):
                         help=f"Token file path (default: {DEFAULT_TOKEN_FILE})")
     parser.add_argument("--key-file", type=Path, default=DEFAULT_DEVICE_KEY_FILE,
                         help=f"Device key file path (default: {DEFAULT_DEVICE_KEY_FILE})")
+    parser.add_argument("--storage", default=os.environ.get("HONDA_STORAGE", "auto"),
+                        choices=["auto", "keyring", "encrypted", "plain"],
+                        help="Storage backend for secrets (default: auto; or set HONDA_STORAGE)")
 
     subparsers = parser.add_subparsers(dest="command")
 
@@ -92,10 +96,12 @@ vehicle selection (only needed with multiple vehicles):
 
     args = parser.parse_args()
 
+    storage = get_storage(args.token_file, args.key_file, args.storage)
+
     if args.extract_tokens:
         print("Extracting tokens from captured flows...")
         tokens = extract_tokens_from_captures()
-        api = HondaAPI(token_file=args.token_file)
+        api = HondaAPI(storage=storage)
         api.set_tokens(**tokens)
         print(f"Tokens saved to {args.token_file}")
         print(f"User ID: {tokens['user_id']}")
@@ -107,18 +113,20 @@ vehicle selection (only needed with multiple vehicles):
         return
 
     if args.command == "login":
-        device_key = DeviceKey(key_file=args.key_file)
+        device_key = DeviceKey(storage=storage)
         auth = HondaAuth(device_key=device_key)
         password = args.password or getpass.getpass("Password: ")
-        result = auth.full_login(args.email, password, locale=args.locale)
+        try:
+            result = auth.full_login(args.email, password, locale=args.locale)
+        except RuntimeError as e:
+            print(f"\nLogin failed: {e}")
+            return
 
         print("\nLogin successful!")
-        print(f"Access token: {result['access_token'][:50]}...")
-        print(f"Refresh token: {result['refresh_token'][:50]}...")
         print(f"Expires in: {result.get('expires_in', 'N/A')}s")
 
         user_id = HondaAuth.extract_user_id(result["access_token"])
-        api = HondaAPI(token_file=args.token_file)
+        api = HondaAPI(storage=storage)
         api.set_tokens(
             access_token=result["access_token"],
             refresh_token=result["refresh_token"],
@@ -130,7 +138,7 @@ vehicle selection (only needed with multiple vehicles):
         vehicles = api.get_vehicles()
         if vehicles:
             api.tokens.vehicles = vehicles
-            api.tokens.save(args.token_file)
+            api._save_tokens()
             for v in vehicles:
                 label = v["name"] or v["vin"]
                 plate = f" ({v['plate']})" if v["plate"] else ""
@@ -140,18 +148,15 @@ vehicle selection (only needed with multiple vehicles):
         return
 
     if args.command == "logout":
-        removed = []
-        for f in [args.token_file, args.key_file]:
-            if f.exists():
-                f.unlink()
-                removed.append(str(f))
-        if removed:
-            print(f"Removed: {', '.join(removed)}")
+        has_files = args.token_file.exists() or args.key_file.exists()
+        if has_files:
+            storage.clear()
+            print("Logged out (credentials removed)")
         else:
             print("Nothing to remove (not logged in)")
         return
 
-    api = HondaAPI(token_file=args.token_file)
+    api = HondaAPI(storage=storage)
 
     if args.user_info:
         info = api.get_user_info()
@@ -163,7 +168,7 @@ vehicle selection (only needed with multiple vehicles):
         if vehicles:
             # Update stored vehicles
             api.tokens.vehicles = vehicles
-            api.tokens.save(args.token_file)
+            api._save_tokens()
             print(f"Found {len(vehicles)} vehicle(s):")
             for v in vehicles:
                 label = v["name"] or v["vin"]

@@ -25,6 +25,9 @@ dependencies = [
     "cryptography",
 ]
 
+[project.optional-dependencies]
+keyring = ["keyring>=24.0"]
+
 [project.urls]
 Homepage = "https://github.com/enricobattocchi/pymyhondaplus"
 Repository = "https://github.com/enricobattocchi/pymyhondaplus"
