@@ -17,7 +17,7 @@ def main():
     logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser(
-        description="Honda Connect Europe (My Honda+) API client",
+        description="Unofficial Honda Connect Europe (My Honda+) API client",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""examples:
   %(prog)s login -e user@example.com -p secret    Login with email/password

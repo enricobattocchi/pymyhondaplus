@@ -1,5 +1,5 @@
 """
-Honda Connect Europe API client.
+Unofficial Honda Connect Europe API client.
 
 Tested on Honda e. Should work with other Honda Connect Europe vehicles
 (e:Ny1, ZR-V, CR-V, Civic, HR-V, Jazz 2020+) but these are untested.
@@ -96,7 +96,7 @@ class HondaAPIError(Exception):
 
 
 class HondaAPI:
-    """Honda Connect Europe API client.
+    """Unofficial Honda Connect Europe API client.
 
     Args:
         storage: SecretStorage backend for token persistence. None disables persistence.
