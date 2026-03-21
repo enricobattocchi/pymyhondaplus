@@ -40,6 +40,28 @@ class AuthTokens:
     expires_at: float = 0
     personal_id: str = ""
     user_id: str = ""
+    vehicles: list[dict] = None
+
+    def __post_init__(self):
+        if self.vehicles is None:
+            self.vehicles = []
+
+    @property
+    def default_vin(self) -> str:
+        """Return the VIN if exactly one vehicle is stored, else empty string."""
+        return self.vehicles[0]["vin"] if len(self.vehicles) == 1 else ""
+
+    def resolve_vin(self, identifier: str) -> str:
+        """Resolve a VIN, nickname, or plate to a VIN. Returns empty string if no match."""
+        id_lower = identifier.lower()
+        for v in self.vehicles:
+            if v["vin"].lower() == id_lower:
+                return v["vin"]
+            if v.get("name", "").lower() == id_lower:
+                return v["vin"]
+            if v.get("plate", "").lower() == id_lower:
+                return v["vin"]
+        return ""
 
     @property
     def is_expired(self) -> bool:
@@ -47,13 +69,16 @@ class AuthTokens:
 
     def save(self, path: Path):
         """Save tokens to a JSON file."""
-        path.write_text(json.dumps({
+        data = {
             "access_token": self.access_token,
             "refresh_token": self.refresh_token,
             "expires_at": self.expires_at,
             "personal_id": self.personal_id,
             "user_id": self.user_id,
-        }))
+        }
+        if self.vehicles:
+            data["vehicles"] = self.vehicles
+        path.write_text(json.dumps(data))
         path.chmod(0o600)
 
     @classmethod
@@ -88,7 +113,7 @@ class HondaAPI:
 
     def set_tokens(self, access_token: str, refresh_token: str,
                    expires_in: int = 3599, personal_id: str = "",
-                   user_id: str = ""):
+                   user_id: str = "", vehicles: list[dict] = None):
         """Set tokens (from login or mitmproxy capture)."""
         self.tokens = AuthTokens(
             access_token=access_token,
@@ -96,6 +121,7 @@ class HondaAPI:
             expires_at=time.time() + expires_in,
             personal_id=personal_id,
             user_id=user_id,
+            vehicles=vehicles or [],
         )
         if self._token_file is not None:
             self.tokens.save(self._token_file)
@@ -167,6 +193,23 @@ class HondaAPI:
         )
         resp.raise_for_status()
         return resp.json()
+
+    def get_vehicles(self, **kwargs) -> list[dict]:
+        """Return list of vehicles with VIN, name, and plate."""
+        info = self.get_user_info(**kwargs)
+        return [
+            {
+                "vin": v["vin"],
+                "name": v.get("vehicleNickName", ""),
+                "plate": v.get("vehicleRegNumber", ""),
+            }
+            for v in info.get("vehiclesInfo", [])
+            if "vin" in v
+        ]
+
+    def get_vins(self, **kwargs) -> list[str]:
+        """Return list of VINs associated with the account."""
+        return [v["vin"] for v in self.get_vehicles(**kwargs)]
 
     def get_dashboard_cached(self, vin: str, language: str = "it") -> dict:
         """Get the most recently cached dashboard data (fast, no car wake-up)."""

@@ -19,25 +19,24 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""examples:
   %(prog)s login -e user@example.com -p secret    Login with email/password
-  %(prog)s --extract-tokens                        Extract tokens from mitmproxy capture
-  %(prog)s -v JHMZC... status                      Get vehicle status (cached)
-  %(prog)s -v JHMZC... status --fresh              Get fresh status from car
-  %(prog)s -v JHMZC... location                    Get car GPS location
-  %(prog)s -v JHMZC... lock                        Lock doors
-  %(prog)s -v JHMZC... unlock                      Unlock doors
-  %(prog)s -v JHMZC... horn                        Flash lights & horn
-  %(prog)s -v JHMZC... climate-start               Start climate control
-  %(prog)s -v JHMZC... climate-stop                Stop climate control
-  %(prog)s -v JHMZC... climate-settings --temp hotter --duration 30
-  %(prog)s -v JHMZC... charge-limit --home 80 --away 90
-  %(prog)s -v JHMZC... trips                        Get trips (current month)
-  %(prog)s -v JHMZC... trips --all                   Get all trips (all pages)
+  %(prog)s list                                    List vehicles on your account
+  %(prog)s status                                  Get status (auto-selects if only one vehicle)
+  %(prog)s status --fresh                          Get fresh status from car
+  %(prog)s lock                                    Lock doors
+  %(prog)s horn                                    Flash lights & horn
+  %(prog)s trips --all                             Get all trips
+
+vehicle selection (only needed with multiple vehicles):
+  %(prog)s -v "Honda e" status                     Select by nickname
+  %(prog)s -v GE395KM status                       Select by plate
+  %(prog)s -v JHMZC... status                      Select by VIN
+  HONDA_VIN="Honda e" %(prog)s status              Via environment variable
 """,
     )
     parser.add_argument("--extract-tokens", action="store_true",
                         help="Extract tokens from mitmproxy captured flows")
     parser.add_argument("--vin", "-v", default=os.environ.get("HONDA_VIN"),
-                        help="Vehicle VIN (or set HONDA_VIN env var)")
+                        help="Vehicle VIN, nickname, or plate (default: auto if only one vehicle; or set HONDA_VIN)")
     parser.add_argument("--fresh", action="store_true",
                         help="Request fresh data from car")
     parser.add_argument("--json", action="store_true", help="Output raw JSON")
@@ -57,6 +56,7 @@ def main():
     login_parser.add_argument("--locale", "-l", default="it", help="Locale (default: it)")
 
     subparsers.add_parser("logout", help="Remove saved tokens and device key")
+    subparsers.add_parser("list", help="List vehicles on your account")
 
     # vehicle commands
     subparsers.add_parser("status", help="Get vehicle status")
@@ -123,7 +123,18 @@ def main():
             expires_in=result.get("expires_in", 3599),
             user_id=user_id,
         )
-        print(f"\nTokens saved to {args.token_file}")
+
+        # Fetch and store vehicles
+        vehicles = api.get_vehicles()
+        if vehicles:
+            api.tokens.vehicles = vehicles
+            api.tokens.save(args.token_file)
+            for v in vehicles:
+                label = v["name"] or v["vin"]
+                plate = f" ({v['plate']})" if v["plate"] else ""
+                print(f"Vehicle: {label}{plate}")
+
+        print(f"Tokens saved to {args.token_file}")
         return
 
     if args.command == "logout":
@@ -145,14 +156,50 @@ def main():
         print(json.dumps(info, indent=2))
         return
 
+    if args.command == "list":
+        vehicles = api.get_vehicles()
+        if vehicles:
+            # Update stored vehicles
+            api.tokens.vehicles = vehicles
+            api.tokens.save(args.token_file)
+            print(f"Found {len(vehicles)} vehicle(s):")
+            for v in vehicles:
+                label = v["name"] or v["vin"]
+                plate = f" ({v['plate']})" if v["plate"] else ""
+                print(f"  {v['vin']}  {label}{plate}")
+        else:
+            print("No vehicles found on this account.")
+        return
+
     if not args.command:
         args.command = "status"
 
     if not args.vin:
-        parser.print_help()
-        return
+        default = api.tokens.default_vin
+        if default:
+            vin = default
+        elif api.tokens.vehicles:
+            print("Multiple vehicles on account. Please specify one with --vin:")
+            for v in api.tokens.vehicles:
+                label = v["name"] or v["vin"]
+                plate = f" ({v['plate']})" if v["plate"] else ""
+                print(f"  {v['vin']}  {label}{plate}")
+            return
+        else:
+            print("No VIN specified. Use --vin, set HONDA_VIN, or re-login to auto-detect.")
+            return
+    else:
+        vin = api.tokens.resolve_vin(args.vin) or args.vin
 
-    vin = args.vin
+    # Find vehicle info for display
+    vehicle_info = next((v for v in api.tokens.vehicles if v["vin"] == vin), None)
+    if vehicle_info:
+        label = vehicle_info["name"] or vin
+        plate = f" ({vehicle_info['plate']})" if vehicle_info.get("plate") else ""
+        print(f"[{label}{plate}]")
+    else:
+        print(f"[{vin}]")
+    print()
 
     def wait_command(cmd_id: str, label: str):
         if not cmd_id:
