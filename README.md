@@ -16,33 +16,50 @@ pip install pymyhondaplus
 # Login (first time — triggers email verification)
 pymyhondaplus login --email user@example.com --password secret
 
-# Get vehicle status
-pymyhondaplus -v JHMZC7840LXXXXXX status
+# List vehicles on your account
+pymyhondaplus list
+
+# Get vehicle status (auto-selects if only one vehicle)
+pymyhondaplus status
 
 # Get fresh status from car (wakes TCU)
-pymyhondaplus -v JHMZC7840LXXXXXX status --fresh
+pymyhondaplus status --fresh
 
 # Lock / unlock doors
-pymyhondaplus -v JHMZC7840LXXXXXX lock
-pymyhondaplus -v JHMZC7840LXXXXXX unlock
+pymyhondaplus lock
+pymyhondaplus unlock
 
 # Request fresh car location (wakes TCU)
-pymyhondaplus -v JHMZC7840LXXXXXX location
+pymyhondaplus location
 
 # Climate control
-pymyhondaplus -v JHMZC7840LXXXXXX climate-start
-pymyhondaplus -v JHMZC7840LXXXXXX climate-stop
-pymyhondaplus -v JHMZC7840LXXXXXX climate-settings --temp hotter --duration 30
+pymyhondaplus climate-start
+pymyhondaplus climate-stop
+pymyhondaplus climate-settings --temp hotter --duration 30
 
 # Set charge limits
-pymyhondaplus -v JHMZC7840LXXXXXX charge-limit --home 80 --away 90
+pymyhondaplus charge-limit --home 80 --away 90
 
 # Horn & lights
-pymyhondaplus -v JHMZC7840LXXXXXX horn
+pymyhondaplus horn
 
 # Trip history (current month)
-pymyhondaplus -v JHMZC7840LXXXXXX trips
-pymyhondaplus -v JHMZC7840LXXXXXX trips --all
+pymyhondaplus trips
+pymyhondaplus trips --all
+```
+
+### Vehicle selection
+
+If you have only one vehicle on your account, it's selected automatically. With multiple vehicles, specify one using `--vin` (or `-v`) with a VIN, nickname, or plate number:
+
+```bash
+pymyhondaplus -v "Honda e" status
+pymyhondaplus -v GE395KM status
+pymyhondaplus -v JHMZC7840LXXXXXX status
+
+# Or via environment variable
+export HONDA_VIN="Honda e"
+pymyhondaplus status
 ```
 
 ## Library usage
