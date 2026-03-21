@@ -8,13 +8,16 @@ Tested on Honda e. Should work with other Honda Connect Europe vehicles (e:Ny1, 
 
 ```bash
 pip install pymyhondaplus
+
+# Optional: enable OS keyring support (macOS Keychain, Windows Credential Vault, Linux Secret Service)
+pip install pymyhondaplus[keyring]
 ```
 
 ## CLI usage
 
 ```bash
-# Login (first time — triggers email verification)
-pymyhondaplus login --email user@example.com --password secret
+# Login (first time — triggers email verification; password prompted if omitted)
+pymyhondaplus login --email user@example.com
 
 # List vehicles on your account
 pymyhondaplus list
@@ -61,6 +64,15 @@ pymyhondaplus -v JHMZC7840LXXXXXX status
 export HONDA_VIN="Honda e"
 pymyhondaplus status
 ```
+
+### Security
+
+Tokens and device keys are encrypted at rest using Fernet (AES-128-CBC). The encryption key is:
+
+- **With `pymyhondaplus[keyring]`**: stored in the OS keyring (macOS Keychain, Windows Credential Vault, Linux Secret Service/KDE Wallet)
+- **Without keyring**: derived from a machine-specific fingerprint (username + hostname + random salt via PBKDF2)
+
+Use `--storage plain` to disable encryption (original behavior). Existing plain-text token files are automatically migrated to encrypted format on first use.
 
 ## Library usage
 
