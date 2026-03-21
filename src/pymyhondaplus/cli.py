@@ -1,6 +1,7 @@
 """CLI entry point for pymyhondaplus."""
 
 import argparse
+import getpass
 import json
 import logging
 import os
@@ -52,7 +53,7 @@ vehicle selection (only needed with multiple vehicles):
     # login subcommand
     login_parser = subparsers.add_parser("login", help="Login with email/password")
     login_parser.add_argument("--email", "-e", required=True, help="Honda account email")
-    login_parser.add_argument("--password", "-p", required=True, help="Honda account password")
+    login_parser.add_argument("--password", "-p", default=None, help="Honda account password (prompted if not given)")
     login_parser.add_argument("--locale", "-l", default="it", help="Locale (default: it)")
 
     subparsers.add_parser("logout", help="Remove saved tokens and device key")
@@ -108,7 +109,8 @@ vehicle selection (only needed with multiple vehicles):
     if args.command == "login":
         device_key = DeviceKey(key_file=args.key_file)
         auth = HondaAuth(device_key=device_key)
-        result = auth.full_login(args.email, args.password, locale=args.locale)
+        password = args.password or getpass.getpass("Password: ")
+        result = auth.full_login(args.email, password, locale=args.locale)
 
         print("\nLogin successful!")
         print(f"Access token: {result['access_token'][:50]}...")
