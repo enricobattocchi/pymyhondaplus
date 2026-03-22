@@ -90,6 +90,11 @@ api.set_tokens(**tokens)
 status = api.get_dashboard("JHMZC7840LXXXXXX")
 ```
 
+## Related projects
+
+- [myhondaplus-desktop](https://github.com/enricobattocchi/myhondaplus-desktop) — Desktop GUI application
+- [myhondaplus-homeassistant](https://github.com/enricobattocchi/myhondaplus-homeassistant) — Home Assistant integration
+
 ## Disclaimer
 
 This project is **unofficial** and **not affiliated with, endorsed by, or connected to Honda Motor Co., Ltd.** in any way.
