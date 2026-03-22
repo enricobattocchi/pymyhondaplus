@@ -1,5 +1,10 @@
 # pymyhondaplus
 
+[![PyPI](https://img.shields.io/pypi/v/pymyhondaplus)](https://pypi.org/project/pymyhondaplus/)
+[![Python](https://img.shields.io/pypi/pyversions/pymyhondaplus)](https://pypi.org/project/pymyhondaplus/)
+[![Downloads](https://img.shields.io/pypi/dm/pymyhondaplus)](https://pypi.org/project/pymyhondaplus/)
+[![License](https://img.shields.io/pypi/l/pymyhondaplus)](https://pypi.org/project/pymyhondaplus/)
+
 Unofficial Python client for the Honda Connect Europe (My Honda+) API.
 
 Tested on Honda e. Should work with other Honda Connect Europe vehicles (e:Ny1, ZR-V, CR-V, Civic, HR-V, Jazz 2020+) but these are untested — contributions welcome!
