@@ -54,6 +54,17 @@ pymyhondaplus horn
 # Trip history (current month)
 pymyhondaplus trips
 pymyhondaplus trips --all
+pymyhondaplus trips --locations                    # include start/end GPS
+
+# Trip detail (start/end point of a specific trip)
+pymyhondaplus trip-detail "2026-03-19T16:23:13+00:00" "2026-03-19T17:05:56+00:00"
+
+# Trip statistics
+pymyhondaplus trip-stats                           # current month
+pymyhondaplus trip-stats --period week             # current week
+pymyhondaplus trip-stats --period day              # today
+pymyhondaplus trip-stats --date 2026-01-15         # January 2026
+pymyhondaplus trip-stats --period week --date 2026-01-15
 ```
 
 ### Vehicle selection

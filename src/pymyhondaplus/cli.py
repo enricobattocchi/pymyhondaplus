@@ -6,7 +6,10 @@ import json
 import logging
 import os
 import time
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+
+import requests
 
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, extract_tokens_from_captures, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
@@ -93,6 +96,19 @@ vehicle selection (only needed with multiple vehicles):
     trips.add_argument("--page", type=int, default=1, help="Page number (default: 1)")
     trips.add_argument("--all", dest="all_pages", action="store_true",
                         help="Fetch all pages")
+    trips.add_argument("--locations", action="store_true",
+                        help="Include start/end GPS coordinates (slower, 2 API calls per trip)")
+
+    trip_detail = subparsers.add_parser("trip-detail", help="Show details for a specific trip")
+    trip_detail.add_argument("start_time", help="Trip start time (ISO 8601, from trips output)")
+    trip_detail.add_argument("end_time", help="Trip end time (ISO 8601, from trips output)")
+
+    trip_stats = subparsers.add_parser("trip-stats", help="Aggregated trip statistics")
+    trip_stats.add_argument("--period", default="month",
+                             choices=["day", "week", "month"],
+                             help="Aggregation period (default: month)")
+    trip_stats.add_argument("--date", dest="ref_date", default=None,
+                             help="Reference date YYYY-MM-DD (default: today)")
 
     args = parser.parse_args()
 
@@ -200,13 +216,14 @@ vehicle selection (only needed with multiple vehicles):
 
     # Find vehicle info for display
     vehicle_info = next((v for v in api.tokens.vehicles if v["vin"] == vin), None)
-    if vehicle_info:
-        label = vehicle_info["name"] or vin
-        plate = f" ({vehicle_info['plate']})" if vehicle_info.get("plate") else ""
-        print(f"[{label}{plate}]")
-    else:
-        print(f"[{vin}]")
-    print()
+    if not args.json:
+        if vehicle_info:
+            label = vehicle_info["name"] or vin
+            plate = f" ({vehicle_info['plate']})" if vehicle_info.get("plate") else ""
+            print(f"[{label}{plate}]")
+        else:
+            print(f"[{vin}]")
+        print()
 
     def wait_command(cmd_id: str, label: str):
         if not cmd_id:
@@ -296,47 +313,197 @@ vehicle selection (only needed with multiple vehicles):
         )
 
     elif args.command == "trips":
-        if args.all_pages:
+        try:
+            if args.all_pages:
+                all_trips = []
+                page = 1
+                while True:
+                    data = api.get_trips(vin, month_start=args.month, page=page)
+                    payload = data.get("payload", {})
+                    all_trips.extend(payload.get("data", []))
+                    if page >= data.get("maxPage", 1):
+                        break
+                    page += 1
+                # Use fields from last response
+                fields = payload.get("def", [])
+                units = payload.get("unit", [])
+            else:
+                data = api.get_trips(vin, month_start=args.month, page=args.page)
+                if args.json and not args.locations:
+                    print(json.dumps(data, indent=2))
+                    return
+                payload = data.get("payload", {})
+                fields = payload.get("def", [])
+                units = payload.get("unit", [])
+                all_trips = payload.get("data", [])
+                if not args.json:
+                    print(f"Page {data.get('page', '?')}/{data.get('maxPage', '?')}")
+        except requests.HTTPError as e:
+            role = (vehicle_info or {}).get("role", "")
+            if role and role != "primary":
+                print(f"Trip history is not available for {role} users.")
+            else:
+                print(f"Failed to fetch trips: {e.response.status_code} {e.response.reason}")
+            return
+
+        if not all_trips:
+            print("No trips found.")
+        else:
+            json_rows = [] if args.json else None
+            for trip in all_trips:
+                row = dict(zip(fields, trip))
+                start = row.get("StartTime", "?")
+                end = row.get("EndTime", "?")
+                if args.locations and start != "?" and end != "?":
+                    try:
+                        start_loc = api.get_trip_detail(vin, start, end, "start")
+                        end_loc = api.get_trip_detail(vin, start, end, "end")
+                        s = start_loc.get("payload", {}).get("data", [[]])[0]
+                        e = end_loc.get("payload", {}).get("data", [[]])[0]
+                        s_fields = start_loc.get("payload", {}).get("def", [])
+                        e_fields = end_loc.get("payload", {}).get("def", [])
+                        s_row = dict(zip(s_fields, s))
+                        e_row = dict(zip(e_fields, e))
+                        row["start_lat"] = s_row.get("lat")
+                        row["start_lon"] = s_row.get("lon")
+                        row["start_dir"] = s_row.get("dir")
+                        row["end_lat"] = e_row.get("lat")
+                        row["end_lon"] = e_row.get("lon")
+                        row["end_dir"] = e_row.get("dir")
+                    except requests.HTTPError:
+                        pass
+                if args.json:
+                    json_rows.append(row)
+                else:
+                    line = (f"  {row.get('OneTripDate', '?')}  {start} -> {end}  "
+                            f"{row.get('Mileage', '?')} km  {row.get('DriveTime', '?')} min  "
+                            f"avg {row.get('AveSpeed', '?')} km/h  max {row.get('MaxSpeed', '?')} km/h  "
+                            f"{row.get('AveFuelEconomy', '?')} L/100km")
+                    if "start_lat" in row:
+                        line += (f"\n    from {row['start_lat']},{row['start_lon']}"
+                                 f"  to {row['end_lat']},{row['end_lon']}")
+                    print(line)
+            if args.json:
+                print(json.dumps(json_rows, indent=2))
+
+    elif args.command == "trip-detail":
+        start_detail = api.get_trip_detail(vin, args.start_time, args.end_time, "start")
+        end_detail = api.get_trip_detail(vin, args.start_time, args.end_time, "end")
+        if args.json:
+            print(json.dumps({"start": start_detail, "end": end_detail}, indent=2))
+        else:
+            for label, detail in [("Start", start_detail), ("End", end_detail)]:
+                data = detail.get("payload", {}).get("data", [[]])[0]
+                fields = detail.get("payload", {}).get("def", [])
+                row = dict(zip(fields, data))
+                print(f"{label}:")
+                print(f"  Time:      {row.get('date', 'N/A')}")
+                print(f"  Location:  {row.get('lat', 'N/A')}, {row.get('lon', 'N/A')}")
+
+    elif args.command == "trip-stats":
+        ref = date.fromisoformat(args.ref_date) if args.ref_date else date.today()
+        month_start = ref.replace(day=1).strftime("%Y-%m-%dT00:00:00.000Z")
+
+        # Determine filter range
+        if args.period == "day":
+            start_date, end_date = ref, ref
+        elif args.period == "week":
+            start_date = ref - timedelta(days=ref.weekday())  # Monday
+            end_date = start_date + timedelta(days=6)          # Sunday
+        else:
+            start_date = ref.replace(day=1)
+            # Last day of month
+            if ref.month == 12:
+                end_date = ref.replace(year=ref.year + 1, month=1, day=1) - timedelta(days=1)
+            else:
+                end_date = ref.replace(month=ref.month + 1, day=1) - timedelta(days=1)
+
+        # Fetch all trip pages for the month
+        try:
             all_trips = []
             page = 1
             while True:
-                data = api.get_trips(vin, month_start=args.month, page=page)
+                data = api.get_trips(vin, month_start=month_start, page=page)
                 payload = data.get("payload", {})
                 all_trips.extend(payload.get("data", []))
                 if page >= data.get("maxPage", 1):
                     break
                 page += 1
-            # Use fields from last response
             fields = payload.get("def", [])
-            units = payload.get("unit", [])
-        else:
-            data = api.get_trips(vin, month_start=args.month, page=args.page)
-            if args.json:
-                print(json.dumps(data, indent=2))
-                return
-            payload = data.get("payload", {})
-            fields = payload.get("def", [])
-            units = payload.get("unit", [])
-            all_trips = payload.get("data", [])
-            print(f"Page {data.get('page', '?')}/{data.get('maxPage', '?')}")
+        except requests.HTTPError as e:
+            role = (vehicle_info or {}).get("role", "")
+            if role and role != "primary":
+                print(f"Trip history is not available for {role} users.")
+            else:
+                print(f"Failed to fetch trips: {e.response.status_code} {e.response.reason}")
+            return
 
-        if not all_trips:
+        # Filter to period
+        rows = []
+        for trip in all_trips:
+            row = dict(zip(fields, trip))
+            trip_date_str = row.get("OneTripDate", "")
+            try:
+                trip_date = date.fromisoformat(trip_date_str[:10])
+            except (ValueError, TypeError):
+                continue
+            if start_date <= trip_date <= end_date:
+                rows.append(row)
+
+        if not rows:
             print("No trips found.")
         else:
-            for trip in all_trips:
-                row = dict(zip(fields, trip))
-                date = row.get("OneTripDate", "?")
-                start = row.get("StartTime", "?")
-                end = row.get("EndTime", "?")
-                km = row.get("Mileage", "?")
-                duration = row.get("DriveTime", "?")
-                avg_speed = row.get("AveSpeed", "?")
-                max_speed = row.get("MaxSpeed", "?")
-                consumption = row.get("AveFuelEconomy", "?")
-                print(f"  {date}  {start} -> {end}  "
-                      f"{km} km  {duration} min  "
-                      f"avg {avg_speed} km/h  max {max_speed} km/h  "
-                      f"{consumption} L/100km")
+            def to_float(val):
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return 0.0
+
+            count = len(rows)
+            total_km = sum(to_float(r.get("Mileage")) for r in rows)
+            total_min = sum(to_float(r.get("DriveTime")) for r in rows)
+            avg_speed = sum(to_float(r.get("AveSpeed")) for r in rows) / count
+            max_speed = max(to_float(r.get("MaxSpeed")) for r in rows)
+
+            # Weighted average consumption (by distance)
+            if total_km > 0:
+                avg_consumption = sum(
+                    to_float(r.get("AveFuelEconomy")) * to_float(r.get("Mileage"))
+                    for r in rows
+                ) / total_km
+            else:
+                avg_consumption = 0.0
+
+            hours = int(total_min) // 60
+            mins = int(total_min) % 60
+            actual_dates = sorted(set(r.get("OneTripDate", "")[:10] for r in rows))
+
+            stats = {
+                "period": args.period,
+                "start_date": actual_dates[0],
+                "end_date": actual_dates[-1],
+                "trips": count,
+                "total_km": round(total_km, 1),
+                "total_minutes": round(total_min, 1),
+                "avg_km_per_trip": round(total_km / count, 1),
+                "avg_min_per_trip": round(total_min / count, 1),
+                "avg_speed_kmh": round(avg_speed, 1),
+                "max_speed_kmh": round(max_speed, 1),
+                "avg_consumption_l100km": round(avg_consumption, 1),
+            }
+
+            if args.json:
+                print(json.dumps(stats, indent=2))
+            else:
+                print(f"Period:          {stats['start_date']} — {stats['end_date']} ({args.period})")
+                print(f"Trips:           {count}")
+                print(f"Total distance:  {stats['total_km']} km")
+                print(f"Total time:      {hours}h {mins}min")
+                print(f"Avg distance:    {stats['avg_km_per_trip']} km/trip")
+                print(f"Avg duration:    {stats['avg_min_per_trip']} min/trip")
+                print(f"Avg speed:       {stats['avg_speed_kmh']} km/h")
+                print(f"Max speed:       {stats['max_speed_kmh']} km/h")
+                print(f"Avg consumption: {stats['avg_consumption_l100km']} L/100km")
 
 
 if __name__ == "__main__":

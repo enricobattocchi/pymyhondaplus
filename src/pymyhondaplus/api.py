@@ -214,6 +214,7 @@ class HondaAPI:
                 "vin": v["vin"],
                 "name": v.get("vehicleNickName", ""),
                 "plate": v.get("vehicleRegNumber", ""),
+                "role": v.get("role", ""),
             }
             for v in info.get("vehiclesInfo", [])
             if "vin" in v
@@ -413,10 +414,13 @@ class HondaAPI:
             to_date: Trip end time in ISO 8601
             trip_type: "start" or "end" (which end of the trip to get points for)
         """
+        import urllib.parse
+        enc_from = urllib.parse.quote(from_date, safe="")
+        enc_to = urllib.parse.quote(to_date, safe="")
         resp = self._request(
             "GET",
             f"/tsp/journey-history-detail?vin={vin}"
-            f"&fromDate={from_date}&toDate={to_date}&type={trip_type}",
+            f"&fromDate={enc_from}&toDate={enc_to}&type={trip_type}",
         )
         resp.raise_for_status()
         return resp.json()
