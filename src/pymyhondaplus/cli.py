@@ -483,7 +483,8 @@ vehicle selection (only needed with multiple vehicles):
         if not rows:
             print("No trips found.")
         else:
-            stats = compute_trip_stats(rows, args.period)
+            fuel_type = (vehicle_info or {}).get("fuel_type", "")
+            stats = compute_trip_stats(rows, args.period, fuel_type=fuel_type)
             if args.json:
                 print(json.dumps(stats, indent=2))
             else:
@@ -497,7 +498,7 @@ vehicle selection (only needed with multiple vehicles):
                 print(f"Avg duration:    {stats['avg_min_per_trip']} min/trip")
                 print(f"Avg speed:       {stats['avg_speed_kmh']} km/h")
                 print(f"Max speed:       {stats['max_speed_kmh']} km/h")
-                print(f"Avg consumption: {stats['avg_consumption_l100km']} {consumption_unit}")
+                print(f"Avg consumption: {stats['avg_consumption']} {stats['consumption_unit']}")
 
 
 if __name__ == "__main__":

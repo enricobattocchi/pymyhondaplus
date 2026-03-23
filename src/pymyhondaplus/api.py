@@ -425,16 +425,23 @@ class HondaAPI:
         )
         resp.raise_for_status()
         return resp.json()
-    def get_all_trips(self, vin: str, month_start: str = "") -> list[dict]:
+    def get_all_trips(self, vin: str, month_start: str = "",
+                       ref_date: str = "") -> list[dict]:
         """Fetch all pages of trips for a month and return parsed trip dicts.
 
         Args:
             vin: Vehicle VIN
             month_start: First day of month in ISO 8601. Defaults to current month.
+            ref_date: If given (YYYY-MM-DD), only return trips matching this date.
+                      The month is derived automatically, so month_start is ignored.
 
         Returns:
             List of dicts with field names as keys (e.g. OneTripDate, Mileage, etc.)
         """
+        if ref_date:
+            # Derive month_start from ref_date
+            month_start = ref_date[:7] + "-01T00:00:00.000Z"
+
         all_trips = []
         fields = []
         page = 1
@@ -446,7 +453,11 @@ class HondaAPI:
             if page >= data.get("maxPage", 1):
                 break
             page += 1
-        return [dict(zip(fields, trip)) for trip in all_trips]
+        rows = [dict(zip(fields, trip)) for trip in all_trips]
+
+        if ref_date:
+            rows = [r for r in rows if r.get("OneTripDate", "").startswith(ref_date[:10])]
+        return rows
 
     def get_trip_locations(self, vin: str, start_time: str,
                            end_time: str) -> dict:
@@ -533,12 +544,14 @@ def parse_ev_status(dashboard: dict) -> dict:
     }
 
 
-def compute_trip_stats(rows: list[dict], period: str = "month") -> dict:
+def compute_trip_stats(rows: list[dict], period: str = "month",
+                       fuel_type: str = "") -> dict:
     """Compute aggregated statistics from a list of trip dicts.
 
     Args:
         rows: List of trip dicts (as returned by get_all_trips).
         period: Label for the period (e.g. "day", "week", "month").
+        fuel_type: Vehicle fuel type (e.g. "E" for electric). Used to set consumption_unit.
 
     Returns:
         Dict with aggregated stats.
@@ -575,7 +588,8 @@ def compute_trip_stats(rows: list[dict], period: str = "month") -> dict:
         "avg_min_per_trip": round(total_min / count, 1) if count else 0,
         "avg_speed_kmh": round(avg_speed, 1),
         "max_speed_kmh": round(max_speed, 1),
-        "avg_consumption_l100km": round(avg_consumption, 1),
+        "avg_consumption": round(avg_consumption, 1),
+        "consumption_unit": "kWh/100km" if fuel_type == "E" else "L/100km",
     }
 
 
