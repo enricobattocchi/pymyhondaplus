@@ -424,6 +424,52 @@ class HondaAPI:
         )
         resp.raise_for_status()
         return resp.json()
+    def get_all_trips(self, vin: str, month_start: str = "") -> list[dict]:
+        """Fetch all pages of trips for a month and return parsed trip dicts.
+
+        Args:
+            vin: Vehicle VIN
+            month_start: First day of month in ISO 8601. Defaults to current month.
+
+        Returns:
+            List of dicts with field names as keys (e.g. OneTripDate, Mileage, etc.)
+        """
+        all_trips = []
+        fields = []
+        page = 1
+        while True:
+            data = self.get_trips(vin, month_start=month_start, page=page)
+            payload = data.get("payload", {})
+            fields = payload.get("def", [])
+            all_trips.extend(payload.get("data", []))
+            if page >= data.get("maxPage", 1):
+                break
+            page += 1
+        return [dict(zip(fields, trip)) for trip in all_trips]
+
+    def get_trip_locations(self, vin: str, start_time: str,
+                           end_time: str) -> dict:
+        """Get start and end GPS coordinates for a trip.
+
+        Args:
+            vin: Vehicle VIN
+            start_time: Trip start time in ISO 8601
+            end_time: Trip end time in ISO 8601
+
+        Returns:
+            Dict with start_lat, start_lon, start_dir, end_lat, end_lon, end_dir.
+        """
+        result = {}
+        for prefix, trip_type in [("start", "start"), ("end", "end")]:
+            detail = self.get_trip_detail(vin, start_time, end_time, trip_type)
+            data = detail.get("payload", {}).get("data", [[]])[0]
+            fields = detail.get("payload", {}).get("def", [])
+            row = dict(zip(fields, data))
+            result[f"{prefix}_lat"] = row.get("lat")
+            result[f"{prefix}_lon"] = row.get("lon")
+            result[f"{prefix}_dir"] = row.get("dir")
+            result[f"{prefix}_time"] = row.get("date")
+        return result
 
 
 # -- Convenience helpers --
@@ -483,6 +529,52 @@ def parse_ev_status(dashboard: dict) -> dict:
             if msg.get("condition") == "ON"
         ],
         "speed_kmh": float(gps.get("velocity", {}).get("value", 0)),
+    }
+
+
+def compute_trip_stats(rows: list[dict], period: str = "month") -> dict:
+    """Compute aggregated statistics from a list of trip dicts.
+
+    Args:
+        rows: List of trip dicts (as returned by get_all_trips).
+        period: Label for the period (e.g. "day", "week", "month").
+
+    Returns:
+        Dict with aggregated stats.
+    """
+    def to_float(val):
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return 0.0
+
+    count = len(rows)
+    total_km = sum(to_float(r.get("Mileage")) for r in rows)
+    total_min = sum(to_float(r.get("DriveTime")) for r in rows)
+    avg_speed = sum(to_float(r.get("AveSpeed")) for r in rows) / count if count else 0
+    max_speed = max((to_float(r.get("MaxSpeed")) for r in rows), default=0)
+
+    if total_km > 0:
+        avg_consumption = sum(
+            to_float(r.get("AveFuelEconomy")) * to_float(r.get("Mileage"))
+            for r in rows
+        ) / total_km
+    else:
+        avg_consumption = 0.0
+
+    actual_dates = sorted(set(r.get("OneTripDate", "")[:10] for r in rows))
+    return {
+        "period": period,
+        "start_date": actual_dates[0] if actual_dates else "",
+        "end_date": actual_dates[-1] if actual_dates else "",
+        "trips": count,
+        "total_km": round(total_km, 1),
+        "total_minutes": round(total_min, 1),
+        "avg_km_per_trip": round(total_km / count, 1) if count else 0,
+        "avg_min_per_trip": round(total_min / count, 1) if count else 0,
+        "avg_speed_kmh": round(avg_speed, 1),
+        "max_speed_kmh": round(max_speed, 1),
+        "avg_consumption_l100km": round(avg_consumption, 1),
     }
 
 
