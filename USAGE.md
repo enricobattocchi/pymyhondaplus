@@ -208,7 +208,7 @@ Avg distance:    29.4 km/trip
 Avg duration:    69 min/trip
 Avg speed:       38.2 km/h
 Max speed:       127 km/h
-Avg consumption: 5.3 L/100km
+Avg consumption: 5.3 kWh/100km
 ```
 
 ## Global options

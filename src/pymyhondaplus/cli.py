@@ -262,6 +262,7 @@ vehicle selection (only needed with multiple vehicles):
 
     # Find vehicle info for display
     vehicle_info = next((v for v in api.tokens.vehicles if v["vin"] == vin), None)
+    consumption_unit = "kWh/100km" if (vehicle_info or {}).get("fuel_type") == "E" else "L/100km"
     if not args.json:
         if vehicle_info:
             label = vehicle_info["name"] or vin
@@ -418,7 +419,7 @@ vehicle selection (only needed with multiple vehicles):
                     line = (f"  {row.get('OneTripDate', '?')}  {start} -> {end}  "
                             f"{row.get('Mileage', '?')} km  {row.get('DriveTime', '?')} min  "
                             f"avg {row.get('AveSpeed', '?')} km/h  max {row.get('MaxSpeed', '?')} km/h  "
-                            f"{row.get('AveFuelEconomy', '?')} L/100km")
+                            f"{row.get('AveFuelEconomy', '?')} {consumption_unit}")
                     if "start_lat" in row:
                         line += (f"\n    from {row['start_lat']},{row['start_lon']}"
                                  f"  to {row['end_lat']},{row['end_lon']}")
@@ -496,7 +497,7 @@ vehicle selection (only needed with multiple vehicles):
                 print(f"Avg duration:    {stats['avg_min_per_trip']} min/trip")
                 print(f"Avg speed:       {stats['avg_speed_kmh']} km/h")
                 print(f"Max speed:       {stats['max_speed_kmh']} km/h")
-                print(f"Avg consumption: {stats['avg_consumption_l100km']} L/100km")
+                print(f"Avg consumption: {stats['avg_consumption_l100km']} {consumption_unit}")
 
 
 if __name__ == "__main__":

@@ -215,6 +215,7 @@ class HondaAPI:
                 "name": v.get("vehicleNickName", ""),
                 "plate": v.get("vehicleRegNumber", ""),
                 "role": v.get("role", ""),
+                "fuel_type": v.get("fuelType", ""),
             }
             for v in info.get("vehiclesInfo", [])
             if "vin" in v
