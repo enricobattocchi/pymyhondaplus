@@ -235,9 +235,7 @@ Use `--storage plain` to disable encryption. Existing plain-text token files are
 ## Library usage
 
 ```python
-from pymyhondaplus.api import HondaAPI, compute_trip_stats
-from pymyhondaplus.auth import HondaAuth, DeviceKey
-
+from pymyhondaplus import HondaAPI, HondaAuth, DeviceKey, compute_trip_stats
 # Authenticate
 auth = HondaAuth()
 tokens = auth.full_login("user@example.com", "password")
@@ -252,10 +250,14 @@ status = api.get_dashboard("JHMZC7840LXXXXXX")
 # Trips (all pages, parsed as dicts)
 trips = api.get_all_trips("JHMZC7840LXXXXXX")
 
+# Trips for a specific date
+today_trips = api.get_all_trips("JHMZC7840LXXXXXX", ref_date="2026-03-23")
+
 # Trip start/end GPS coordinates
 locs = api.get_trip_locations("JHMZC7840LXXXXXX",
     "2026-03-19T16:23:13+00:00", "2026-03-19T17:05:56+00:00")
 
 # Aggregated trip statistics
-stats = compute_trip_stats(trips, period="month")
+stats = compute_trip_stats(trips, period="month", fuel_type="E")
+# stats["avg_consumption"] = 13.2, stats["consumption_unit"] = "kWh/100km"
 ```
