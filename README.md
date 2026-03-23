@@ -41,7 +41,7 @@ pymyhondaplus trips --all --locations
 pymyhondaplus trip-stats --period week
 ```
 
-See [USAGE.md](USAGE.md) for the full command reference, including vehicle selection, trip details, library usage, and security options.
+See [USAGE.md](https://github.com/enricobattocchi/pymyhondaplus/blob/main/USAGE.md) for the full command reference, including vehicle selection, trip details, library usage, and security options.
 
 ## Related projects
 
