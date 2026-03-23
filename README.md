@@ -18,97 +18,30 @@ pip install pymyhondaplus
 pip install pymyhondaplus[keyring]
 ```
 
-## CLI usage
+## Quick start
 
 ```bash
-# Login (first time — triggers email verification; password prompted if omitted)
+# Login (first time — triggers email verification)
 pymyhondaplus login --email user@example.com
 
-# List vehicles on your account
-pymyhondaplus list
-
-# Get vehicle status (auto-selects if only one vehicle)
+# Vehicle status
 pymyhondaplus status
+pymyhondaplus status --fresh            # wake TCU for fresh data
+pymyhondaplus status --watch 5m         # poll and print changes
 
-# Get fresh status from car (wakes TCU)
-pymyhondaplus status --fresh
-
-# Watch status (polls and prints only changes)
-pymyhondaplus status --watch 5m       # every 5 minutes
-pymyhondaplus status --watch 30s      # every 30 seconds
-
-# Lock / unlock doors
+# Remote commands
 pymyhondaplus lock
 pymyhondaplus unlock
-
-# Request fresh car location (wakes TCU)
-pymyhondaplus location
-
-# Climate control
+pymyhondaplus horn
 pymyhondaplus climate-start
-pymyhondaplus climate-stop
-pymyhondaplus climate-settings --temp hotter --duration 30
-
-# Set charge limits
 pymyhondaplus charge-limit --home 80 --away 90
 
-# Horn & lights
-pymyhondaplus horn
-
-# Trip history (current month)
-pymyhondaplus trips
-pymyhondaplus trips --all
-pymyhondaplus trips --locations                    # include start/end GPS
-
-# Trip detail (start/end point of a specific trip)
-pymyhondaplus trip-detail "2026-03-19T16:23:13+00:00" "2026-03-19T17:05:56+00:00"
-
-# Trip statistics
-pymyhondaplus trip-stats                           # current month
-pymyhondaplus trip-stats --period week             # current week
-pymyhondaplus trip-stats --period day              # today
-pymyhondaplus trip-stats --date 2026-01-15         # January 2026
-pymyhondaplus trip-stats --period week --date 2026-01-15
+# Trip history and statistics
+pymyhondaplus trips --all --locations
+pymyhondaplus trip-stats --period week
 ```
 
-### Vehicle selection
-
-If you have only one vehicle on your account, it's selected automatically. With multiple vehicles, specify one using `--vin` (or `-v`) with a VIN, nickname, or plate number:
-
-```bash
-pymyhondaplus -v "Honda e" status
-pymyhondaplus -v GE395KM status
-pymyhondaplus -v JHMZC7840LXXXXXX status
-
-# Or via environment variable
-export HONDA_VIN="Honda e"
-pymyhondaplus status
-```
-
-### Security
-
-Tokens and device keys are encrypted at rest using Fernet (AES-128-CBC). The encryption key is:
-
-- **With `pymyhondaplus[keyring]`**: stored in the OS keyring (macOS Keychain, Windows Credential Vault, Linux Secret Service/KDE Wallet)
-- **Without keyring**: derived from a machine-specific fingerprint (username + hostname + random salt via PBKDF2)
-
-Use `--storage plain` to disable encryption (original behavior). Existing plain-text token files are automatically migrated to encrypted format on first use.
-
-## Library usage
-
-```python
-from pymyhondaplus.api import HondaAPI
-from pymyhondaplus.auth import HondaAuth, DeviceKey
-
-# Authenticate
-auth = HondaAuth()
-tokens = auth.full_login("user@example.com", "password")
-
-# Use the API
-api = HondaAPI()
-api.set_tokens(**tokens)
-status = api.get_dashboard("JHMZC7840LXXXXXX")
-```
+See [USAGE.md](USAGE.md) for the full command reference, including vehicle selection, trip details, library usage, and security options.
 
 ## Related projects
 
