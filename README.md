@@ -33,6 +33,10 @@ pymyhondaplus status
 # Get fresh status from car (wakes TCU)
 pymyhondaplus status --fresh
 
+# Watch status (polls and prints only changes)
+pymyhondaplus status --watch 5m       # every 5 minutes
+pymyhondaplus status --watch 30s      # every 30 seconds
+
 # Lock / unlock doors
 pymyhondaplus lock
 pymyhondaplus unlock

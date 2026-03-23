@@ -15,6 +15,49 @@ from .api import DEFAULT_TOKEN_FILE, HondaAPI, extract_tokens_from_captures, par
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .storage import get_storage
 
+WATCH_FIELDS = {
+    "battery_level": ("Battery", "%"),
+    "range_km": ("Range", " km"),
+    "charge_status": ("Charge", ""),
+    "plug_status": ("Plug", ""),
+    "time_to_charge": ("ETA", " min"),
+    "climate_active": ("Climate", ""),
+    "cabin_temp_c": ("Cabin", "\u00b0C"),
+    "interior_temp_c": ("Interior", "\u00b0C"),
+    "ignition": ("Ignition", ""),
+    "speed_kmh": ("Speed", " km/h"),
+    "doors_locked": ("Doors", ""),
+    "lights_on": ("Lights", ""),
+    "home_away": ("Location", ""),
+}
+
+
+def _parse_interval(s: str) -> int:
+    """Parse interval string like '5m', '30s', '2h', '120' to seconds."""
+    s = s.strip().lower()
+    if s.endswith("h"):
+        return int(s[:-1]) * 3600
+    if s.endswith("m"):
+        return int(s[:-1]) * 60
+    if s.endswith("s"):
+        return int(s[:-1])
+    return int(s)
+
+
+def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None) -> str:
+    """Format changed fields for watch output. If prev is None, format all fields."""
+    parts = []
+    for key, (label, suffix) in fields.items():
+        val = ev.get(key)
+        if val is None:
+            continue
+        if prev is not None and prev.get(key) == val:
+            continue
+        if key == "climate_active":
+            val = "ON" if val else "OFF"
+        parts.append(f"{label}: {val}{suffix}")
+    return "  ".join(parts)
+
 
 def main():
     logging.basicConfig(level=logging.INFO)
@@ -27,6 +70,7 @@ def main():
   %(prog)s list                                    List vehicles on your account
   %(prog)s status                                  Get status (auto-selects if only one vehicle)
   %(prog)s status --fresh                          Get fresh status from car
+  %(prog)s status --watch 5m                       Watch status (prints changes)
   %(prog)s lock                                    Lock doors
   %(prog)s horn                                    Flash lights & horn
   %(prog)s trips --all                             Get all trips
@@ -67,7 +111,9 @@ vehicle selection (only needed with multiple vehicles):
     subparsers.add_parser("list", help="List vehicles on your account")
 
     # vehicle commands
-    subparsers.add_parser("status", help="Get vehicle status")
+    status_parser = subparsers.add_parser("status", help="Get vehicle status")
+    status_parser.add_argument("--watch", metavar="INTERVAL",
+                                help="Poll at interval (e.g. 5m, 30s, 120). Prints only changes.")
     subparsers.add_parser("location", help="Get car GPS location")
     subparsers.add_parser("lock", help="Lock doors")
     subparsers.add_parser("unlock", help="Unlock doors")
@@ -238,34 +284,54 @@ vehicle selection (only needed with multiple vehicles):
         print(f"{label}: timed out waiting for confirmation")
 
     if args.command == "status":
-        dashboard = api.get_dashboard(vin, fresh=args.fresh)
-        if args.json:
-            print(json.dumps(dashboard, indent=2))
+        if args.watch:
+            interval = _parse_interval(args.watch)
+            print(f"Watching every {args.watch} (Ctrl+C to stop)\n")
+            prev_ev = None
+            try:
+                while True:
+                    dashboard = api.get_dashboard(vin, fresh=args.fresh)
+                    ev = parse_ev_status(dashboard)
+                    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    if args.json:
+                        print(json.dumps(ev), flush=True)
+                    else:
+                        line = _format_watch_fields(ev, WATCH_FIELDS, prev_ev)
+                        if line:
+                            print(f"{ts}  {line}", flush=True)
+                    prev_ev = ev.copy()
+                    time.sleep(interval)
+            except KeyboardInterrupt:
+                print()
         else:
-            ev = parse_ev_status(dashboard)
-            print(f"Ignition:      {ev['ignition']}")
-            print(f"Speed:         {ev['speed_kmh']} km/h")
-            print(f"Battery:       {ev['battery_level']}%")
-            print(f"Range:         {ev['range_km']} km")
-            print(f"Charge status: {ev['charge_status']}")
-            print(f"Charge mode:   {ev['charge_mode']}")
-            print(f"Plug status:   {ev['plug_status']}")
-            if ev['time_to_charge']:
-                print(f"Time to full:  {ev['time_to_charge']} min")
-            print(f"Location:      {ev['home_away']}")
-            print(f"Coordinates:   {ev['latitude']}, {ev['longitude']}")
-            print(f"Charge limit:  {ev['charge_limit_home']}% (home) / {ev['charge_limit_away']}% (away)")
-            print(f"Climate:       {'ON' if ev['climate_active'] else 'OFF'}")
-            print(f"Cabin temp:    {ev['cabin_temp_c']}°C")
-            print(f"Interior temp: {ev['interior_temp_c']}°C")
-            print(f"Odometer:      {ev['odometer_km']} km")
-            print(f"Doors locked:  {ev['doors_locked']}")
-            print(f"Hood:          {'open' if ev['hood_open'] else 'closed'}")
-            print(f"Trunk:         {'open' if ev['trunk_open'] else 'closed'}")
-            print(f"Lights on:     {ev['lights_on']}")
-            if ev['warning_lamps']:
-                print(f"Warnings:      {', '.join(ev['warning_lamps'])}")
-            print(f"Timestamp:     {ev['timestamp']}")
+            dashboard = api.get_dashboard(vin, fresh=args.fresh)
+            if args.json:
+                print(json.dumps(dashboard, indent=2))
+            else:
+                ev = parse_ev_status(dashboard)
+                print(f"Ignition:      {ev['ignition']}")
+                print(f"Speed:         {ev['speed_kmh']} km/h")
+                print(f"Battery:       {ev['battery_level']}%")
+                print(f"Range:         {ev['range_km']} km")
+                print(f"Charge status: {ev['charge_status']}")
+                print(f"Charge mode:   {ev['charge_mode']}")
+                print(f"Plug status:   {ev['plug_status']}")
+                if ev['time_to_charge']:
+                    print(f"Time to full:  {ev['time_to_charge']} min")
+                print(f"Location:      {ev['home_away']}")
+                print(f"Coordinates:   {ev['latitude']}, {ev['longitude']}")
+                print(f"Charge limit:  {ev['charge_limit_home']}% (home) / {ev['charge_limit_away']}% (away)")
+                print(f"Climate:       {'ON' if ev['climate_active'] else 'OFF'}")
+                print(f"Cabin temp:    {ev['cabin_temp_c']}°C")
+                print(f"Interior temp: {ev['interior_temp_c']}°C")
+                print(f"Odometer:      {ev['odometer_km']} km")
+                print(f"Doors locked:  {ev['doors_locked']}")
+                print(f"Hood:          {'open' if ev['hood_open'] else 'closed'}")
+                print(f"Trunk:         {'open' if ev['trunk_open'] else 'closed'}")
+                print(f"Lights on:     {ev['lights_on']}")
+                if ev['warning_lamps']:
+                    print(f"Warnings:      {', '.join(ev['warning_lamps'])}")
+                print(f"Timestamp:     {ev['timestamp']}")
 
     elif args.command == "location":
         dashboard = api.get_dashboard(vin, fresh=args.fresh)
