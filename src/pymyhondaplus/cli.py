@@ -2,6 +2,7 @@
 
 import argparse
 import getpass
+import importlib.metadata
 import json
 import logging
 import os
@@ -82,6 +83,8 @@ vehicle selection (only needed with multiple vehicles):
   HONDA_VIN="Honda e" %(prog)s status              Via environment variable
 """,
     )
+    parser.add_argument("--version", action="version",
+                        version=f"%(prog)s {importlib.metadata.version('pymyhondaplus')}")
     parser.add_argument("--extract-tokens", action="store_true",
                         help="Extract tokens from mitmproxy captured flows")
     parser.add_argument("--vin", "-v", default=os.environ.get("HONDA_VIN"),
