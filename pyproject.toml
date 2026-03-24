@@ -27,6 +27,7 @@ dependencies = [
 
 [project.optional-dependencies]
 keyring = ["keyring>=24.0"]
+dev = ["pytest>=7.0"]
 
 [project.urls]
 Homepage = "https://github.com/enricobattocchi/pymyhondaplus"
@@ -35,6 +36,9 @@ Issues = "https://github.com/enricobattocchi/pymyhondaplus/issues"
 
 [project.scripts]
 pymyhondaplus = "pymyhondaplus.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
