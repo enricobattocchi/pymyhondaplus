@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pymyhondaplus"
-version = "1.3.0"
+version = "2.0.0"
 description = "Unofficial Python client for the Honda Connect Europe (My Honda+) API"
 readme = "README.md"
 license = "MIT"
