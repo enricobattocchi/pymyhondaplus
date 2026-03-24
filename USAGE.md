@@ -122,13 +122,32 @@ pymyhondaplus horn
 pymyhondaplus climate-start
 pymyhondaplus climate-stop
 
-# Configure temperature and duration
-pymyhondaplus climate-settings --temp hotter --duration 30
-pymyhondaplus climate-settings --temp cooler --duration 10
-pymyhondaplus climate-settings --temp normal --duration 20
+# View current climate settings
+pymyhondaplus climate-settings
+
+# Configure temperature, duration, and defrost
+pymyhondaplus climate-settings-set --temp hotter --duration 30
+pymyhondaplus climate-settings-set --temp cooler --duration 10 --no-defrost
+pymyhondaplus climate-settings-set --temp normal --duration 20
 ```
 
-Temperature options: `cooler`, `normal`, `hotter`. Duration: `10`, `20`, or `30` minutes.
+Temperature options: `cooler`, `normal`, `hotter`. Duration: `10`, `20`, or `30` minutes. Defrost is on by default, use `--no-defrost` to disable.
+
+### Climate schedule
+
+Schedule automatic climate start times (up to 7 slots):
+
+```bash
+# View current schedule
+pymyhondaplus climate-schedule
+
+# Set a slot
+pymyhondaplus climate-schedule-set --days mon,tue,fri --start 07:00
+pymyhondaplus climate-schedule-set --days sat,sun --start 09:00 --slot 2
+
+# Clear all slots
+pymyhondaplus climate-schedule-clear
+```
 
 ### Charging
 
@@ -138,6 +157,24 @@ pymyhondaplus charge-stop
 
 # Set charge limits
 pymyhondaplus charge-limit --home 80 --away 90
+```
+
+### Charge prohibition schedule
+
+Define time windows when the car should **not** charge (up to 2 rules):
+
+```bash
+# View current schedule
+pymyhondaplus charge-schedule
+
+# Set a rule (don't charge 07:00-08:00 every day, everywhere)
+pymyhondaplus charge-schedule-set --days mon,tue,wed,thu,fri,sat,sun --start 07:00 --end 08:00 --location all
+
+# Set rule 2 (don't charge 22:00-06:00 on weekdays, at home)
+pymyhondaplus charge-schedule-set --days mon,tue,wed,thu,fri --start 22:00 --end 06:00 --location home --rule 2
+
+# Clear all rules
+pymyhondaplus charge-schedule-clear
 ```
 
 ## Trip history
@@ -260,4 +297,16 @@ locs = api.get_trip_locations("JHMZC7840LXXXXXX",
 # Aggregated trip statistics
 stats = compute_trip_stats(trips, period="month", fuel_type="E")
 # stats["avg_consumption"] = 13.2, stats["consumption_unit"] = "kWh/100km"
+
+# Charge prohibition schedule
+schedule = api.get_charge_schedule("JHMZC7840LXXXXXX")
+api.set_charge_schedule("JHMZC7840LXXXXXX", [
+    {"days": "mon,tue,wed", "location": "all", "start_time": "07:00", "end_time": "08:00"},
+])
+
+# Climate schedule
+climate = api.get_climate_schedule("JHMZC7840LXXXXXX")
+api.set_climate_schedule("JHMZC7840LXXXXXX", [
+    {"days": "mon,tue,fri", "start_time": "07:00"},
+])
 ```
