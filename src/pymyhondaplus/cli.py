@@ -126,15 +126,17 @@ vehicle selection (only needed with multiple vehicles):
     subparsers.add_parser("charge-start", help="Start charging")
     subparsers.add_parser("charge-stop", help="Stop charging")
 
-    climate_settings = subparsers.add_parser("climate-settings",
-                                              help="Configure climate settings")
-    climate_settings.add_argument("--temp", default="normal",
-                                   choices=["cooler", "normal", "hotter"])
-    climate_settings.add_argument("--duration", type=int, default=30,
-                                   choices=[10, 20, 30])
-    climate_settings.add_argument("--defrost", default=True,
-                                   action=argparse.BooleanOptionalAction,
-                                   help="Auto defrost (default: on, use --no-defrost to disable)")
+    subparsers.add_parser("climate-settings", help="Show current climate settings")
+
+    climate_set = subparsers.add_parser("climate-settings-set",
+                                         help="Configure climate settings")
+    climate_set.add_argument("--temp", default="normal",
+                              choices=["cooler", "normal", "hotter"])
+    climate_set.add_argument("--duration", type=int, default=30,
+                              choices=[10, 20, 30])
+    climate_set.add_argument("--defrost", default=True,
+                              action=argparse.BooleanOptionalAction,
+                              help="Auto defrost (default: on, use --no-defrost to disable)")
 
     charge_limit = subparsers.add_parser("charge-limit", help="Set charge limits")
     charge_limit.add_argument("--home", type=int, default=80,
@@ -407,6 +409,26 @@ vehicle selection (only needed with multiple vehicles):
         wait_command(api.remote_climate_stop(vin), "Climate stop")
 
     elif args.command == "climate-settings":
+        dashboard = api.get_dashboard(vin, fresh=args.fresh)
+        ev = parse_ev_status(dashboard)
+        if args.json:
+            print(json.dumps({
+                "active": ev["climate_active"],
+                "temp": ev["climate_temp"],
+                "duration": ev["climate_duration"],
+                "defrost": ev["climate_defrost"],
+                "cabin_temp_c": ev["cabin_temp_c"],
+                "interior_temp_c": ev["interior_temp_c"],
+            }, indent=2))
+        else:
+            print(f"Active:      {'ON' if ev['climate_active'] else 'OFF'}")
+            print(f"Temperature: {ev['climate_temp']}")
+            print(f"Duration:    {ev['climate_duration']} min")
+            print(f"Defrost:     {'on' if ev['climate_defrost'] else 'off'}")
+            print(f"Cabin:       {ev['cabin_temp_c']}°C")
+            print(f"Interior:    {ev['interior_temp_c']}°C")
+
+    elif args.command == "climate-settings-set":
         wait_command(
             api.remote_climate_on(vin, temp=args.temp, duration=args.duration,
                                   defrost=args.defrost),

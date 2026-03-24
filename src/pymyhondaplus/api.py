@@ -688,6 +688,11 @@ def parse_ev_status(dashboard: dict) -> dict:
             if msg.get("condition") == "ON"
         ],
         "speed_kmh": float(gps.get("velocity", {}).get("value", 0)),
+        "climate_temp": {"05": "cooler", "04": "normal", "03": "hotter",
+                         "cool": "cooler", "warm": "hotter"}.get(
+            ev.get("acTempVal", "normal"), ev.get("acTempVal", "unknown")),
+        "climate_duration": int(ev.get("acDurationSetting", 0)),
+        "climate_defrost": ev.get("acDefAutoSetting", "").lower().startswith("def auto on"),
     }
 
 
