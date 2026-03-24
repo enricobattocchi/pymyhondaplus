@@ -1,6 +1,6 @@
 """Unofficial Honda Connect Europe (My Honda+) API client library."""
 
-from .api import AuthTokens, HondaAPI, HondaAPIError, compute_trip_stats, parse_ev_status
+from .api import AuthTokens, HondaAPI, HondaAPIError, compute_trip_stats, parse_charge_schedule, parse_ev_status
 from .auth import DeviceKey, HondaAuth, encrypt_request
 from .storage import SecretStorage, get_storage
 
@@ -9,6 +9,7 @@ __all__ = [
     "HondaAPI",
     "HondaAPIError",
     "compute_trip_stats",
+    "parse_charge_schedule",
     "parse_ev_status",
     "DeviceKey",
     "HondaAuth",

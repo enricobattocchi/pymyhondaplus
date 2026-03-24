@@ -139,6 +139,25 @@ vehicle selection (only needed with multiple vehicles):
     charge_limit.add_argument("--away", type=int, default=90,
                                help="Charge limit away %% (default: 90)")
 
+    subparsers.add_parser("charge-schedule", help="Show charge prohibition schedule")
+
+    charge_schedule_set = subparsers.add_parser("charge-schedule-set",
+                                                 help="Set charge prohibition schedule")
+    charge_schedule_set.add_argument("--days", required=True,
+                                      help="Days: mon,tue,wed,thu,fri,sat,sun (comma-separated)")
+    charge_schedule_set.add_argument("--start", required=True,
+                                      help="Prohibition start time (HH:MM)")
+    charge_schedule_set.add_argument("--end", required=True,
+                                      help="Prohibition end time (HH:MM)")
+    charge_schedule_set.add_argument("--location", default="all",
+                                      choices=["all", "home"],
+                                      help="Location (default: all)")
+    charge_schedule_set.add_argument("--rule", type=int, default=1,
+                                      choices=[1, 2],
+                                      help="Which rule slot to set (1 or 2, default: 1)")
+
+    subparsers.add_parser("charge-schedule-clear", help="Clear charge prohibition schedule")
+
     trips = subparsers.add_parser("trips", help="Get recent trip history")
     trips.add_argument("--month", default="",
                         help="Month start (ISO 8601, e.g. 2026-03-01T00:00:00.000Z). Defaults to current month.")
@@ -380,6 +399,49 @@ vehicle selection (only needed with multiple vehicles):
         wait_command(
             api.set_charge_limit(vin, home=args.home, away=args.away),
             f"Charge limit ({args.home}% home, {args.away}% away)",
+        )
+
+    elif args.command == "charge-schedule":
+        schedule = api.get_charge_schedule(vin, fresh=args.fresh)
+        if args.json:
+            print(json.dumps(schedule, indent=2))
+        else:
+            has_rules = False
+            for i, rule in enumerate(schedule, 1):
+                if rule["enabled"]:
+                    has_rules = True
+                    days = ",".join(rule["days"])
+                    print(f"Rule {i}: {days}  {rule['start_time']}-{rule['end_time']}  ({rule['location']})")
+            if not has_rules:
+                print("No charge prohibition schedule set.")
+
+    elif args.command == "charge-schedule-set":
+        # Read current schedule to preserve the other rule
+        current = api.get_charge_schedule(vin)
+        rules = []
+        for i in range(2):
+            if i < len(current):
+                rules.append(current[i])
+            else:
+                rules.append({"enabled": False})
+
+        idx = args.rule - 1
+        rules[idx] = {
+            "enabled": True,
+            "days": args.days,
+            "location": args.location,
+            "start_time": args.start,
+            "end_time": args.end,
+        }
+        wait_command(
+            api.set_charge_schedule(vin, rules),
+            f"Charge schedule rule {args.rule}",
+        )
+
+    elif args.command == "charge-schedule-clear":
+        wait_command(
+            api.set_charge_schedule(vin, []),
+            "Clear charge schedule",
         )
 
     elif args.command == "trips":

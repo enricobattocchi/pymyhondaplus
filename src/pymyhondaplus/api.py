@@ -376,6 +376,86 @@ class HondaAPI:
         status_url = data.get("statusQueryGetUri", "")
         return status_url.split("id=")[-1] if "id=" in status_url else ""
 
+    def get_charge_schedule(self, vin: str, fresh: bool = False) -> list[dict]:
+        """Get charge prohibition schedule from dashboard.
+
+        Args:
+            vin: Vehicle VIN
+            fresh: If True, request fresh data from car (wakes TCU).
+
+        Returns:
+            List of up to 2 schedule rules, each with keys:
+            - enabled: bool
+            - days: list of day abbreviations (e.g. ["mon", "tue"])
+            - location: "all" or "home"
+            - start_time: "HH:MM"
+            - end_time: "HH:MM"
+        """
+        dashboard = self.get_dashboard(vin, fresh=fresh)
+        return parse_charge_schedule(dashboard)
+
+    def set_charge_schedule(self, vin: str, rules: list[dict]) -> str:
+        """Set charge prohibition schedule (up to 2 rules).
+
+        Args:
+            vin: Vehicle VIN
+            rules: List of up to 2 dicts, each with:
+                - days: comma-separated day string or list (e.g. "mon,tue,wed" or ["mon","tue","wed"])
+                - location: "all" or "home"
+                - start_time: "HH:MM" or "HHMM"
+                - end_time: "HH:MM" or "HHMM"
+                Pass an empty list or rules with enabled=False to clear.
+
+        Returns:
+            Async command ID for polling.
+        """
+        self._ensure_auth()
+        headers = {
+            "authorization": f"Bearer {self.tokens.access_token}",
+        }
+        if self.tokens.personal_id:
+            headers["x-app-personal-id"] = self.tokens.personal_id
+
+        settings = []
+        for i in range(2):
+            if i < len(rules) and rules[i].get("enabled", True):
+                r = rules[i]
+                days = r.get("days", "")
+                if isinstance(days, list):
+                    days = ",".join(days)
+                start = r.get("start_time", "0000").replace(":", "")
+                end = r.get("end_time", "0000").replace(":", "")
+                settings.append({
+                    "chargeProhibitionDayOfWeek": days,
+                    "chargeProhibitionTimerCommand": "time",
+                    "chargeProhibitionLocation": r.get("location", "home"),
+                    "chargeProhibitionTimerOption": {
+                        "chargeProhibitionStartTime": start,
+                        "chargeProhibitionEndTime": end,
+                    },
+                })
+            else:
+                settings.append({
+                    "chargeProhibitionDayOfWeek": "",
+                    "chargeProhibitionTimerCommand": "off",
+                    "chargeProhibitionLocation": "home",
+                    "chargeProhibitionTimerOption": {
+                        "chargeProhibitionStartTime": "0000",
+                        "chargeProhibitionEndTime": "0000",
+                    },
+                })
+
+        resp = self.session.put(
+            f"{API_BASE}/tsp/charge-prohibition-schedule",
+            headers=headers,
+            json={"vin": vin, "chargeProhibitionTimerSettings": settings},
+        )
+        if resp.status_code not in (200, 202):
+            raise HondaAPIError(resp.status_code, resp.text)
+        data = resp.json()
+        status_url = data.get("statusQueryGetUri", "")
+        return status_url.split("id=")[-1] if "id=" in status_url else ""
+
     def get_drivers(self, vin: str) -> dict:
         """Get drivers associated with the vehicle."""
         resp = self._request("GET", f"/tsp/drivers-by-vehicle?vin={vin}")
@@ -542,6 +622,29 @@ def parse_ev_status(dashboard: dict) -> dict:
         ],
         "speed_kmh": float(gps.get("velocity", {}).get("value", 0)),
     }
+
+
+def parse_charge_schedule(dashboard: dict) -> list[dict]:
+    """Parse charge prohibition schedule from a dashboard response."""
+    ev = dashboard.get("evStatus", {})
+    raw = ev.get("chargeProhibitionTimerSettings", [])
+    rules = []
+    for entry in raw:
+        cmd = entry.get("chargeProhibitionTimerCommand", "off").lower()
+        enabled = cmd not in ("off", "")
+        days_str = entry.get("chargeProhibitionDayOfWeek", "")
+        days = [d.strip() for d in days_str.split(",") if d.strip()] if days_str else []
+        opts = entry.get("chargeProhibitionTimerOption", {})
+        start = opts.get("chargeProhibitionStartTime", "0000")
+        end = opts.get("chargeProhibitionEndTime", "0000")
+        rules.append({
+            "enabled": enabled,
+            "days": days,
+            "location": entry.get("chargeProhibitionLocation", "home").lower(),
+            "start_time": f"{start[:2]}:{start[2:]}",
+            "end_time": f"{end[:2]}:{end[2:]}",
+        })
+    return rules
 
 
 def compute_trip_stats(rows: list[dict], period: str = "month",
