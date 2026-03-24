@@ -309,7 +309,7 @@ class HondaAPI:
         return self._remote_command("remote-lock", vin, command="doorUnlock")
 
     def remote_climate_on(self, vin: str, temp: str = "normal",
-                          duration: int = 30) -> str:
+                          duration: int = 30, defrost: bool = True) -> str:
         """Turn on climate control."""
         temp_map = {"cooler": "05", "normal": "04", "hotter": "03"}
         if temp not in temp_map:
@@ -319,7 +319,7 @@ class HondaAPI:
 
         return self._remote_command(
             "remote-climate-settings", vin,
-            acDefSetting="autoOn",
+            acDefSetting="autoOn" if defrost else "autoOff",
             acTempVal=temp_map[temp],
             acDurationSetting=str(duration),
             temperature=0,
@@ -449,6 +449,73 @@ class HondaAPI:
             f"{API_BASE}/tsp/charge-prohibition-schedule",
             headers=headers,
             json={"vin": vin, "chargeProhibitionTimerSettings": settings},
+        )
+        if resp.status_code not in (200, 202):
+            raise HondaAPIError(resp.status_code, resp.text)
+        data = resp.json()
+        status_url = data.get("statusQueryGetUri", "")
+        return status_url.split("id=")[-1] if "id=" in status_url else ""
+
+    def get_climate_schedule(self, vin: str, fresh: bool = False) -> list[dict]:
+        """Get climate schedule from dashboard.
+
+        Args:
+            vin: Vehicle VIN
+            fresh: If True, request fresh data from car (wakes TCU).
+
+        Returns:
+            List of up to 7 schedule slots, each with keys:
+            - enabled: bool
+            - days: list of day abbreviations
+            - start_time: "HH:MM"
+        """
+        dashboard = self.get_dashboard(vin, fresh=fresh)
+        return parse_climate_schedule(dashboard)
+
+    def set_climate_schedule(self, vin: str, rules: list[dict]) -> str:
+        """Set climate schedule (up to 7 slots).
+
+        Args:
+            vin: Vehicle VIN
+            rules: List of up to 7 dicts, each with:
+                - days: comma-separated day string or list
+                - start_time: "HH:MM" or "HHMM"
+                Pass an empty list or rules with enabled=False to clear.
+
+        Returns:
+            Async command ID for polling.
+        """
+        self._ensure_auth()
+        headers = {
+            "authorization": f"Bearer {self.tokens.access_token}",
+        }
+        if self.tokens.personal_id:
+            headers["x-app-personal-id"] = self.tokens.personal_id
+
+        settings = []
+        for i in range(7):
+            if i < len(rules) and rules[i].get("enabled", True):
+                r = rules[i]
+                days = r.get("days", "")
+                if isinstance(days, list):
+                    days = ",".join(days)
+                start = r.get("start_time", "0000").replace(":", "")
+                settings.append({
+                    "acDayOfWeek": days,
+                    "acTimerCommand": "timer",
+                    "acTimerOption": {"acStartTime1": start},
+                })
+            else:
+                settings.append({
+                    "acDayOfWeek": "",
+                    "acTimerCommand": "off",
+                    "acTimerOption": {"acStartTime1": "0000"},
+                })
+
+        resp = self.session.put(
+            f"{API_BASE}/tsp/remote-climate-schedule",
+            headers=headers,
+            json={"vin": vin, "acTimerSettings": settings},
         )
         if resp.status_code not in (200, 202):
             raise HondaAPIError(resp.status_code, resp.text)
@@ -643,6 +710,26 @@ def parse_charge_schedule(dashboard: dict) -> list[dict]:
             "location": entry.get("chargeProhibitionLocation", "home").lower(),
             "start_time": f"{start[:2]}:{start[2:]}",
             "end_time": f"{end[:2]}:{end[2:]}",
+        })
+    return rules
+
+
+def parse_climate_schedule(dashboard: dict) -> list[dict]:
+    """Parse climate schedule from a dashboard response."""
+    ev = dashboard.get("evStatus", {})
+    raw = ev.get("acTimerSettings", [])
+    rules = []
+    for entry in raw:
+        cmd = entry.get("acTimerCommand", "off").lower()
+        enabled = cmd not in ("off", "")
+        days_str = entry.get("acDayOfWeek", "")
+        days = [d.strip() for d in days_str.split(",") if d.strip() and d.strip() != "unknown"] if days_str else []
+        opts = entry.get("acTimerOption", {})
+        start = opts.get("acStartTime1", "0000")
+        rules.append({
+            "enabled": enabled,
+            "days": days,
+            "start_time": f"{start[:2]}:{start[2:]}",
         })
     return rules
 

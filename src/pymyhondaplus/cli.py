@@ -132,6 +132,9 @@ vehicle selection (only needed with multiple vehicles):
                                    choices=["cooler", "normal", "hotter"])
     climate_settings.add_argument("--duration", type=int, default=30,
                                    choices=[10, 20, 30])
+    climate_settings.add_argument("--defrost", default=True,
+                                   action=argparse.BooleanOptionalAction,
+                                   help="Auto defrost (default: on, use --no-defrost to disable)")
 
     charge_limit = subparsers.add_parser("charge-limit", help="Set charge limits")
     charge_limit.add_argument("--home", type=int, default=80,
@@ -157,6 +160,20 @@ vehicle selection (only needed with multiple vehicles):
                                       help="Which rule slot to set (1 or 2, default: 1)")
 
     subparsers.add_parser("charge-schedule-clear", help="Clear charge prohibition schedule")
+
+    subparsers.add_parser("climate-schedule", help="Show climate schedule")
+
+    climate_schedule_set = subparsers.add_parser("climate-schedule-set",
+                                                  help="Set a climate schedule slot")
+    climate_schedule_set.add_argument("--days", required=True,
+                                       help="Days: mon,tue,wed,thu,fri,sat,sun (comma-separated)")
+    climate_schedule_set.add_argument("--start", required=True,
+                                       help="Start time (HH:MM)")
+    climate_schedule_set.add_argument("--slot", type=int, default=1,
+                                       choices=[1, 2, 3, 4, 5, 6, 7],
+                                       help="Which slot to set (1-7, default: 1)")
+
+    subparsers.add_parser("climate-schedule-clear", help="Clear climate schedule")
 
     trips = subparsers.add_parser("trips", help="Get recent trip history")
     trips.add_argument("--month", default="",
@@ -391,8 +408,9 @@ vehicle selection (only needed with multiple vehicles):
 
     elif args.command == "climate-settings":
         wait_command(
-            api.remote_climate_on(vin, temp=args.temp, duration=args.duration),
-            f"Climate settings ({args.temp}, {args.duration}min)",
+            api.remote_climate_on(vin, temp=args.temp, duration=args.duration,
+                                  defrost=args.defrost),
+            f"Climate settings ({args.temp}, {args.duration}min, defrost={'on' if args.defrost else 'off'})",
         )
 
     elif args.command == "charge-limit":
@@ -442,6 +460,46 @@ vehicle selection (only needed with multiple vehicles):
         wait_command(
             api.set_charge_schedule(vin, []),
             "Clear charge schedule",
+        )
+
+    elif args.command == "climate-schedule":
+        schedule = api.get_climate_schedule(vin, fresh=args.fresh)
+        if args.json:
+            print(json.dumps(schedule, indent=2))
+        else:
+            has_rules = False
+            for i, rule in enumerate(schedule, 1):
+                if rule["enabled"]:
+                    has_rules = True
+                    days = ",".join(rule["days"])
+                    print(f"Slot {i}: {days}  {rule['start_time']}")
+            if not has_rules:
+                print("No climate schedule set.")
+
+    elif args.command == "climate-schedule-set":
+        current = api.get_climate_schedule(vin)
+        rules = []
+        for i in range(7):
+            if i < len(current):
+                rules.append(current[i])
+            else:
+                rules.append({"enabled": False})
+
+        idx = args.slot - 1
+        rules[idx] = {
+            "enabled": True,
+            "days": args.days,
+            "start_time": args.start,
+        }
+        wait_command(
+            api.set_climate_schedule(vin, rules),
+            f"Climate schedule slot {args.slot}",
+        )
+
+    elif args.command == "climate-schedule-clear":
+        wait_command(
+            api.set_climate_schedule(vin, []),
+            "Clear climate schedule",
         )
 
     elif args.command == "trips":
