@@ -353,7 +353,13 @@ class HondaAPI:
         return self._remote_command("remote-charge", vin, command="stop")
 
     def set_charge_limit(self, vin: str, home: int = 80, away: int = 90) -> str:
-        """Set charge limits for home and away locations."""
+        """Set charge limits for home and away locations.
+
+        Valid values: 80, 85, 90, 95, 100.
+        """
+        valid = (80, 85, 90, 95, 100)
+        if home not in valid or away not in valid:
+            raise ValueError(f"Charge limits must be one of {valid}")
         self._ensure_auth()
         headers = {
             "authorization": f"Bearer {self.tokens.access_token}",
