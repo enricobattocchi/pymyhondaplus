@@ -18,15 +18,15 @@ from .storage import get_storage
 
 WATCH_FIELDS = {
     "battery_level": ("Battery", "%"),
-    "range_km": ("Range", " km"),
+    "range": ("Range", " {dist}"),
     "charge_status": ("Charge", ""),
     "plug_status": ("Plug", ""),
     "time_to_charge": ("ETA", " min"),
     "climate_active": ("Climate", ""),
-    "cabin_temp_c": ("Cabin", "\u00b0C"),
-    "interior_temp_c": ("Interior", "\u00b0C"),
+    "cabin_temp": ("Cabin", " {temp}"),
+    "interior_temp": ("Interior", " {temp}"),
     "ignition": ("Ignition", ""),
-    "speed_kmh": ("Speed", " km/h"),
+    "speed": ("Speed", " {speed}"),
     "doors_locked": ("Doors", ""),
     "lights_on": ("Lights", ""),
     "home_away": ("Location", ""),
@@ -47,6 +47,11 @@ def _parse_interval(s: str) -> int:
 
 def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None) -> str:
     """Format changed fields for watch output. If prev is None, format all fields."""
+    units = {
+        "dist": ev.get("distance_unit", "km"),
+        "speed": ev.get("speed_unit", "km/h"),
+        "temp": ev.get("temp_unit", "c"),
+    }
     parts = []
     for key, (label, suffix) in fields.items():
         val = ev.get(key)
@@ -56,7 +61,7 @@ def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None) -> st
             continue
         if key == "climate_active":
             val = "ON" if val else "OFF"
-        parts.append(f"{label}: {val}{suffix}")
+        parts.append(f"{label}: {val}{suffix.format_map(units)}")
     return "  ".join(parts)
 
 
@@ -353,10 +358,13 @@ vehicle selection (only needed with multiple vehicles):
                 print(json.dumps(dashboard, indent=2))
             else:
                 ev = parse_ev_status(dashboard)
+                du = ev['distance_unit']
+                su = ev['speed_unit']
+                tu = ev['temp_unit']
                 print(f"Ignition:      {ev['ignition']}")
-                print(f"Speed:         {ev['speed_kmh']} km/h")
+                print(f"Speed:         {ev['speed']} {su}")
                 print(f"Battery:       {ev['battery_level']}%")
-                print(f"Range:         {ev['range_km']} km")
+                print(f"Range:         {ev['range']} {du}")
                 print(f"Charge status: {ev['charge_status']}")
                 print(f"Charge mode:   {ev['charge_mode']}")
                 print(f"Plug status:   {ev['plug_status']}")
@@ -366,9 +374,9 @@ vehicle selection (only needed with multiple vehicles):
                 print(f"Coordinates:   {ev['latitude']}, {ev['longitude']}")
                 print(f"Charge limit:  {ev['charge_limit_home']}% (home) / {ev['charge_limit_away']}% (away)")
                 print(f"Climate:       {'ON' if ev['climate_active'] else 'OFF'}")
-                print(f"Cabin temp:    {ev['cabin_temp_c']}°C")
-                print(f"Interior temp: {ev['interior_temp_c']}°C")
-                print(f"Odometer:      {ev['odometer_km']} km")
+                print(f"Cabin temp:    {ev['cabin_temp']} {tu}")
+                print(f"Interior temp: {ev['interior_temp']} {tu}")
+                print(f"Odometer:      {ev['odometer']} {du}")
                 print(f"Doors locked:  {ev['doors_locked']}")
                 print(f"Hood:          {'open' if ev['hood_open'] else 'closed'}")
                 print(f"Trunk:         {'open' if ev['trunk_open'] else 'closed'}")
@@ -386,7 +394,8 @@ vehicle selection (only needed with multiple vehicles):
             coord = gps.get("coordinate", {})
             print(f"Latitude:  {coord.get('latitude', 'N/A')}")
             print(f"Longitude: {coord.get('longitude', 'N/A')}")
-            print(f"Speed:     {gps.get('velocity', {}).get('value', 'N/A')} km/h")
+            speed_unit = gps.get('velocity', {}).get('unit', 'km/h')
+            print(f"Speed:     {gps.get('velocity', {}).get('value', 'N/A')} {speed_unit}")
             print(f"Timestamp: {gps.get('dtTime', 'N/A')}")
 
     elif args.command == "lock":
@@ -419,16 +428,18 @@ vehicle selection (only needed with multiple vehicles):
                 "temp": ev["climate_temp"],
                 "duration": ev["climate_duration"],
                 "defrost": ev["climate_defrost"],
-                "cabin_temp_c": ev["cabin_temp_c"],
-                "interior_temp_c": ev["interior_temp_c"],
+                "cabin_temp": ev["cabin_temp"],
+                "interior_temp": ev["interior_temp"],
+                "temp_unit": ev["temp_unit"],
             }, indent=2))
         else:
+            tu = ev['temp_unit']
             print(f"Active:      {'ON' if ev['climate_active'] else 'OFF'}")
             print(f"Temperature: {ev['climate_temp']}")
             print(f"Duration:    {ev['climate_duration']} min")
             print(f"Defrost:     {'on' if ev['climate_defrost'] else 'off'}")
-            print(f"Cabin:       {ev['cabin_temp_c']}°C")
-            print(f"Interior:    {ev['interior_temp_c']}°C")
+            print(f"Cabin:       {ev['cabin_temp']} {tu}")
+            print(f"Interior:    {ev['interior_temp']} {tu}")
 
     elif args.command == "climate-settings-set":
         wait_command(
@@ -592,8 +603,8 @@ vehicle selection (only needed with multiple vehicles):
                     json_rows.append(row)
                 else:
                     line = (f"  {row.get('OneTripDate', '?')}  {start} -> {end}  "
-                            f"{row.get('Mileage', '?')} km  {row.get('DriveTime', '?')} min  "
-                            f"avg {row.get('AveSpeed', '?')} km/h  max {row.get('MaxSpeed', '?')} km/h  "
+                            f"{row.get('Mileage', '?')}  {row.get('DriveTime', '?')} min  "
+                            f"avg {row.get('AveSpeed', '?')}  max {row.get('MaxSpeed', '?')}  "
                             f"{row.get('AveFuelEconomy', '?')} {consumption_unit}")
                     if "start_lat" in row:
                         line += (f"\n    from {row['start_lat']},{row['start_lon']}"
@@ -665,14 +676,16 @@ vehicle selection (only needed with multiple vehicles):
             else:
                 hours = int(stats["total_minutes"]) // 60
                 mins = int(stats["total_minutes"]) % 60
+                du = stats["distance_unit"]
+                su = stats["speed_unit"]
                 print(f"Period:          {stats['start_date']} — {stats['end_date']} ({stats['period']})")
                 print(f"Trips:           {stats['trips']}")
-                print(f"Total distance:  {stats['total_km']} km")
+                print(f"Total distance:  {stats['total_distance']} {du}")
                 print(f"Total time:      {hours}h {mins}min")
-                print(f"Avg distance:    {stats['avg_km_per_trip']} km/trip")
+                print(f"Avg distance:    {stats['avg_distance_per_trip']} {du}/trip")
                 print(f"Avg duration:    {stats['avg_min_per_trip']} min/trip")
-                print(f"Avg speed:       {stats['avg_speed_kmh']} km/h")
-                print(f"Max speed:       {stats['max_speed_kmh']} km/h")
+                print(f"Avg speed:       {stats['avg_speed']} {su}")
+                print(f"Max speed:       {stats['max_speed']} {su}")
                 print(f"Avg consumption: {stats['avg_consumption']} {stats['consumption_unit']}")
 
 

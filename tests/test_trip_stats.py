@@ -7,19 +7,21 @@ def test_basic_stats(trip_rows):
     stats = compute_trip_stats(trip_rows, period="month")
     assert stats["period"] == "month"
     assert stats["trips"] == 3
-    assert stats["total_km"] == 44.0  # 5 + 6 + 33
+    assert stats["total_distance"] == 44.0  # 5 + 6 + 33
     assert stats["total_minutes"] == 92.0  # 37 + 13 + 42
     assert stats["start_date"] == "2026-03-19"
     assert stats["end_date"] == "2026-03-21"
+    assert stats["distance_unit"] == "km"
+    assert stats["speed_unit"] == "km/h"
 
 
 def test_averages(trip_rows):
     stats = compute_trip_stats(trip_rows)
-    assert stats["avg_km_per_trip"] == 14.7  # 44 / 3
+    assert stats["avg_distance_per_trip"] == 14.7  # 44 / 3
     assert stats["avg_min_per_trip"] == 30.7  # 92 / 3
     # avg speed = (7.7 + 27.5 + 46.3) / 3 = 27.2
-    assert stats["avg_speed_kmh"] == 27.2
-    assert stats["max_speed_kmh"] == 103.0
+    assert stats["avg_speed"] == 27.2
+    assert stats["max_speed"] == 103.0
 
 
 def test_weighted_consumption(trip_rows):
@@ -43,13 +45,19 @@ def test_consumption_unit_default(trip_rows):
     assert stats["consumption_unit"] == "L/100km"
 
 
+def test_distance_unit(trip_rows):
+    stats = compute_trip_stats(trip_rows, distance_unit="miles")
+    assert stats["distance_unit"] == "miles"
+    assert stats["speed_unit"] == "miles/h"
+
+
 def test_empty_rows():
     stats = compute_trip_stats([])
     assert stats["trips"] == 0
-    assert stats["total_km"] == 0
-    assert stats["avg_km_per_trip"] == 0
-    assert stats["avg_speed_kmh"] == 0
-    assert stats["max_speed_kmh"] == 0
+    assert stats["total_distance"] == 0
+    assert stats["avg_distance_per_trip"] == 0
+    assert stats["avg_speed"] == 0
+    assert stats["max_speed"] == 0
     assert stats["avg_consumption"] == 0
     assert stats["start_date"] == ""
     assert stats["end_date"] == ""
@@ -66,8 +74,8 @@ def test_single_trip():
     }]
     stats = compute_trip_stats(rows)
     assert stats["trips"] == 1
-    assert stats["total_km"] == 10.0
-    assert stats["avg_km_per_trip"] == 10.0
+    assert stats["total_distance"] == 10.0
+    assert stats["avg_distance_per_trip"] == 10.0
     assert stats["avg_consumption"] == 15.0
 
 
@@ -81,7 +89,7 @@ def test_zero_distance():
         "AveFuelEconomy": "0",
     }]
     stats = compute_trip_stats(rows)
-    assert stats["total_km"] == 0
+    assert stats["total_distance"] == 0
     assert stats["avg_consumption"] == 0  # no division by zero
 
 
@@ -89,8 +97,8 @@ def test_missing_fields():
     rows = [{"OneTripDate": "2026-03-21"}]
     stats = compute_trip_stats(rows)
     assert stats["trips"] == 1
-    assert stats["total_km"] == 0
-    assert stats["max_speed_kmh"] == 0
+    assert stats["total_distance"] == 0
+    assert stats["max_speed"] == 0
 
 
 def test_period_label():
