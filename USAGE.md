@@ -255,9 +255,9 @@ Avg consumption: 5.3 kWh/100km
 | `--vin`, `-v` | Vehicle VIN, nickname, or plate |
 | `--json` | Output raw JSON (place before subcommand) |
 | `--fresh` | Request fresh data from car (wakes TCU) |
-| `--token-file PATH` | Custom token file path |
-| `--key-file PATH` | Custom device key file path |
-| `--storage {auto,keyring,encrypted,plain}` | Storage backend for secrets |
+| `--token-file PATH` | Custom token file path (or set `HONDA_TOKEN_FILE`) |
+| `--key-file PATH` | Custom device key file path (or set `HONDA_KEY_FILE`) |
+| `--storage {auto,keyring,encrypted,plain}` | Storage backend for secrets (or set `HONDA_STORAGE`) |
 | `--user-info` | Show full user info and vehicle details as JSON |
 
 ## Security
