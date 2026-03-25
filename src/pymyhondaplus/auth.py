@@ -45,7 +45,10 @@ DEFAULT_HEADERS = {
     "x-app-device-model": "HomeAssistant",
 }
 
-DEFAULT_DEVICE_KEY_FILE = Path.home() / ".honda_device_key.pem"
+DEFAULT_DEVICE_KEY_FILE = Path(os.environ.get(
+    "HONDA_KEY_FILE",
+    Path.home() / ".honda_device_key.pem",
+))
 
 
 def _load_server_public_key():
