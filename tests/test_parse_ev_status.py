@@ -6,13 +6,13 @@ from pymyhondaplus.api import parse_ev_status
 def test_basic_fields(dashboard_ev):
     ev = parse_ev_status(dashboard_ev)
     assert ev["battery_level"] == 82
-    assert ev["range_km"] == 176
+    assert ev["range"] == 176
     assert ev["charge_status"] == "stopped"
     assert ev["plug_status"] == "plugged in"
     assert ev["home_away"] == "away"
     assert ev["charge_limit_home"] == 80
     assert ev["charge_limit_away"] == 90
-    assert ev["odometer_km"] == 43202
+    assert ev["odometer"] == 43202
     assert ev["ignition"] == "OFF"
     assert ev["charge_mode"] == "unconfirmed"
     assert ev["time_to_charge"] == 0
@@ -20,15 +20,18 @@ def test_basic_fields(dashboard_ev):
 
 def test_temperature(dashboard_ev):
     ev = parse_ev_status(dashboard_ev)
-    assert ev["cabin_temp_c"] == 24
-    assert ev["interior_temp_c"] == 15
+    assert ev["cabin_temp"] == 24
+    assert ev["interior_temp"] == 15
+    assert ev["temp_unit"] == "c"
 
 
 def test_gps(dashboard_ev):
     ev = parse_ev_status(dashboard_ev)
     assert ev["latitude"] == "41.890251"
     assert ev["longitude"] == "12.492373"
-    assert ev["speed_kmh"] == 0.0
+    assert ev["speed"] == 0.0
+    assert ev["speed_unit"] == "km/h"
+    assert ev["distance_unit"] == "km"
 
 
 def test_doors_locked(dashboard_ev):
@@ -127,7 +130,7 @@ def test_warning_lamps(dashboard_ev):
 def test_empty_dashboard():
     ev = parse_ev_status({})
     assert ev["battery_level"] == 0
-    assert ev["range_km"] == 0
+    assert ev["range"] == 0
     assert ev["charge_status"] == "unknown"
     assert ev["doors_locked"] is True  # all() on empty is True
     assert ev["lights_on"] is False

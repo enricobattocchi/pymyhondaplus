@@ -644,20 +644,26 @@ def parse_ev_status(dashboard: dict) -> dict:
     ev = dashboard.get("evStatus", {})
     gps = dashboard.get("gpsData", {})
     coord = gps.get("coordinate", {})
+    distance_unit = ev.get("rangeUnit", dashboard.get("odometer", {}).get("unit", "km"))
+    speed_unit = gps.get("velocity", {}).get("unit", f"{distance_unit}/h")
+    temp_unit = dashboard.get("temperature", {}).get("cabin", {}).get("unit", "c")
 
     return {
         "battery_level": int(ev.get("soc", 0)),
-        "range_km": int(ev.get("evRange", 0)),
-        "total_range_km": int(ev.get("totalRange", 0)),
+        "range": int(ev.get("evRange", 0)),
+        "total_range": int(ev.get("totalRange", 0)),
+        "distance_unit": distance_unit,
+        "speed_unit": speed_unit,
+        "temp_unit": temp_unit,
         "charge_status": ev.get("chargeStatus", "unknown"),
         "plug_status": ev.get("plugStatus", "unknown"),
         "home_away": ev.get("homeAway", "unknown").lower(),
         "charge_limit_home": int(ev.get("chargeLimitHome", 0)),
         "charge_limit_away": int(ev.get("chargeLimitAway", 0)),
         "climate_active": dashboard.get("climateControl", {}).get("status", {}).get("isActive", False),
-        "cabin_temp_c": int(dashboard.get("temperature", {}).get("cabin", {}).get("value", 0)),
-        "interior_temp_c": int(ev.get("intTemp", 0)),
-        "odometer_km": int(dashboard.get("odometer", {}).get("value", 0)),
+        "cabin_temp": int(dashboard.get("temperature", {}).get("cabin", {}).get("value", 0)),
+        "interior_temp": int(ev.get("intTemp", 0)),
+        "odometer": int(dashboard.get("odometer", {}).get("value", 0)),
         "latitude": coord.get("latitude", ""),
         "longitude": coord.get("longitude", ""),
         "timestamp": dashboard.get("timestamp", ""),
@@ -693,7 +699,7 @@ def parse_ev_status(dashboard: dict) -> dict:
             for msg in dashboard.get("warningLamps", {}).get("messages", [])
             if msg.get("condition") == "ON"
         ],
-        "speed_kmh": float(gps.get("velocity", {}).get("value", 0)),
+        "speed": float(gps.get("velocity", {}).get("value", 0)),
         "climate_temp": {"05": "cooler", "04": "normal", "03": "hotter",
                          "cool": "cooler", "warm": "hotter"}.get(
             ev.get("acTempVal", "normal"), ev.get("acTempVal", "unknown")),
@@ -746,13 +752,14 @@ def parse_climate_schedule(dashboard: dict) -> list[dict]:
 
 
 def compute_trip_stats(rows: list[dict], period: str = "month",
-                       fuel_type: str = "") -> dict:
+                       fuel_type: str = "", distance_unit: str = "km") -> dict:
     """Compute aggregated statistics from a list of trip dicts.
 
     Args:
         rows: List of trip dicts (as returned by get_all_trips).
         period: Label for the period (e.g. "day", "week", "month").
         fuel_type: Vehicle fuel type (e.g. "E" for electric). Used to set consumption_unit.
+        distance_unit: Distance unit from the vehicle (e.g. "km" or "miles").
 
     Returns:
         Dict with aggregated stats.
@@ -778,18 +785,21 @@ def compute_trip_stats(rows: list[dict], period: str = "month",
         avg_consumption = 0.0
 
     actual_dates = sorted(set(r.get("OneTripDate", "")[:10] for r in rows))
+    speed_unit = f"{distance_unit}/h"
     return {
         "period": period,
         "start_date": actual_dates[0] if actual_dates else "",
         "end_date": actual_dates[-1] if actual_dates else "",
         "trips": count,
-        "total_km": round(total_km, 1),
+        "total_distance": round(total_km, 1),
         "total_minutes": round(total_min, 1),
-        "avg_km_per_trip": round(total_km / count, 1) if count else 0,
+        "avg_distance_per_trip": round(total_km / count, 1) if count else 0,
         "avg_min_per_trip": round(total_min / count, 1) if count else 0,
-        "avg_speed_kmh": round(avg_speed, 1),
-        "max_speed_kmh": round(max_speed, 1),
+        "avg_speed": round(avg_speed, 1),
+        "max_speed": round(max_speed, 1),
         "avg_consumption": round(avg_consumption, 1),
+        "distance_unit": distance_unit,
+        "speed_unit": speed_unit,
         "consumption_unit": "kWh/100km" if fuel_type == "E" else "L/100km",
     }
 

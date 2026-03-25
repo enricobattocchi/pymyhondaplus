@@ -281,7 +281,7 @@ tokens = auth.full_login("user@example.com", "password")
 api = HondaAPI()
 api.set_tokens(**tokens)
 
-# Vehicle status
+# Vehicle status (units from car: distance_unit, speed_unit, temp_unit)
 status = api.get_dashboard("JHMZC7840LXXXXXX")
 
 # Trips (all pages, parsed as dicts)
@@ -295,8 +295,9 @@ locs = api.get_trip_locations("JHMZC7840LXXXXXX",
     "2026-03-19T16:23:13+00:00", "2026-03-19T17:05:56+00:00")
 
 # Aggregated trip statistics
-stats = compute_trip_stats(trips, period="month", fuel_type="E")
-# stats["avg_consumption"] = 13.2, stats["consumption_unit"] = "kWh/100km"
+stats = compute_trip_stats(trips, period="month", fuel_type="E", distance_unit="km")
+# stats["total_distance"], stats["distance_unit"], stats["speed_unit"]
+# stats["avg_consumption"], stats["consumption_unit"]
 
 # Charge prohibition schedule
 schedule = api.get_charge_schedule("JHMZC7840LXXXXXX")
