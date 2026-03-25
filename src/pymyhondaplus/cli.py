@@ -140,8 +140,10 @@ vehicle selection (only needed with multiple vehicles):
 
     charge_limit = subparsers.add_parser("charge-limit", help="Set charge limits")
     charge_limit.add_argument("--home", type=int, default=80,
+                               choices=[80, 85, 90, 95, 100],
                                help="Charge limit at home %% (default: 80)")
     charge_limit.add_argument("--away", type=int, default=90,
+                               choices=[80, 85, 90, 95, 100],
                                help="Charge limit away %% (default: 90)")
 
     subparsers.add_parser("charge-schedule", help="Show charge prohibition schedule")
