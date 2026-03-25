@@ -12,7 +12,7 @@ from pathlib import Path
 
 import requests
 
-from .api import DEFAULT_TOKEN_FILE, HondaAPI, compute_trip_stats, extract_tokens_from_captures, parse_ev_status
+from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, compute_trip_stats, extract_tokens_from_captures, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .storage import get_storage
 
@@ -456,33 +456,47 @@ vehicle selection (only needed with multiple vehicles):
                 print("No charge prohibition schedule set.")
 
     elif args.command == "charge-schedule-set":
-        # Read current schedule to preserve the other rule
-        current = api.get_charge_schedule(vin)
-        rules = []
-        for i in range(2):
-            if i < len(current):
-                rules.append(current[i])
-            else:
-                rules.append({"enabled": False})
+        try:
+            # Read current schedule to preserve the other rule
+            current = api.get_charge_schedule(vin)
+            rules = []
+            for i in range(2):
+                if i < len(current):
+                    rules.append(current[i])
+                else:
+                    rules.append({"enabled": False})
 
-        idx = args.rule - 1
-        rules[idx] = {
-            "enabled": True,
-            "days": args.days,
-            "location": args.location,
-            "start_time": args.start,
-            "end_time": args.end,
-        }
-        wait_command(
-            api.set_charge_schedule(vin, rules),
-            f"Charge schedule rule {args.rule}",
-        )
+            idx = args.rule - 1
+            rules[idx] = {
+                "enabled": True,
+                "days": args.days,
+                "location": args.location,
+                "start_time": args.start,
+                "end_time": args.end,
+            }
+            wait_command(
+                api.set_charge_schedule(vin, rules),
+                f"Charge schedule rule {args.rule}",
+            )
+        except (requests.HTTPError, HondaAPIError):
+            role = (vehicle_info or {}).get("role", "")
+            if role and role != "primary":
+                print(f"Charge schedule is not available for {role} users.")
+            else:
+                raise
 
     elif args.command == "charge-schedule-clear":
-        wait_command(
-            api.set_charge_schedule(vin, []),
-            "Clear charge schedule",
-        )
+        try:
+            wait_command(
+                api.set_charge_schedule(vin, []),
+                "Clear charge schedule",
+            )
+        except (requests.HTTPError, HondaAPIError):
+            role = (vehicle_info or {}).get("role", "")
+            if role and role != "primary":
+                print(f"Charge schedule is not available for {role} users.")
+            else:
+                raise
 
     elif args.command == "climate-schedule":
         schedule = api.get_climate_schedule(vin, fresh=args.fresh)
@@ -499,30 +513,44 @@ vehicle selection (only needed with multiple vehicles):
                 print("No climate schedule set.")
 
     elif args.command == "climate-schedule-set":
-        current = api.get_climate_schedule(vin)
-        rules = []
-        for i in range(7):
-            if i < len(current):
-                rules.append(current[i])
-            else:
-                rules.append({"enabled": False})
+        try:
+            current = api.get_climate_schedule(vin)
+            rules = []
+            for i in range(7):
+                if i < len(current):
+                    rules.append(current[i])
+                else:
+                    rules.append({"enabled": False})
 
-        idx = args.slot - 1
-        rules[idx] = {
-            "enabled": True,
-            "days": args.days,
-            "start_time": args.start,
-        }
-        wait_command(
-            api.set_climate_schedule(vin, rules),
-            f"Climate schedule slot {args.slot}",
-        )
+            idx = args.slot - 1
+            rules[idx] = {
+                "enabled": True,
+                "days": args.days,
+                "start_time": args.start,
+            }
+            wait_command(
+                api.set_climate_schedule(vin, rules),
+                f"Climate schedule slot {args.slot}",
+            )
+        except (requests.HTTPError, HondaAPIError):
+            role = (vehicle_info or {}).get("role", "")
+            if role and role != "primary":
+                print(f"Climate schedule is not available for {role} users.")
+            else:
+                raise
 
     elif args.command == "climate-schedule-clear":
-        wait_command(
-            api.set_climate_schedule(vin, []),
-            "Clear climate schedule",
-        )
+        try:
+            wait_command(
+                api.set_climate_schedule(vin, []),
+                "Clear climate schedule",
+            )
+        except (requests.HTTPError, HondaAPIError):
+            role = (vehicle_info or {}).get("role", "")
+            if role and role != "primary":
+                print(f"Climate schedule is not available for {role} users.")
+            else:
+                raise
 
     elif args.command == "trips":
         try:
