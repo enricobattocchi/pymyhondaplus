@@ -129,7 +129,7 @@ class HondaAPI:
     def set_tokens(self, access_token: str, refresh_token: str,
                    expires_in: int = 3599, personal_id: str = "",
                    user_id: str = "", vehicles: list[dict] = None):
-        """Set tokens (from login or mitmproxy capture)."""
+        """Set authentication tokens."""
         self.tokens = AuthTokens(
             access_token=access_token,
             refresh_token=refresh_token,
@@ -804,58 +804,3 @@ def compute_trip_stats(rows: list[dict], period: str = "month",
     }
 
 
-def extract_tokens_from_captures(capture_dir: Path = None) -> dict:
-    """Extract tokens from mitmproxy captured flows."""
-    if capture_dir is None:
-        capture_dir = Path.cwd() / "captured_flows"
-
-    import base64
-
-    # Find complete-login response (has access_token + refresh_token)
-    for f in sorted(capture_dir.glob("*.json"), reverse=True):
-        data = json.loads(f.read_text())
-        resp = data.get("response", {}).get("content", {})
-        if isinstance(resp, dict) and "access_token" in resp and "refresh_token" in resp:
-            req_headers = data.get("request", {}).get("headers", {})
-            personal_id = req_headers.get("x-app-personal-id", "")
-
-            token_parts = resp["access_token"].split(".")
-            if len(token_parts) >= 2:
-                payload = token_parts[1] + "=" * (4 - len(token_parts[1]) % 4)
-                jwt_data = json.loads(base64.urlsafe_b64decode(payload))
-                user_id = jwt_data.get("sub", "")
-            else:
-                user_id = ""
-
-            return {
-                "access_token": resp["access_token"],
-                "refresh_token": resp["refresh_token"],
-                "expires_in": resp.get("expires_in", 3599),
-                "personal_id": personal_id,
-                "user_id": user_id,
-            }
-
-    # Fall back: find any request with auth header + personal_id
-    for f in sorted(capture_dir.glob("*.json"), reverse=True):
-        data = json.loads(f.read_text())
-        headers = data.get("request", {}).get("headers", {})
-        auth = headers.get("authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
-            token_parts = token.split(".")
-            if len(token_parts) >= 2:
-                payload = token_parts[1] + "=" * (4 - len(token_parts[1]) % 4)
-                jwt_data = json.loads(base64.urlsafe_b64decode(payload))
-                user_id = jwt_data.get("sub", "")
-            else:
-                user_id = ""
-
-            return {
-                "access_token": token,
-                "refresh_token": "",
-                "expires_in": 3599,
-                "personal_id": headers.get("x-app-personal-id", ""),
-                "user_id": user_id,
-            }
-
-    raise RuntimeError("No tokens found in captured flows")

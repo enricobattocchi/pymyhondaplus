@@ -12,7 +12,7 @@ from pathlib import Path
 
 import requests
 
-from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, compute_trip_stats, extract_tokens_from_captures, parse_ev_status
+from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, compute_trip_stats, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .storage import get_storage
 
@@ -90,8 +90,6 @@ vehicle selection (only needed with multiple vehicles):
     )
     parser.add_argument("--version", action="version",
                         version=f"%(prog)s {importlib.metadata.version('pymyhondaplus')}")
-    parser.add_argument("--extract-tokens", action="store_true",
-                        help="Extract tokens from mitmproxy captured flows")
     parser.add_argument("--vin", "-v", default=os.environ.get("HONDA_VIN"),
                         help="Vehicle VIN, nickname, or plate (default: auto if only one vehicle; or set HONDA_VIN)")
     parser.add_argument("--fresh", action="store_true",
@@ -207,20 +205,6 @@ vehicle selection (only needed with multiple vehicles):
     args = parser.parse_args()
 
     storage = get_storage(args.token_file, args.key_file, args.storage)
-
-    if args.extract_tokens:
-        print("Extracting tokens from captured flows...")
-        tokens = extract_tokens_from_captures()
-        api = HondaAPI(storage=storage)
-        api.set_tokens(**tokens)
-        print(f"Tokens saved to {args.token_file}")
-        print(f"User ID: {tokens['user_id']}")
-        print(f"Personal ID: {tokens['personal_id']}")
-        if tokens['refresh_token']:
-            print(f"Refresh token: {tokens['refresh_token'][:20]}...")
-        else:
-            print("No refresh token found (need complete-login capture)")
-        return
 
     if args.command == "login":
         device_key = DeviceKey(storage=storage)
