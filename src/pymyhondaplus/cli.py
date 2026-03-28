@@ -427,7 +427,7 @@ vehicle selection (only needed with multiple vehicles):
 
     elif args.command == "climate-settings-set":
         wait_command(
-            api.remote_climate_on(vin, temp=args.temp, duration=args.duration,
+            api.set_climate_settings(vin, temp=args.temp, duration=args.duration,
                                   defrost=args.defrost),
             f"Climate settings ({args.temp}, {args.duration}min, defrost={'on' if args.defrost else 'off'})",
         )

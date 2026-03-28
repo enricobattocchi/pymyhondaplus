@@ -308,9 +308,9 @@ class HondaAPI:
         """Unlock doors."""
         return self._remote_command("remote-lock", vin, command="doorUnlock")
 
-    def remote_climate_on(self, vin: str, temp: str = "normal",
-                          duration: int = 30, defrost: bool = True) -> str:
-        """Turn on climate control."""
+    def set_climate_settings(self, vin: str, temp: str = "normal",
+                             duration: int = 30, defrost: bool = True) -> str:
+        """Configure climate control settings (temperature, duration, defrost)."""
         temp_map = {"cooler": "05", "normal": "04", "hotter": "03"}
         if temp not in temp_map:
             raise ValueError(f"temp must be one of {list(temp_map.keys())}")
