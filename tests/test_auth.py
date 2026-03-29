@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from pymyhondaplus.api import HondaAPIError, HondaAuthError
 from pymyhondaplus.auth import DeviceKey, HondaAuth, encrypt_request
 
 
@@ -109,7 +110,7 @@ class TestHondaAuthLogin:
             return_value=_mock_response(401, text="Unauthorized")
         )
 
-        with pytest.raises(RuntimeError, match="initiate-login failed"):
+        with pytest.raises(HondaAuthError, match="initiate-login failed"):
             auth.initiate_login("user@test.com", "pass123")
 
     def test_complete_login_signs_challenge(self):
@@ -132,7 +133,7 @@ class TestHondaAuthLogin:
             return_value=_mock_response(500, text="Server Error")
         )
 
-        with pytest.raises(RuntimeError, match="complete-login failed"):
+        with pytest.raises(HondaAuthError, match="complete-login failed"):
             auth.complete_login("user@test.com", "pass123", "txn", "ch")
 
     def test_login_chains_initiate_and_complete(self):
@@ -157,5 +158,20 @@ class TestHondaAuthLogin:
             return_value=_mock_response(403, text="Forbidden")
         )
 
-        with pytest.raises(RuntimeError, match="register failed"):
+        with pytest.raises(HondaAuthError, match="register failed"):
             auth.register_device("user@test.com", "pass123")
+
+
+class TestHondaAuthErrorInheritance:
+
+    def test_auth_error_is_api_error(self):
+        err = HondaAuthError(401, "bad credentials")
+        assert isinstance(err, HondaAPIError)
+
+    def test_catchable_as_api_error(self):
+        with pytest.raises(HondaAPIError):
+            raise HondaAuthError(401, "bad credentials")
+
+    def test_has_status_code(self):
+        err = HondaAuthError(403, "forbidden")
+        assert err.status_code == 403

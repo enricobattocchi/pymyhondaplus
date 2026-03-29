@@ -10,7 +10,7 @@ import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, compute_trip_stats, parse_ev_status
+from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, HondaAuthError, compute_trip_stats, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .storage import get_storage
 
@@ -210,7 +210,7 @@ vehicle selection (only needed with multiple vehicles):
         password = args.password or getpass.getpass("Password: ")
         try:
             result = auth.full_login(args.email, password, locale=args.locale)
-        except RuntimeError as e:
+        except HondaAuthError as e:
             print(f"\nLogin failed: {e}")
             return
 

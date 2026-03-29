@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Optional
 
 import requests
+
+from .api import HondaAuthError
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -215,7 +217,7 @@ class HondaAuth:
         resp = self._post("/auth/reset-device-authenticator", json_data=payload)
         logger.info("reset-device-authenticator: %s", resp.status_code)
         if resp.status_code not in (200, 202):
-            raise RuntimeError(f"reset-device-authenticator failed: {resp.status_code} {resp.text}")
+            raise HondaAuthError(resp.status_code, f"reset-device-authenticator failed: {resp.text}")
         return resp.json() if resp.text else {}
 
     def request_verify_link(self, email: str, request_type: str = "MfaSetup") -> dict:
@@ -227,7 +229,7 @@ class HondaAuth:
         resp = self._post("/auth/verify-link", json_data=payload)
         logger.info("verify-link: %s", resp.status_code)
         if resp.status_code not in (200, 202):
-            raise RuntimeError(f"verify-link failed: {resp.status_code} {resp.text}")
+            raise HondaAuthError(resp.status_code, f"verify-link failed: {resp.text}")
         return resp.json() if resp.text else {}
 
     def check_verify_link_status(self, email: str) -> dict:
@@ -247,7 +249,7 @@ class HondaAuth:
         resp = self._post("/auth/register", json_data=payload)
         logger.info("register: %s", resp.status_code)
         if resp.status_code not in (200, 202):
-            raise RuntimeError(f"register failed: {resp.status_code} {resp.text}")
+            raise HondaAuthError(resp.status_code, f"register failed: {resp.text}")
         return resp.json() if resp.text else {}
 
     def initiate_login(self, email: str, password: str,
@@ -275,7 +277,7 @@ class HondaAuth:
         resp = self._post("/auth/initiate-login", json_data=payload)
         logger.info("initiate-login: %s", resp.status_code)
         if resp.status_code not in (200, 202):
-            raise RuntimeError(f"initiate-login failed: {resp.status_code} {resp.text}")
+            raise HondaAuthError(resp.status_code, f"initiate-login failed: {resp.text}")
         return resp.json()
 
     def complete_login(self, email: str, password: str,
@@ -297,11 +299,11 @@ class HondaAuth:
         resp = self._post("/auth/complete-login", json_data=payload)
         logger.info("complete-login: %s", resp.status_code)
         if resp.status_code not in (200, 202):
-            raise RuntimeError(f"complete-login failed: {resp.status_code} {resp.text}")
+            raise HondaAuthError(resp.status_code, f"complete-login failed: {resp.text}")
         return resp.json()
 
     def login(self, email: str, password: str, locale: str = "it") -> dict:
-        """Try initiate + complete login. Returns tokens dict or raises RuntimeError."""
+        """Try initiate + complete login. Returns tokens dict or raises HondaAuthError."""
         result = self.initiate_login(email, password, locale=locale)
         return self.complete_login(
             email, password,
@@ -326,10 +328,11 @@ class HondaAuth:
 
         try:
             result = self.initiate_login(email, password, locale=locale)
-        except RuntimeError as e:
+        except HondaAuthError as e:
             error_text = str(e)
             if "locked-account" in error_text:
-                raise RuntimeError(
+                raise HondaAuthError(
+                    e.status_code,
                     "Account is locked (too many attempts). "
                     "Wait a while or reset your password via the My Honda+ app."
                 ) from None
@@ -354,7 +357,7 @@ class HondaAuth:
                 email, password)
             logger.info("reset-device-authenticator response: %s", reset_result)
             print("Verification email sent!")
-        except RuntimeError as e:
+        except HondaAuthError as e:
             if "currently blocked" in str(e):
                 logger.info("Reset already requested, proceeding")
                 print("Reset already requested. If you got an email, click it now.")
@@ -371,7 +374,7 @@ class HondaAuth:
 
         key, link_type = self.parse_verify_link_key(link)
         if not key:
-            raise RuntimeError(f"Could not extract key from link: {link}")
+            raise HondaAuthError(0, f"Could not extract key from link: {link}")
 
         result = self.verify_magic_link(key, link_type)
         logger.info("Magic link verification result: %s", result)
