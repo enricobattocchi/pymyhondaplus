@@ -5,11 +5,9 @@ Implements the full login flow including device registration and email verificat
 """
 
 import base64
-import hashlib
 import json
 import logging
 import os
-import time
 import urllib.parse
 from pathlib import Path
 from typing import Optional
@@ -199,7 +197,7 @@ class HondaAuth:
         self.session.headers.update(DEFAULT_HEADERS)
         self.device_key = device_key or DeviceKey()
 
-    def _post(self, path: str, json_data: dict = None, **kwargs) -> requests.Response:
+    def _post(self, path: str, json_data: dict | None = None, **kwargs) -> requests.Response:
         return self.session.post(f"{API_BASE}{path}", json=json_data, **kwargs)
 
     def reset_device_authenticator(self, email: str, password: str,

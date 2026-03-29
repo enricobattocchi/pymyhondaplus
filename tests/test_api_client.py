@@ -1,6 +1,6 @@
 """Tests for HondaAPI HTTP layer — auth headers, token refresh, error handling."""
 
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock
 import time
 
 import pytest

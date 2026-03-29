@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, compute_trip_stats, parse_ev_status
@@ -304,7 +304,7 @@ vehicle selection (only needed with multiple vehicles):
 
     def wait_command(cmd_id: str, label: str):
         if not cmd_id:
-            print(f"Failed: no command ID returned")
+            print("Failed: no command ID returned")
             return
         for i in range(30):
             result = api.poll_command(cmd_id)
@@ -604,10 +604,10 @@ vehicle selection (only needed with multiple vehicles):
         if args.json:
             print(json.dumps(locs, indent=2))
         else:
-            print(f"Start:")
+            print("Start:")
             print(f"  Time:      {locs.get('start_time', 'N/A')}")
             print(f"  Location:  {locs.get('start_lat', 'N/A')}, {locs.get('start_lon', 'N/A')}")
-            print(f"End:")
+            print("End:")
             print(f"  Time:      {locs.get('end_time', 'N/A')}")
             print(f"  Location:  {locs.get('end_lat', 'N/A')}, {locs.get('end_lon', 'N/A')}")
 
