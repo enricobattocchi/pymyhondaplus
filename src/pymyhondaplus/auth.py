@@ -273,7 +273,7 @@ class HondaAuth:
             "applicationVersion": "3.0.0",
         })
         resp = self._post("/auth/initiate-login", json_data=payload)
-        logger.info("initiate-login: %s %s", resp.status_code, resp.text[:300] if resp.text else "")
+        logger.info("initiate-login: %s", resp.status_code)
         if resp.status_code not in (200, 202):
             raise RuntimeError(f"initiate-login failed: {resp.status_code} {resp.text}")
         return resp.json()
@@ -295,7 +295,7 @@ class HondaAuth:
             "signedChallengeResponse": signed_challenge,
         })
         resp = self._post("/auth/complete-login", json_data=payload)
-        logger.info("complete-login: %s %s", resp.status_code, resp.text[:300] if resp.text else "")
+        logger.info("complete-login: %s", resp.status_code)
         if resp.status_code not in (200, 202):
             raise RuntimeError(f"complete-login failed: {resp.status_code} {resp.text}")
         return resp.json()
@@ -314,7 +314,7 @@ class HondaAuth:
         encoded_key = urllib.parse.quote(key, safe="+/=")
         url = f"{API_BASE}/auth/verify-link?type={link_type}&key={encoded_key}&dontRedirect=true"
         resp = self.session.get(url)
-        logger.info("verify-link GET: %s %s", resp.status_code, resp.text[:200] if resp.text else "")
+        logger.info("verify-link GET: %s", resp.status_code)
         return {"status_code": resp.status_code, "body": resp.text}
 
     def full_login(self, email: str, password: str, locale: str = "it") -> dict:
