@@ -10,8 +10,6 @@ import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-import requests
-
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, compute_trip_stats, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .storage import get_storage
@@ -475,7 +473,7 @@ vehicle selection (only needed with multiple vehicles):
                 api.set_charge_schedule(vin, rules),
                 f"Charge schedule rule {args.rule}",
             )
-        except (requests.HTTPError, HondaAPIError):
+        except HondaAPIError:
             role = (vehicle_info or {}).get("role", "")
             if role and role != "primary":
                 print(f"Charge schedule is not available for {role} users.")
@@ -488,7 +486,7 @@ vehicle selection (only needed with multiple vehicles):
                 api.set_charge_schedule(vin, []),
                 "Clear charge schedule",
             )
-        except (requests.HTTPError, HondaAPIError):
+        except HondaAPIError:
             role = (vehicle_info or {}).get("role", "")
             if role and role != "primary":
                 print(f"Charge schedule is not available for {role} users.")
@@ -529,7 +527,7 @@ vehicle selection (only needed with multiple vehicles):
                 api.set_climate_schedule(vin, rules),
                 f"Climate schedule slot {args.slot}",
             )
-        except (requests.HTTPError, HondaAPIError):
+        except HondaAPIError:
             role = (vehicle_info or {}).get("role", "")
             if role and role != "primary":
                 print(f"Climate schedule is not available for {role} users.")
@@ -542,7 +540,7 @@ vehicle selection (only needed with multiple vehicles):
                 api.set_climate_schedule(vin, []),
                 "Clear climate schedule",
             )
-        except (requests.HTTPError, HondaAPIError):
+        except HondaAPIError:
             role = (vehicle_info or {}).get("role", "")
             if role and role != "primary":
                 print(f"Climate schedule is not available for {role} users.")
@@ -563,12 +561,12 @@ vehicle selection (only needed with multiple vehicles):
                 rows = [dict(zip(fields, trip)) for trip in payload.get("data", [])]
                 if not args.json:
                     print(f"Page {data.get('page', '?')}/{data.get('maxPage', '?')}")
-        except requests.HTTPError as e:
+        except HondaAPIError as e:
             role = (vehicle_info or {}).get("role", "")
             if role and role != "primary":
                 print(f"Trip history is not available for {role} users.")
             else:
-                print(f"Failed to fetch trips: {e.response.status_code} {e.response.reason}")
+                print(f"Failed to fetch trips: {e}")
             return
 
         if not rows:
@@ -581,7 +579,7 @@ vehicle selection (only needed with multiple vehicles):
                 if args.locations and start != "?" and end != "?":
                     try:
                         row.update(api.get_trip_locations(vin, start, end))
-                    except requests.HTTPError:
+                    except HondaAPIError:
                         pass
                 if args.json:
                     json_rows.append(row)
@@ -600,8 +598,8 @@ vehicle selection (only needed with multiple vehicles):
     elif args.command == "trip-detail":
         try:
             locs = api.get_trip_locations(vin, args.start_time, args.end_time)
-        except requests.HTTPError as e:
-            print(f"Failed to fetch trip detail: {e.response.status_code} {e.response.reason}")
+        except HondaAPIError as e:
+            print(f"Failed to fetch trip detail: {e}")
             return
         if args.json:
             print(json.dumps(locs, indent=2))
@@ -632,12 +630,12 @@ vehicle selection (only needed with multiple vehicles):
 
         try:
             all_rows = api.get_all_trips(vin, month_start=month_start)
-        except requests.HTTPError as e:
+        except HondaAPIError as e:
             role = (vehicle_info or {}).get("role", "")
             if role and role != "primary":
                 print(f"Trip history is not available for {role} users.")
             else:
-                print(f"Failed to fetch trips: {e.response.status_code} {e.response.reason}")
+                print(f"Failed to fetch trips: {e}")
             return
 
         # Filter to period
