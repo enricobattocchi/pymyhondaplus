@@ -5,12 +5,11 @@ Tested on Honda e. Should work with other Honda Connect Europe vehicles
 (e:Ny1, ZR-V, CR-V, Civic, HR-V, Jazz 2020+) but these are untested.
 """
 
-import json
 import os
 import time
 import logging
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, TYPE_CHECKING
 
 import requests
@@ -45,11 +44,7 @@ class AuthTokens:
     expires_at: float = 0
     personal_id: str = ""
     user_id: str = ""
-    vehicles: list[dict] = None
-
-    def __post_init__(self):
-        if self.vehicles is None:
-            self.vehicles = []
+    vehicles: list[dict] = field(default_factory=list)
 
     @property
     def default_vin(self) -> str:
@@ -140,7 +135,7 @@ class HondaAPI:
 
     def set_tokens(self, access_token: str, refresh_token: str,
                    expires_in: int = 3599, personal_id: str = "",
-                   user_id: str = "", vehicles: list[dict] = None):
+                   user_id: str = "", vehicles: list[dict] | None = None):
         """Set authentication tokens."""
         self.tokens = AuthTokens(
             access_token=access_token,

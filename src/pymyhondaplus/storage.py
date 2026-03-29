@@ -233,7 +233,7 @@ class KeyringStorage(_FernetStorage):
 def _find_keyring_backend():
     """Find the best working keyring backend, trying each one directly."""
     try:
-        import keyring
+        import keyring  # noqa: F401
     except ImportError:
         return None
 
