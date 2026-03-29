@@ -1,7 +1,6 @@
 """Tests for storage backends — PlainFileStorage and EncryptedFileStorage."""
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
