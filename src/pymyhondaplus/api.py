@@ -92,6 +92,11 @@ class HondaAPIError(Exception):
         super().__init__(f"HTTP {status_code}: {message}")
 
 
+class HondaAuthError(HondaAPIError):
+    """Raised for authentication failures (login, device registration, etc.)."""
+    pass
+
+
 class HondaAPI:
     """Unofficial Honda Connect Europe API client.
 
