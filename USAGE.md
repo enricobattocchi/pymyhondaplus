@@ -272,7 +272,7 @@ Use `--storage plain` to disable encryption. Existing plain-text token files are
 ## Library usage
 
 ```python
-from pymyhondaplus import HondaAPI, HondaAuth, DeviceKey, compute_trip_stats
+from pymyhondaplus import HondaAPI, HondaAPIError, HondaAuth, DeviceKey, compute_trip_stats
 # Authenticate
 auth = HondaAuth()
 tokens = auth.full_login("user@example.com", "password")
@@ -310,4 +310,12 @@ climate = api.get_climate_schedule("JHMZC7840LXXXXXX")
 api.set_climate_schedule("JHMZC7840LXXXXXX", [
     {"days": "mon,tue,fri", "start_time": "07:00"},
 ])
+
+# Error handling — all API methods raise HondaAPIError
+try:
+    status = api.get_dashboard("JHMZC7840LXXXXXX")
+except HondaAPIError as e:
+    print(f"API error: {e.status_code} — {e}")
 ```
+
+Transient errors (5xx, connection timeouts) are automatically retried up to 3 times with backoff.
