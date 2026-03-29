@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from typing import Optional, TYPE_CHECKING
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 if TYPE_CHECKING:
     from .storage import SecretStorage
@@ -107,6 +109,16 @@ class HondaAPI:
                  token_file: Optional[Path] = None):
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
+        retry = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=(500, 502, 503, 504),
+            allowed_methods=None,
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
         self._storage = storage
 
         # Backward compatibility: token_file without storage
@@ -203,7 +215,8 @@ class HondaAPI:
             f"/user/get-login-info?userid={uid}"
             f"&agreementType=1&country={country}&language={language}",
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            raise HondaAPIError(resp.status_code, resp.text)
         return resp.json()
 
     def get_vehicles(self, **kwargs) -> list[dict]:
@@ -230,7 +243,8 @@ class HondaAPI:
         resp = self._request(
             "GET", f"/tsp/dashboard-latest?vin={vin}&languageCode={language}",
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            raise HondaAPIError(resp.status_code, resp.text)
         return resp.json()
 
     def request_dashboard_refresh(self, vin: str) -> str:
@@ -300,6 +314,15 @@ class HondaAPI:
         status_url = data.get("statusQueryGetUri", "")
         return status_url.split("id=")[-1] if "id=" in status_url else ""
 
+    def _async_put_command(self, path: str, json_body: dict) -> str:
+        """Send an async PUT command, return the command ID."""
+        resp = self._request("PUT", path, json=json_body)
+        if resp.status_code not in (200, 202):
+            raise HondaAPIError(resp.status_code, resp.text)
+        data = resp.json()
+        status_url = data.get("statusQueryGetUri", "")
+        return status_url.split("id=")[-1] if "id=" in status_url else ""
+
     def remote_lock(self, vin: str) -> str:
         """Lock all doors."""
         return self._remote_command("remote-lock", vin, command="allLock")
@@ -360,27 +383,10 @@ class HondaAPI:
         valid = (80, 85, 90, 95, 100)
         if home not in valid or away not in valid:
             raise ValueError(f"Charge limits must be one of {valid}")
-        self._ensure_auth()
-        headers = {
-            "authorization": f"Bearer {self.tokens.access_token}",
-        }
-        if self.tokens.personal_id:
-            headers["x-app-personal-id"] = self.tokens.personal_id
-
-        resp = self.session.put(
-            f"{API_BASE}/tsp/maximum-charge-config",
-            headers=headers,
-            json={
-                "vin": vin,
-                "locationHome": {"maxCharge": home},
-                "locationAway": {"maxCharge": away},
-            },
+        return self._async_put_command(
+            "/tsp/maximum-charge-config",
+            {"vin": vin, "locationHome": {"maxCharge": home}, "locationAway": {"maxCharge": away}},
         )
-        if resp.status_code not in (200, 202):
-            raise HondaAPIError(resp.status_code, resp.text)
-        data = resp.json()
-        status_url = data.get("statusQueryGetUri", "")
-        return status_url.split("id=")[-1] if "id=" in status_url else ""
 
     def get_charge_schedule(self, vin: str, fresh: bool = False) -> list[dict]:
         """Get charge prohibition schedule from dashboard.
@@ -415,13 +421,6 @@ class HondaAPI:
         Returns:
             Async command ID for polling.
         """
-        self._ensure_auth()
-        headers = {
-            "authorization": f"Bearer {self.tokens.access_token}",
-        }
-        if self.tokens.personal_id:
-            headers["x-app-personal-id"] = self.tokens.personal_id
-
         settings = []
         for i in range(2):
             if i < len(rules) and rules[i].get("enabled", True):
@@ -451,16 +450,10 @@ class HondaAPI:
                     },
                 })
 
-        resp = self.session.put(
-            f"{API_BASE}/tsp/charge-prohibition-schedule",
-            headers=headers,
-            json={"vin": vin, "chargeProhibitionTimerSettings": settings},
+        return self._async_put_command(
+            "/tsp/charge-prohibition-schedule",
+            {"vin": vin, "chargeProhibitionTimerSettings": settings},
         )
-        if resp.status_code not in (200, 202):
-            raise HondaAPIError(resp.status_code, resp.text)
-        data = resp.json()
-        status_url = data.get("statusQueryGetUri", "")
-        return status_url.split("id=")[-1] if "id=" in status_url else ""
 
     def get_climate_schedule(self, vin: str, fresh: bool = False) -> list[dict]:
         """Get climate schedule from dashboard.
@@ -491,13 +484,6 @@ class HondaAPI:
         Returns:
             Async command ID for polling.
         """
-        self._ensure_auth()
-        headers = {
-            "authorization": f"Bearer {self.tokens.access_token}",
-        }
-        if self.tokens.personal_id:
-            headers["x-app-personal-id"] = self.tokens.personal_id
-
         settings = []
         for i in range(7):
             if i < len(rules) and rules[i].get("enabled", True):
@@ -518,21 +504,16 @@ class HondaAPI:
                     "acTimerOption": {"acStartTime1": "0000"},
                 })
 
-        resp = self.session.put(
-            f"{API_BASE}/tsp/remote-climate-schedule",
-            headers=headers,
-            json={"vin": vin, "acTimerSettings": settings},
+        return self._async_put_command(
+            "/tsp/remote-climate-schedule",
+            {"vin": vin, "acTimerSettings": settings},
         )
-        if resp.status_code not in (200, 202):
-            raise HondaAPIError(resp.status_code, resp.text)
-        data = resp.json()
-        status_url = data.get("statusQueryGetUri", "")
-        return status_url.split("id=")[-1] if "id=" in status_url else ""
 
     def get_drivers(self, vin: str) -> dict:
         """Get drivers associated with the vehicle."""
         resp = self._request("GET", f"/tsp/drivers-by-vehicle?vin={vin}")
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            raise HondaAPIError(resp.status_code, resp.text)
         return resp.json()
 
     def get_trips(self, vin: str, month_start: str = "", page: int = 1) -> dict:
@@ -555,7 +536,8 @@ class HondaAPI:
             "GET",
             f"/tsp/journey-history?vin={vin}&monthStart={encoded_month}&page={page}",
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            raise HondaAPIError(resp.status_code, resp.text)
         return resp.json()
 
     def get_trip_detail(self, vin: str, from_date: str, to_date: str,
@@ -576,7 +558,8 @@ class HondaAPI:
             f"/tsp/journey-history-detail?vin={vin}"
             f"&fromDate={enc_from}&toDate={enc_to}&type={trip_type}",
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            raise HondaAPIError(resp.status_code, resp.text)
         return resp.json()
     def get_all_trips(self, vin: str, month_start: str = "",
                        ref_date: str = "") -> list[dict]:
