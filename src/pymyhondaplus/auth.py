@@ -112,13 +112,15 @@ class DeviceKey:
     - DeviceKey(storage=SecretStorage(...)) — loads/saves via storage backend
     """
 
+    _private_key: rsa.RSAPrivateKey
+
     def __init__(self, pem_data: Optional[bytes] = None,
                  key_file: Optional[Path] = None,
                  storage=None):
         self._key_file = key_file
         self._storage = storage
         if pem_data:
-            self._private_key = serialization.load_pem_private_key(pem_data, password=None)
+            self._private_key = serialization.load_pem_private_key(pem_data, password=None)  # type: ignore[assignment]
         elif storage is not None:
             self._load_or_generate_via_storage(storage)
         elif key_file is not None:
@@ -132,7 +134,7 @@ class DeviceKey:
     def _load_or_generate_via_storage(self, storage):
         pem_data = storage.load_device_key()
         if pem_data and pem_data.startswith(b"-----BEGIN"):
-            self._private_key = serialization.load_pem_private_key(pem_data, password=None)
+            self._private_key = serialization.load_pem_private_key(pem_data, password=None)  # type: ignore[assignment]
             logger.info("Loaded existing device key from storage")
         else:
             self._private_key = rsa.generate_private_key(
@@ -145,7 +147,7 @@ class DeviceKey:
     def _load_or_generate(self, key_file: Path):
         if key_file.exists():
             pem_data = key_file.read_bytes()
-            self._private_key = serialization.load_pem_private_key(pem_data, password=None)
+            self._private_key = serialization.load_pem_private_key(pem_data, password=None)  # type: ignore[assignment]
             logger.info("Loaded existing device key from %s", key_file)
         else:
             self._private_key = rsa.generate_private_key(
