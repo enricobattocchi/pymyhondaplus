@@ -190,7 +190,7 @@ class HondaAPI:
     def refresh_auth(self) -> AuthTokens:
         """Refresh the access token via Honda's auth API."""
         if not self.tokens.refresh_token:
-            raise HondaAPIError(401, "No refresh token")
+            raise HondaAuthError(401, "No refresh token")
 
         logger.info("Refreshing access token")
         resp = self.session.post(
@@ -199,7 +199,7 @@ class HondaAPI:
         )
 
         if resp.status_code != 200:
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise HondaAuthError(resp.status_code, resp.text)
 
         data = resp.json()
         self.tokens.access_token = data["access_token"]
@@ -212,7 +212,7 @@ class HondaAPI:
     def _ensure_auth(self):
         """Ensure we have a valid access token."""
         if not self.tokens.access_token:
-            raise HondaAPIError(401, "No tokens configured")
+            raise HondaAuthError(401, "No tokens configured")
         if self.tokens.is_expired:
             self.refresh_auth()
 
@@ -236,6 +236,8 @@ class HondaAPI:
             resp = self.session.request(
                 method, f"{API_BASE}{path}", headers=headers, **kwargs,
             )
+            if resp.status_code == 401:
+                raise HondaAuthError(401, "Authentication failed after token refresh")
 
         return resp
 
