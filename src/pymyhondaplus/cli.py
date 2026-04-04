@@ -303,16 +303,17 @@ vehicle selection (only needed with multiple vehicles):
         print()
 
     def wait_command(cmd_id: str, label: str):
-        if not cmd_id:
-            print("Failed: no command ID returned")
-            return
-        for i in range(30):
-            result = api.poll_command(cmd_id)
-            if result["status_code"] == 200:
-                print(f"{label}: done!")
-                return
-            time.sleep(2)
-        print(f"{label}: timed out waiting for confirmation")
+        result = api.wait_for_command(cmd_id)
+        if result.success:
+            print(f"{label}: done!")
+        elif not result.complete and result.status == "no_command_id":
+            print(f"{label}: failed (no command ID returned)")
+        elif result.timed_out:
+            reason = result.reason or "car may be unreachable"
+            print(f"{label}: timed out ({reason})")
+        else:
+            reason = result.reason or result.status
+            print(f"{label}: failed ({reason})")
 
     if args.command == "status":
         if args.watch:
