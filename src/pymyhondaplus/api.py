@@ -86,6 +86,41 @@ class AuthTokens:
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
 
+@dataclass
+class CommandResult:
+    """Parsed result of an async command poll."""
+    complete: bool
+    status: str  # "pending", "success", or server-provided status
+    timed_out: bool = False
+    reason: str | None = None
+    command_id: str = ""
+    feature: str = ""
+    raw: dict = field(default_factory=dict)
+
+    @classmethod
+    def from_poll(cls, status_code: int, data: dict) -> "CommandResult":
+        if status_code != 200:
+            return cls(complete=False, status="pending", raw=data)
+        output = data.get("output") or {}
+        return cls(
+            complete=True,
+            status=output.get("RequestStatus", "unknown"),
+            timed_out=output.get("functionTimedOut", False),
+            reason=output.get("StatusReason"),
+            command_id=output.get("RequestId", ""),
+            feature=output.get("NotificationFeature", ""),
+            raw=data,
+        )
+
+    @classmethod
+    def pending_timeout(cls) -> "CommandResult":
+        return cls(complete=False, status="pending", timed_out=True)
+
+    @property
+    def success(self) -> bool:
+        return self.complete and self.status == "success" and not self.timed_out
+
+
 class HondaAPIError(Exception):
     def __init__(self, status_code: int, message: str):
         self.status_code = status_code
@@ -260,15 +295,38 @@ class HondaAPI:
         status_url = data.get("statusQueryGetUri", "")
         return status_url.split("id=")[-1] if "id=" in status_url else ""
 
-    def poll_command(self, command_id: str) -> dict:
-        """Poll an async command status."""
+    def poll_command(self, command_id: str) -> CommandResult:
+        """Poll an async command status. Returns a parsed CommandResult."""
         resp = self._request(
             "GET", f"/euw/tsp/async-command-status?id={command_id}",
         )
-        return {"status_code": resp.status_code, "data": resp.json()}
+        return CommandResult.from_poll(resp.status_code, resp.json())
+
+    def wait_for_command(self, command_id: str,
+                         timeout: int = 60,
+                         poll_interval: float = 1.5) -> CommandResult:
+        """Poll until a command completes or times out.
+
+        Returns a CommandResult with details about the outcome.
+        """
+        if not command_id:
+            return CommandResult(complete=False, status="no_command_id")
+
+        start = time.time()
+        while time.time() - start < timeout:
+            result = self.poll_command(command_id)
+            if result.complete:
+                if not result.success:
+                    logger.warning("Command %s finished: status=%s timedOut=%s reason=%s",
+                                   command_id, result.status, result.timed_out, result.reason)
+                return result
+            time.sleep(poll_interval)
+
+        logger.warning("Gave up polling command %s after %ds", command_id, timeout)
+        return CommandResult.pending_timeout()
 
     def get_dashboard(self, vin: str, language: str = "it", fresh: bool = False,
-                      timeout: int = 60, poll_interval: int = 2) -> dict:
+                      timeout: int = 60, poll_interval: float = 1.5) -> dict:
         """
         Get full dashboard data.
 
@@ -287,12 +345,10 @@ class HondaAPI:
             logger.warning("No command ID, falling back to cached data")
             return self.get_dashboard_cached(vin, language)
 
-        start = time.time()
-        while time.time() - start < timeout:
-            result = self.poll_command(command_id)
-            if result["status_code"] == 200:
-                break
-            time.sleep(poll_interval)
+        result = self.wait_for_command(command_id, timeout, poll_interval)
+        if not result.success:
+            logger.warning("Dashboard refresh did not succeed (status=%s), using cached data",
+                           result.status)
 
         return self.get_dashboard_cached(vin, language)
 
