@@ -43,6 +43,20 @@ pymyhondaplus trip-stats --period week
 
 See [USAGE.md](https://github.com/enricobattocchi/pymyhondaplus/blob/main/USAGE.md) for the full command reference, including vehicle selection, trip details, library usage, and security options.
 
+## Unreachable car handling
+
+When the car is in deep sleep or out of cellular range, remote commands and fresh status requests will time out on Honda's server side (~60 seconds). The library detects this via the `CommandResult` type:
+
+```python
+result = api.wait_for_command(command_id)
+if result.success:
+    print("Command succeeded")
+elif result.timed_out:
+    print("Car unreachable — showing cached data")
+```
+
+The CLI surfaces this automatically: `Refresh: timed out (car may be unreachable)`.
+
 ## Related projects
 
 - [myhondaplus-desktop](https://github.com/enricobattocchi/myhondaplus-desktop) — Desktop GUI application

@@ -311,6 +311,32 @@ api.set_climate_schedule("JHMZC7840LXXXXXX", [
     {"days": "mon,tue,fri", "start_time": "07:00"},
 ])
 
+# Remote commands return CommandResult
+from pymyhondaplus import CommandResult
+
+cmd_id = api.remote_lock("JHMZC7840LXXXXXX")
+result = api.wait_for_command(cmd_id)
+
+if result.success:
+    print("Command succeeded")
+elif result.timed_out:
+    # Car in deep sleep or out of cellular range
+    print(f"Car unreachable: {result.reason or 'timed out'}")
+else:
+    print(f"Command failed: {result.reason or result.status}")
+
+# CommandResult fields:
+#   result.complete    — True if the server returned a final answer
+#   result.success     — True if completed successfully
+#   result.timed_out   — True if the car couldn't be reached
+#   result.status      — "pending", "success", "in-progress", etc.
+#   result.reason      — server-provided explanation (often None)
+#   result.command_id  — the async command ID
+#   result.raw         — full server response dict
+
+# You can also poll manually:
+result = api.poll_command(cmd_id)  # returns CommandResult
+
 # Error handling — all API methods raise HondaAPIError
 try:
     status = api.get_dashboard("JHMZC7840LXXXXXX")
@@ -319,3 +345,7 @@ except HondaAPIError as e:
 ```
 
 Transient errors (5xx, connection timeouts) are automatically retried up to 3 times with backoff.
+
+### Breaking changes in 5.0.0
+
+`poll_command()` now returns a `CommandResult` object instead of a raw `dict`. If you were using the old return format (`{"status_code": ..., "data": ...}`), update your code to use `CommandResult` fields instead.
