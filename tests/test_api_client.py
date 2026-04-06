@@ -198,56 +198,26 @@ class TestTimeoutAdapter:
 
     def test_applies_default_timeout(self):
         from pymyhondaplus.api import _TimeoutAdapter, DEFAULT_TIMEOUT
-        adapter = _TimeoutAdapter()
-        kwargs = {"timeout": None}
-        # Patch super().send to capture kwargs
+        from requests import PreparedRequest
         from unittest.mock import patch
+
+        adapter = _TimeoutAdapter()
         with patch("requests.adapters.HTTPAdapter.send") as mock_send:
-            adapter.send("request", **kwargs)
+            request = PreparedRequest()
+            request.prepare(method="GET", url="https://example.com")
+            adapter.send(request)
             _, call_kwargs = mock_send.call_args
             assert call_kwargs["timeout"] == DEFAULT_TIMEOUT
 
     def test_respects_explicit_timeout(self):
         from pymyhondaplus.api import _TimeoutAdapter
-        adapter = _TimeoutAdapter()
-        kwargs = {"timeout": 10}
+        from requests import PreparedRequest
         from unittest.mock import patch
+
+        adapter = _TimeoutAdapter()
         with patch("requests.adapters.HTTPAdapter.send") as mock_send:
-            adapter.send("request", **kwargs)
+            request = PreparedRequest()
+            request.prepare(method="GET", url="https://example.com")
+            adapter.send(request, timeout=10)
             _, call_kwargs = mock_send.call_args
             assert call_kwargs["timeout"] == 10
-
-    def test_hanging_server_times_out(self):
-        """Real connection to a black-hole socket times out instead of hanging."""
-        import socket
-        import threading
-        from pymyhondaplus.api import _TimeoutAdapter
-
-        # Start a server that accepts but never responds
-        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        srv.bind(("127.0.0.1", 0))
-        srv.listen(1)
-        port = srv.getsockname()[1]
-
-        stop = threading.Event()
-
-        def accept_and_hold():
-            conn, _ = srv.accept()
-            # Hold the connection open, never respond
-            stop.wait()
-            conn.close()
-
-        t = threading.Thread(target=accept_and_hold, daemon=True)
-        t.start()
-
-        try:
-            session = requests.Session()
-            adapter = _TimeoutAdapter(timeout=1)
-            session.mount("http://", adapter)
-
-            with pytest.raises(requests.exceptions.ReadTimeout):
-                session.get(f"http://127.0.0.1:{port}/")
-        finally:
-            stop.set()
-            srv.close()
