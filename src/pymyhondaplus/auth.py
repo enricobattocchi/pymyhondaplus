@@ -197,8 +197,12 @@ class HondaAuth:
     """Handles the full Honda Connect Europe authentication flow."""
 
     def __init__(self, device_key: Optional[DeviceKey] = None):
+        from .api import _TimeoutAdapter
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
+        adapter = _TimeoutAdapter()
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
         self.device_key = device_key or DeviceKey()
 
     def _post(self, path: str, json_data: dict | None = None, **kwargs) -> requests.Response:
