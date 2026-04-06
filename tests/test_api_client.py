@@ -230,10 +230,12 @@ class TestTimeoutAdapter:
         srv.listen(1)
         port = srv.getsockname()[1]
 
+        stop = threading.Event()
+
         def accept_and_hold():
             conn, _ = srv.accept()
-            # Hold the connection open until test finishes
-            conn.recv(4096)
+            # Hold the connection open, never respond
+            stop.wait()
             conn.close()
 
         t = threading.Thread(target=accept_and_hold, daemon=True)
@@ -244,7 +246,8 @@ class TestTimeoutAdapter:
             adapter = _TimeoutAdapter(timeout=1)
             session.mount("http://", adapter)
 
-            with pytest.raises(requests.ConnectionError):
+            with pytest.raises(requests.exceptions.ReadTimeout):
                 session.get(f"http://127.0.0.1:{port}/")
         finally:
+            stop.set()
             srv.close()
