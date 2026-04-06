@@ -197,7 +197,7 @@ class TestTimeoutAdapter:
     """_TimeoutAdapter applies default timeout to all requests."""
 
     def test_applies_default_timeout(self):
-        from pymyhondaplus.api import _TimeoutAdapter
+        from pymyhondaplus.api import _TimeoutAdapter, DEFAULT_TIMEOUT
         adapter = _TimeoutAdapter()
         kwargs = {"timeout": None}
         # Patch super().send to capture kwargs
@@ -205,7 +205,7 @@ class TestTimeoutAdapter:
         with patch("requests.adapters.HTTPAdapter.send") as mock_send:
             adapter.send("request", **kwargs)
             _, call_kwargs = mock_send.call_args
-            assert call_kwargs["timeout"] == 30
+            assert call_kwargs["timeout"] == DEFAULT_TIMEOUT
 
     def test_respects_explicit_timeout(self):
         from pymyhondaplus.api import _TimeoutAdapter

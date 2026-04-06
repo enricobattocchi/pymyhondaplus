@@ -17,7 +17,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-DEFAULT_TIMEOUT = 30
+DEFAULT_TIMEOUT = 10
 
 
 class _TimeoutAdapter(HTTPAdapter):
