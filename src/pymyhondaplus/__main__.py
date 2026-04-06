@@ -1,3 +1,3 @@
-from pymyhondaplus.cli import main
+from pymyhondaplus.cli import _main
 
-main()
+_main()

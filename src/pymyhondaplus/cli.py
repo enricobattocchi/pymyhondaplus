@@ -1,14 +1,22 @@
 """CLI entry point for pymyhondaplus."""
 
 import argparse
+import csv
 import getpass
 import importlib.metadata
 import json
 import logging
 import os
+import sys
+import threading
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
+
+try:
+    import argcomplete
+except ImportError:
+    argcomplete = None
 
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, HondaAuthError, compute_trip_stats, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
@@ -63,6 +71,64 @@ def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None) -> st
     return "  ".join(parts)
 
 
+def _to_camel_case(name: str) -> str:
+    """Convert snake_case to CamelCase. Already CamelCase names pass through."""
+    if "_" not in name:
+        return name
+    return "".join(p.title() for p in name.split("_"))
+
+
+CONFIRM_COMMANDS = frozenset({
+    "lock", "unlock", "horn",
+    "climate-start", "climate-stop", "climate-settings-set",
+    "climate-schedule-set", "climate-schedule-clear",
+    "charge-start", "charge-stop", "charge-limit",
+    "charge-schedule-set", "charge-schedule-clear",
+})
+
+
+def _confirm(command: str) -> bool:
+    """Prompt for confirmation. Returns True if user confirms."""
+    try:
+        answer = input(f"Execute '{command}'? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    return answer in ("y", "yes")
+
+
+class _Spinner:
+    """Simple spinner shown on stderr during blocking operations."""
+
+    FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+
+    def __init__(self, label: str):
+        self._label = label
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def __enter__(self):
+        if sys.stderr.isatty():
+            self._thread = threading.Thread(target=self._spin, daemon=True)
+            self._thread.start()
+        return self
+
+    def __exit__(self, *_):
+        self._stop.set()
+        if self._thread:
+            self._thread.join()
+            sys.stderr.write("\r\033[K")
+            sys.stderr.flush()
+
+    def _spin(self):
+        i = 0
+        while not self._stop.wait(0.1):
+            frame = self.FRAMES[i % len(self.FRAMES)]
+            sys.stderr.write(f"\r{frame} {self._label}...")
+            sys.stderr.flush()
+            i += 1
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
 
@@ -102,34 +168,50 @@ vehicle selection (only needed with multiple vehicles):
     parser.add_argument("--storage", default=os.environ.get("HONDA_STORAGE", "auto"),
                         choices=["auto", "keyring", "encrypted", "plain"],
                         help="Storage backend for secrets (default: auto; or set HONDA_STORAGE)")
+    # Defaults for when no subcommand is given
+    parser.set_defaults(debug=False, timeout=60, yes=False)
+
+    # Shared flags inherited by all subcommands (can appear before or after subcommand)
+    _common = argparse.ArgumentParser(add_help=False)
+    _common.add_argument("--debug", action="store_true",
+                         help="Show full tracebacks on error")
+    _common.add_argument("--timeout", type=int, default=60,
+                         help="Timeout in seconds for remote commands (default: 60)")
 
     subparsers = parser.add_subparsers(dest="command")
 
     # login subcommand
-    login_parser = subparsers.add_parser("login", help="Login with email/password")
+    login_parser = subparsers.add_parser("login", parents=[_common], help="Login with email/password")
     login_parser.add_argument("--email", "-e", required=True, help="Honda account email")
     login_parser.add_argument("--password", "-p", default=None, help="Honda account password (prompted if not given)")
     login_parser.add_argument("--locale", "-l", default="it", help="Locale (default: it)")
 
-    subparsers.add_parser("logout", help="Remove saved tokens and device key")
-    subparsers.add_parser("list", help="List vehicles on your account")
+    subparsers.add_parser("logout", parents=[_common], help="Remove saved tokens and device key")
+    subparsers.add_parser("list", parents=[_common], help="List vehicles on your account")
 
     # vehicle commands
-    status_parser = subparsers.add_parser("status", help="Get vehicle status")
+    status_parser = subparsers.add_parser("status", parents=[_common], help="Get vehicle status")
     status_parser.add_argument("--watch", metavar="INTERVAL",
                                 help="Poll at interval (e.g. 5m, 30s, 120). Prints only changes.")
-    subparsers.add_parser("location", help="Get car GPS location")
-    subparsers.add_parser("lock", help="Lock doors")
-    subparsers.add_parser("unlock", help="Unlock doors")
-    subparsers.add_parser("horn", help="Flash lights & horn")
-    subparsers.add_parser("climate-start", help="Start climate control")
-    subparsers.add_parser("climate-stop", help="Stop climate control")
-    subparsers.add_parser("charge-start", help="Start charging")
-    subparsers.add_parser("charge-stop", help="Stop charging")
+    subparsers.add_parser("location", parents=[_common], help="Get car GPS location")
 
-    subparsers.add_parser("climate-settings", help="Show current climate settings")
+    _yes = argparse.ArgumentParser(add_help=False)
+    _yes.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
 
-    climate_set = subparsers.add_parser("climate-settings-set",
+    for cmd_name, cmd_help in [
+        ("lock", "Lock doors"),
+        ("unlock", "Unlock doors"),
+        ("horn", "Flash lights & horn"),
+        ("climate-start", "Start climate control"),
+        ("climate-stop", "Stop climate control"),
+        ("charge-start", "Start charging"),
+        ("charge-stop", "Stop charging"),
+    ]:
+        subparsers.add_parser(cmd_name, parents=[_common, _yes], help=cmd_help)
+
+    subparsers.add_parser("climate-settings", parents=[_common], help="Show current climate settings")
+
+    climate_set = subparsers.add_parser("climate-settings-set", parents=[_common, _yes],
                                          help="Configure climate settings")
     climate_set.add_argument("--temp", default="normal",
                               choices=["cooler", "normal", "hotter"])
@@ -139,7 +221,7 @@ vehicle selection (only needed with multiple vehicles):
                               action=argparse.BooleanOptionalAction,
                               help="Auto defrost (default: on, use --no-defrost to disable)")
 
-    charge_limit = subparsers.add_parser("charge-limit", help="Set charge limits")
+    charge_limit = subparsers.add_parser("charge-limit", parents=[_common, _yes], help="Set charge limits")
     charge_limit.add_argument("--home", type=int, default=80,
                                choices=[80, 85, 90, 95, 100],
                                help="Charge limit at home %% (default: 80)")
@@ -147,9 +229,9 @@ vehicle selection (only needed with multiple vehicles):
                                choices=[80, 85, 90, 95, 100],
                                help="Charge limit away %% (default: 90)")
 
-    subparsers.add_parser("charge-schedule", help="Show charge prohibition schedule")
+    subparsers.add_parser("charge-schedule", parents=[_common], help="Show charge prohibition schedule")
 
-    charge_schedule_set = subparsers.add_parser("charge-schedule-set",
+    charge_schedule_set = subparsers.add_parser("charge-schedule-set", parents=[_common, _yes],
                                                  help="Set charge prohibition schedule")
     charge_schedule_set.add_argument("--days", required=True,
                                       help="Days: mon,tue,wed,thu,fri,sat,sun (comma-separated)")
@@ -164,11 +246,11 @@ vehicle selection (only needed with multiple vehicles):
                                       choices=[1, 2],
                                       help="Which rule slot to set (1 or 2, default: 1)")
 
-    subparsers.add_parser("charge-schedule-clear", help="Clear charge prohibition schedule")
+    subparsers.add_parser("charge-schedule-clear", parents=[_common, _yes], help="Clear charge prohibition schedule")
 
-    subparsers.add_parser("climate-schedule", help="Show climate schedule")
+    subparsers.add_parser("climate-schedule", parents=[_common], help="Show climate schedule")
 
-    climate_schedule_set = subparsers.add_parser("climate-schedule-set",
+    climate_schedule_set = subparsers.add_parser("climate-schedule-set", parents=[_common, _yes],
                                                   help="Set a climate schedule slot")
     climate_schedule_set.add_argument("--days", required=True,
                                        help="Days: mon,tue,wed,thu,fri,sat,sun (comma-separated)")
@@ -178,9 +260,9 @@ vehicle selection (only needed with multiple vehicles):
                                        choices=[1, 2, 3, 4, 5, 6, 7],
                                        help="Which slot to set (1-7, default: 1)")
 
-    subparsers.add_parser("climate-schedule-clear", help="Clear climate schedule")
+    subparsers.add_parser("climate-schedule-clear", parents=[_common, _yes], help="Clear climate schedule")
 
-    trips = subparsers.add_parser("trips", help="Get recent trip history")
+    trips = subparsers.add_parser("trips", parents=[_common], help="Get recent trip history")
     trips.add_argument("--month", default="",
                         help="Month start (ISO 8601, e.g. 2026-03-01T00:00:00.000Z). Defaults to current month.")
     trips.add_argument("--page", type=int, default=1, help="Page number (default: 1)")
@@ -188,17 +270,24 @@ vehicle selection (only needed with multiple vehicles):
                         help="Fetch all pages")
     trips.add_argument("--locations", action="store_true",
                         help="Include start/end GPS coordinates (slower, 2 API calls per trip)")
+    trips.add_argument("--csv", action="store_true",
+                        help="Output as CSV")
 
-    trip_detail = subparsers.add_parser("trip-detail", help="Show details for a specific trip")
+    trip_detail = subparsers.add_parser("trip-detail", parents=[_common], help="Show details for a specific trip")
     trip_detail.add_argument("start_time", help="Trip start time (ISO 8601, from trips output)")
     trip_detail.add_argument("end_time", help="Trip end time (ISO 8601, from trips output)")
 
-    trip_stats = subparsers.add_parser("trip-stats", help="Aggregated trip statistics")
+    trip_stats = subparsers.add_parser("trip-stats", parents=[_common], help="Aggregated trip statistics")
     trip_stats.add_argument("--period", default="month",
                              choices=["day", "week", "month"],
                              help="Aggregation period (default: month)")
     trip_stats.add_argument("--date", dest="ref_date", default=None,
                              help="Reference date YYYY-MM-DD (default: today)")
+    trip_stats.add_argument("--csv", action="store_true",
+                             help="Output as CSV")
+
+    if argcomplete:
+        argcomplete.autocomplete(parser)
 
     args = parser.parse_args()
 
@@ -211,8 +300,8 @@ vehicle selection (only needed with multiple vehicles):
         try:
             result = auth.full_login(args.email, password, locale=args.locale)
         except HondaAuthError as e:
-            print(f"\nLogin failed: {e}")
-            return
+            print(f"\nLogin failed: {e}", file=sys.stderr)
+            sys.exit(2)
 
         print("\nLogin successful!")
         print(f"Expires in: {result.get('expires_in', 'N/A')}s")
@@ -278,42 +367,52 @@ vehicle selection (only needed with multiple vehicles):
         if default:
             vin = default
         elif api.tokens.vehicles:
-            print("Multiple vehicles on account. Please specify one with --vin:")
+            print("Multiple vehicles on account. Please specify one with --vin:", file=sys.stderr)
             for v in api.tokens.vehicles:
                 label = v["name"] or v["vin"]
                 plate = f" ({v['plate']})" if v["plate"] else ""
-                print(f"  {v['vin']}  {label}{plate}")
-            return
+                print(f"  {v['vin']}  {label}{plate}", file=sys.stderr)
+            sys.exit(1)
         else:
-            print("No VIN specified. Use --vin, set HONDA_VIN, or re-login to auto-detect.")
-            return
+            print("No VIN specified. Use --vin, set HONDA_VIN, or re-login to auto-detect.", file=sys.stderr)
+            sys.exit(1)
     else:
         vin = api.tokens.resolve_vin(args.vin) or args.vin
 
     # Find vehicle info for display
     vehicle_info = next((v for v in api.tokens.vehicles if v["vin"] == vin), None)
     consumption_unit = "kWh/100km" if (vehicle_info or {}).get("fuel_type") == "E" else "L/100km"
-    if not args.json:
+    if not args.json and not getattr(args, "csv", False):
         if vehicle_info:
             label = vehicle_info["name"] or vin
             plate = f" ({vehicle_info['plate']})" if vehicle_info.get("plate") else ""
-            print(f"[{label}{plate}]")
+            print(f"[{label}{plate}]", file=sys.stderr)
         else:
-            print(f"[{vin}]")
-        print()
+            print(f"[{vin}]", file=sys.stderr)
+        print(file=sys.stderr)
 
     def wait_command(cmd_id: str, label: str):
-        result = api.wait_for_command(cmd_id)
+        with _Spinner(label):
+            result = api.wait_for_command(cmd_id, timeout=args.timeout)
         if result.success:
             print(f"{label}: done!")
         elif not result.complete and result.status == "no_command_id":
-            print(f"{label}: failed (no command ID returned)")
+            print(f"{label}: failed (no command ID returned)", file=sys.stderr)
+            sys.exit(1)
         elif result.timed_out:
             reason = result.reason or "car may be unreachable"
-            print(f"{label}: timed out ({reason})")
+            print(f"{label}: timed out ({reason})", file=sys.stderr)
+            sys.exit(1)
         else:
             reason = result.reason or result.status
-            print(f"{label}: failed ({reason})")
+            print(f"{label}: failed ({reason})", file=sys.stderr)
+            sys.exit(1)
+
+    # Confirmation prompt for destructive commands
+    if args.command in CONFIRM_COMMANDS and not getattr(args, "yes", False) and sys.stdin.isatty():
+        if not _confirm(args.command):
+            print("Aborted.")
+            sys.exit(0)
 
     if args.command == "status":
         if args.watch:
@@ -550,30 +649,30 @@ vehicle selection (only needed with multiple vehicles):
 
     elif args.command == "trips":
         try:
-            if args.all_pages:
+            if args.all_pages or args.csv:
                 rows = api.get_all_trips(vin, month_start=args.month)
             else:
                 data = api.get_trips(vin, month_start=args.month, page=args.page)
-                if args.json and not args.locations:
+                if args.json and not args.locations and not args.csv:
                     print(json.dumps(data, indent=2))
                     return
                 payload = data.get("payload", {})
                 fields = payload.get("def", [])
                 rows = [dict(zip(fields, trip)) for trip in payload.get("data", [])]
-                if not args.json:
+                if not args.json and not args.csv:
                     print(f"Page {data.get('page', '?')}/{data.get('maxPage', '?')}")
         except HondaAPIError as e:
             role = (vehicle_info or {}).get("role", "")
             if role and role != "primary":
-                print(f"Trip history is not available for {role} users.")
+                print(f"Trip history is not available for {role} users.", file=sys.stderr)
             else:
-                print(f"Failed to fetch trips: {e}")
-            return
+                print(f"Failed to fetch trips: {e}", file=sys.stderr)
+            sys.exit(1)
 
         if not rows:
             print("No trips found.")
         else:
-            json_rows = [] if args.json else None
+            # Enrich with locations if requested
             for row in rows:
                 start = row.get("StartTime", "?")
                 end = row.get("EndTime", "?")
@@ -582,10 +681,18 @@ vehicle selection (only needed with multiple vehicles):
                         row.update(api.get_trip_locations(vin, start, end))
                     except HondaAPIError:
                         pass
-                if args.json:
-                    json_rows.append(row)
-                else:
-                    line = (f"  {row.get('OneTripDate', '?')}  {start} -> {end}  "
+
+            if args.json:
+                print(json.dumps(rows, indent=2))
+            elif args.csv:
+                if rows:
+                    camel_rows = [{_to_camel_case(k): v for k, v in row.items()} for row in rows]
+                    writer = csv.DictWriter(sys.stdout, fieldnames=camel_rows[0].keys())
+                    writer.writeheader()
+                    writer.writerows(camel_rows)
+            else:
+                for row in rows:
+                    line = (f"  {row.get('OneTripDate', '?')}  {row.get('StartTime', '?')} -> {row.get('EndTime', '?')}  "
                             f"{row.get('Mileage', '?')}  {row.get('DriveTime', '?')} min  "
                             f"avg {row.get('AveSpeed', '?')}  max {row.get('MaxSpeed', '?')}  "
                             f"{row.get('AveFuelEconomy', '?')} {consumption_unit}")
@@ -593,15 +700,13 @@ vehicle selection (only needed with multiple vehicles):
                         line += (f"\n    from {row['start_lat']},{row['start_lon']}"
                                  f"  to {row['end_lat']},{row['end_lon']}")
                     print(line)
-            if args.json:
-                print(json.dumps(json_rows, indent=2))
 
     elif args.command == "trip-detail":
         try:
             locs = api.get_trip_locations(vin, args.start_time, args.end_time)
         except HondaAPIError as e:
-            print(f"Failed to fetch trip detail: {e}")
-            return
+            print(f"Failed to fetch trip detail: {e}", file=sys.stderr)
+            sys.exit(1)
         if args.json:
             print(json.dumps(locs, indent=2))
         else:
@@ -634,10 +739,10 @@ vehicle selection (only needed with multiple vehicles):
         except HondaAPIError as e:
             role = (vehicle_info or {}).get("role", "")
             if role and role != "primary":
-                print(f"Trip history is not available for {role} users.")
+                print(f"Trip history is not available for {role} users.", file=sys.stderr)
             else:
-                print(f"Failed to fetch trips: {e}")
-            return
+                print(f"Failed to fetch trips: {e}", file=sys.stderr)
+            sys.exit(1)
 
         # Filter to period
         rows = []
@@ -656,6 +761,11 @@ vehicle selection (only needed with multiple vehicles):
             stats = compute_trip_stats(rows, args.period, fuel_type=fuel_type)
             if args.json:
                 print(json.dumps(stats, indent=2))
+            elif args.csv:
+                camel_stats = {_to_camel_case(k): v for k, v in stats.items()}
+                writer = csv.DictWriter(sys.stdout, fieldnames=camel_stats.keys())
+                writer.writeheader()
+                writer.writerow(camel_stats)
             else:
                 hours = int(stats["total_minutes"]) // 60
                 mins = int(stats["total_minutes"]) % 60
@@ -672,5 +782,29 @@ vehicle selection (only needed with multiple vehicles):
                 print(f"Avg consumption: {stats['avg_consumption']} {stats['consumption_unit']}")
 
 
+def _main():
+    """Wrapper with catch-all error handling."""
+    try:
+        main()
+    except KeyboardInterrupt:
+        print()
+        sys.exit(130)
+    except HondaAuthError as e:
+        if "--debug" in sys.argv:
+            raise
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(2)
+    except HondaAPIError as e:
+        if "--debug" in sys.argv:
+            raise
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        if "--debug" in sys.argv:
+            raise
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    main()
+    _main()
