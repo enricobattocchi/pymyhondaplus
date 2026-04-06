@@ -103,6 +103,15 @@ pymyhondaplus --json location
 
 ## Remote commands
 
+All remote commands prompt for confirmation before executing. Use `--yes` or `-y` to skip:
+
+```bash
+pymyhondaplus lock              # prompts: Execute 'lock'? [y/N]
+pymyhondaplus lock -y           # executes immediately
+```
+
+When stdin is not a terminal (e.g. piped or in a script), the prompt is skipped automatically.
+
 ### Doors
 
 ```bash
@@ -250,18 +259,27 @@ Avg consumption: 5.3 kWh/100km
 
 ## Global options
 
+These must be placed **before** the subcommand:
+
 | Option | Description |
 |--------|-------------|
 | `--vin`, `-v` | Vehicle VIN, nickname, or plate |
-| `--json` | Output raw JSON (place before subcommand) |
+| `--json` | Output raw JSON |
 | `--fresh` | Request fresh data from car (wakes TCU) |
 | `--token-file PATH` | Custom token file path (or set `HONDA_TOKEN_FILE`) |
 | `--key-file PATH` | Custom device key file path (or set `HONDA_KEY_FILE`) |
 | `--storage {auto,keyring,encrypted,plain}` | Storage backend for secrets (or set `HONDA_STORAGE`) |
 | `--user-info` | Show full user info and vehicle details as JSON |
-| `--yes`, `-y` | Skip confirmation prompts for commands that affect the car |
-| `--debug` | Show full tracebacks on error |
-| `--timeout SECONDS` | Timeout for remote commands (default: 60) |
+
+## Subcommand options
+
+These can be placed before or after the subcommand:
+
+| Option | Description | Available on |
+|--------|-------------|--------------|
+| `--debug` | Show full tracebacks on error | all subcommands |
+| `--timeout SECONDS` | Timeout for remote commands (default: 60) | all subcommands |
+| `--yes`, `-y` | Skip confirmation prompt | destructive commands only |
 
 ## Shell completion
 
