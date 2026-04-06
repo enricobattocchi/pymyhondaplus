@@ -259,6 +259,39 @@ Avg consumption: 5.3 kWh/100km
 | `--key-file PATH` | Custom device key file path (or set `HONDA_KEY_FILE`) |
 | `--storage {auto,keyring,encrypted,plain}` | Storage backend for secrets (or set `HONDA_STORAGE`) |
 | `--user-info` | Show full user info and vehicle details as JSON |
+| `--yes`, `-y` | Skip confirmation prompts for commands that affect the car |
+| `--debug` | Show full tracebacks on error |
+| `--timeout SECONDS` | Timeout for remote commands (default: 60) |
+
+## Shell completion
+
+Tab completion for subcommands and options. First, install `argcomplete`:
+
+```bash
+pip install pymyhondaplus[completion]
+# or on Debian/Ubuntu:
+apt install python3-argcomplete
+# or with pipx:
+pipx inject pymyhondaplus argcomplete
+```
+
+Then add this to your `~/.bashrc` (or `~/.zshrc`):
+
+```bash
+eval "$(register-python-argcomplete pymyhondaplus)"
+```
+
+Restart your shell, and `pymyhondaplus <TAB>` will complete subcommands, flags, and choices.
+
+## CSV output
+
+The `trips` and `trip-stats` commands support `--csv` for piping to spreadsheets or other tools:
+
+```bash
+pymyhondaplus trips --all --csv > trips.csv
+pymyhondaplus trip-stats --csv
+pymyhondaplus trips --all --csv --locations   # includes GPS columns
+```
 
 ## Security
 
