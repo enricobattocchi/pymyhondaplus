@@ -216,3 +216,35 @@ class TestTimeoutAdapter:
             adapter.send("request", **kwargs)
             _, call_kwargs = mock_send.call_args
             assert call_kwargs["timeout"] == 10
+
+    def test_hanging_server_times_out(self):
+        """Real connection to a black-hole socket times out instead of hanging."""
+        import socket
+        import threading
+        from pymyhondaplus.api import _TimeoutAdapter
+
+        # Start a server that accepts but never responds
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(1)
+        port = srv.getsockname()[1]
+
+        def accept_and_hold():
+            conn, _ = srv.accept()
+            # Hold the connection open until test finishes
+            conn.recv(4096)
+            conn.close()
+
+        t = threading.Thread(target=accept_and_hold, daemon=True)
+        t.start()
+
+        try:
+            session = requests.Session()
+            adapter = _TimeoutAdapter(timeout=1)
+            session.mount("http://", adapter)
+
+            with pytest.raises(requests.ConnectionError):
+                session.get(f"http://127.0.0.1:{port}/")
+        finally:
+            srv.close()
