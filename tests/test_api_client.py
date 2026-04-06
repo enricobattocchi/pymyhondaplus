@@ -191,3 +191,28 @@ class TestErrorTypes:
 
         with pytest.raises(HondaAPIError):
             api.set_charge_limit("VIN123", home=80, away=90)
+
+
+class TestTimeoutAdapter:
+    """_TimeoutAdapter applies default timeout to all requests."""
+
+    def test_applies_default_timeout(self):
+        from pymyhondaplus.api import _TimeoutAdapter
+        adapter = _TimeoutAdapter()
+        kwargs = {"timeout": None}
+        # Patch super().send to capture kwargs
+        from unittest.mock import patch
+        with patch("requests.adapters.HTTPAdapter.send") as mock_send:
+            adapter.send("request", **kwargs)
+            _, call_kwargs = mock_send.call_args
+            assert call_kwargs["timeout"] == 30
+
+    def test_respects_explicit_timeout(self):
+        from pymyhondaplus.api import _TimeoutAdapter
+        adapter = _TimeoutAdapter()
+        kwargs = {"timeout": 10}
+        from unittest.mock import patch
+        with patch("requests.adapters.HTTPAdapter.send") as mock_send:
+            adapter.send("request", **kwargs)
+            _, call_kwargs = mock_send.call_args
+            assert call_kwargs["timeout"] == 10

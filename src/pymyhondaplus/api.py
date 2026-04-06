@@ -28,7 +28,8 @@ class _TimeoutAdapter(HTTPAdapter):
         super().__init__(*args, **kwargs)
 
     def send(self, *args, **kwargs):
-        kwargs.setdefault("timeout", self._timeout)
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = self._timeout
         return super().send(*args, **kwargs)
 
 if TYPE_CHECKING:
