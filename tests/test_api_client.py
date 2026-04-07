@@ -221,3 +221,19 @@ class TestTimeoutAdapter:
             adapter.send(request, timeout=10)
             _, call_kwargs = mock_send.call_args
             assert call_kwargs["timeout"] == 10
+
+
+class TestRetryPolicy:
+    """HondaAPI retries only configured HTTP status responses."""
+
+    def test_retries_status_responses_but_not_transport_errors(self):
+        api = HondaAPI()
+        adapter = api.session.get_adapter("https://example.com")
+        retry = adapter.max_retries
+
+        assert retry.total is None
+        assert retry.status == 3
+        assert retry.connect == 0
+        assert retry.read == 0
+        assert retry.other == 0
+        assert retry.status_forcelist == (500, 502, 503, 504)

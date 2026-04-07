@@ -571,7 +571,11 @@ class HondaAPI:
         self.session.headers.update(DEFAULT_HEADERS)
         self._lock = threading.Lock()
         retry = Retry(
-            total=3,
+            total=None,
+            status=3,
+            connect=0,
+            read=0,
+            other=0,
             backoff_factor=1,
             status_forcelist=(500, 502, 503, 504),
             allowed_methods=None,
