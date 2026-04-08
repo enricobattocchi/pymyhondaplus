@@ -5,6 +5,7 @@ import importlib.metadata
 import pytest
 
 from pymyhondaplus import cli
+from pymyhondaplus.api import HondaAPIError, HondaAuthError
 
 
 class _FakeTokens:
@@ -35,6 +36,12 @@ class _FakeAPI:
         self.remote_lock_called = True
         return "cmd-1"
 
+    def get_charge_schedule(self, vin: str, fresh: bool = False):
+        return []
+
+    def set_charge_schedule(self, vin: str, rules):
+        return "cmd-2"
+
     def wait_for_command(self, cmd_id: str, timeout: int = 60):
         class _Result:
             success = True
@@ -60,11 +67,10 @@ def test_multi_vehicle_without_vin_exits_with_message(monkeypatch, capsys):
     _patch_common(monkeypatch, fake_api)
     monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "status"])
 
-    with pytest.raises(SystemExit) as exc:
-        cli.main()
+    rc = cli.main()
 
     err = capsys.readouterr().err
-    assert exc.value.code == 1
+    assert rc == 1
     assert "Multiple vehicles on account. Please specify one with --vin:" in err
     assert "VIN123  Honda e" in err
     assert "VIN456  Civic (AB123CD)" in err
@@ -79,11 +85,10 @@ def test_destructive_command_aborts_when_confirmation_declined(monkeypatch, caps
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(cli, "_confirm", lambda command: False)
 
-    with pytest.raises(SystemExit) as exc:
-        cli.main()
+    rc = cli.main()
 
     out = capsys.readouterr().out
-    assert exc.value.code == 0
+    assert rc == 0
     assert "Aborted." in out
     assert fake_api.remote_lock_called is False
 
@@ -95,9 +100,10 @@ def test_location_json_outputs_raw_gps_payload(monkeypatch, capsys):
     _patch_common(monkeypatch, fake_api)
     monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "--json", "location"])
 
-    cli.main()
+    rc = cli.main()
 
     out = capsys.readouterr()
+    assert rc == 0
     assert '"coordinate": {' in out.out
     assert '"latitude": "43.553456"' in out.out
     assert '"dtTime": "2026-03-24T22:53:01+00:00"' in out.out
@@ -112,9 +118,10 @@ def test_status_json_outputs_raw_dashboard(monkeypatch, capsys):
         cli.sys, "argv", ["pymyhondaplus", "--json", "status"]
     )
 
-    cli.main()
+    rc = cli.main()
 
     out = capsys.readouterr()
+    assert rc == 0
     assert '"gpsData": {' in out.out
     assert '"coordinate": {' in out.out
     assert '"latitude": "43.553456"' in out.out
@@ -138,9 +145,10 @@ def test_climate_settings_json_outputs_parsed_fields(monkeypatch, capsys):
         "temp_unit": "c",
     })
 
-    cli.main()
+    rc = cli.main()
 
     out = capsys.readouterr()
+    assert rc == 0
     assert '"active": true' in out.out
     assert '"temp": "normal"' in out.out
     assert '"duration": 30' in out.out
@@ -165,9 +173,76 @@ def test_remote_command_timeout_exits_with_error(monkeypatch, capsys):
     )
     fake_api.wait_for_command = lambda cmd_id, timeout=60: _TimeoutResult()
 
-    with pytest.raises(SystemExit) as exc:
-        cli.main()
+    rc = cli.main()
 
     out = capsys.readouterr()
-    assert exc.value.code == 1
+    assert rc == 1
     assert "Lock: timed out (car may be unreachable)" in out.err
+
+
+def test_remote_command_no_command_id_returns_error(monkeypatch, capsys):
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Honda e", "plate": "", "fuel_type": "E"},
+    ], default_vin="VIN123")
+
+    class _NoCommandResult:
+        success = False
+        complete = False
+        status = "no_command_id"
+        timed_out = False
+        reason = None
+
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "lock", "--yes"])
+    fake_api.wait_for_command = lambda cmd_id, timeout=60: _NoCommandResult()
+
+    rc = cli.main()
+
+    out = capsys.readouterr()
+    assert rc == 1
+    assert "Lock: failed (no command ID returned)" in out.err
+
+
+def test_role_restricted_schedule_returns_success(monkeypatch, capsys):
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Honda e", "plate": "", "fuel_type": "E", "role": "secondary"},
+    ], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "charge-schedule-clear", "--yes"])
+    fake_api.set_charge_schedule = lambda vin, rules: (_ for _ in ()).throw(HondaAPIError(403, "Forbidden"))
+
+    rc = cli.main()
+
+    out = capsys.readouterr()
+    assert rc == 0
+    assert "Charge schedule is not available for secondary users." in out.out
+
+
+def test_login_auth_failure_returns_2(monkeypatch, capsys):
+    _patch_common(monkeypatch, _FakeAPI([]))
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "login", "--email", "user@example.com", "--password", "secret"])
+
+    class _FakeAuth:
+        def __init__(self, device_key=None):
+            pass
+
+        def full_login(self, email: str, password: str, locale: str = "it"):
+            raise HondaAuthError(401, "bad credentials")
+
+    monkeypatch.setattr(cli, "DeviceKey", lambda storage=None: object())
+    monkeypatch.setattr(cli, "HondaAuth", _FakeAuth)
+
+    rc = cli.main()
+
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "Login failed: HTTP 401: bad credentials" in err
+
+
+def test__main_exits_130_on_keyboard_interrupt(monkeypatch):
+    monkeypatch.setattr(cli, "main", lambda: (_ for _ in ()).throw(KeyboardInterrupt()))
+
+    with pytest.raises(SystemExit) as exc:
+        cli._main()
+
+    assert exc.value.code == 130

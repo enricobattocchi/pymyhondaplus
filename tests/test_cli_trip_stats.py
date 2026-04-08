@@ -56,7 +56,7 @@ def test_trip_stats_week_fetches_all_months_in_range(monkeypatch, capsys):
         ["pymyhondaplus", "--json", "trip-stats", "--period", "week", "--date", "2026-04-01"],
     )
 
-    cli.main()
+    assert cli.main() == 0
 
     out = capsys.readouterr()
     assert fake_api.requested_months == [
