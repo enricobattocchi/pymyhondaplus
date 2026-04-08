@@ -92,23 +92,23 @@ def _month_starts_for_period(start_date: date, end_date: date) -> list[str]:
     return month_starts
 
 
-def _resolve_vehicle_or_exit(api: HondaAPI, vin_arg: str | None) -> str:
-    """Resolve the target vehicle VIN or exit with the current CLI messages."""
+def _resolve_vehicle(api: HondaAPI, vin_arg: str | None) -> tuple[str | None, int]:
+    """Resolve the target vehicle VIN, returning (vin, exit_code)."""
     if not vin_arg:
         default = api.tokens.default_vin
         if default:
-            return default
+            return default, 0
         if api.tokens.vehicles:
             print("Multiple vehicles on account. Please specify one with --vin:", file=sys.stderr)
             for vehicle in api.tokens.vehicles:
                 label = vehicle["name"] or vehicle["vin"]
                 plate = f" ({vehicle['plate']})" if vehicle["plate"] else ""
                 print(f"  {vehicle['vin']}  {label}{plate}", file=sys.stderr)
-            sys.exit(1)
+            return None, 1
         print("No VIN specified. Use --vin, set HONDA_VIN, or re-login to auto-detect.", file=sys.stderr)
-        sys.exit(1)
+        return None, 1
 
-    return api.tokens.resolve_vin(vin_arg) or vin_arg
+    return api.tokens.resolve_vin(vin_arg) or vin_arg, 0
 
 
 def _get_vehicle_display_context(api: HondaAPI, vin: str, args: argparse.Namespace) -> tuple[dict | None, str]:
@@ -126,34 +126,36 @@ def _get_vehicle_display_context(api: HondaAPI, vin: str, args: argparse.Namespa
     return vehicle_info, consumption_unit
 
 
-def _wait_command_or_exit(api: HondaAPI, timeout: int, cmd_id: str, label: str) -> None:
-    """Wait for a remote command and preserve the current CLI exit behavior."""
+def _wait_command(api: HondaAPI, timeout: int, cmd_id: str, label: str) -> int:
+    """Wait for a remote command and return an exit code."""
     with _Spinner(label):
         result = api.wait_for_command(cmd_id, timeout=timeout)
     if result.success:
         print(f"{label}: done!")
+        return 0
     elif not result.complete and result.status == "no_command_id":
         print(f"{label}: failed (no command ID returned)", file=sys.stderr)
-        sys.exit(1)
+        return 1
     elif result.timed_out:
         reason = result.reason or "car may be unreachable"
         print(f"{label}: timed out ({reason})", file=sys.stderr)
-        sys.exit(1)
+        return 1
     else:
         reason = result.reason or result.status
         print(f"{label}: failed ({reason})", file=sys.stderr)
-        sys.exit(1)
+        return 1
 
 
-def _confirm_command_or_exit(args: argparse.Namespace) -> None:
-    """Prompt for destructive commands using the current CLI behavior."""
+def _confirm_command(args: argparse.Namespace) -> int | None:
+    """Prompt for destructive commands, returning 0 if aborted."""
     if args.command in CONFIRM_COMMANDS and not getattr(args, "yes", False) and sys.stdin.isatty():
         if not _confirm(args.command):
             print("Aborted.")
-            sys.exit(0)
+            return 0
+    return None
 
 
-def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> None:
+def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the status command, preserving current CLI behavior."""
     if args.watch:
         interval = _parse_interval(args.watch)
@@ -174,12 +176,12 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
                 time.sleep(interval)
         except KeyboardInterrupt:
             print()
-        return
+        return 0
 
     dashboard = api.get_dashboard(vin, fresh=args.fresh)
     if args.json:
         print(json.dumps(dashboard, indent=2))
-        return
+        return 0
 
     ev = parse_ev_status(dashboard)
     du = ev['distance_unit']
@@ -208,15 +210,16 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     if ev['warning_lamps']:
         print(f"Warnings:      {', '.join(ev['warning_lamps'])}")
     print(f"Timestamp:     {ev['timestamp']}")
+    return 0
 
 
-def _handle_location_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> None:
+def _handle_location_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the location command, preserving current CLI behavior."""
     dashboard = api.get_dashboard(vin, fresh=args.fresh)
     gps = dashboard.get("gpsData", {})
     if args.json:
         print(json.dumps(gps, indent=2))
-        return
+        return 0
 
     coord = gps.get("coordinate", {})
     print(f"Latitude:  {coord.get('latitude', 'N/A')}")
@@ -224,9 +227,10 @@ def _handle_location_command(api: HondaAPI, vin: str, args: argparse.Namespace) 
     speed_unit = gps.get('velocity', {}).get('unit', 'km/h')
     print(f"Speed:     {gps.get('velocity', {}).get('value', 'N/A')} {speed_unit}")
     print(f"Timestamp: {gps.get('dtTime', 'N/A')}")
+    return 0
 
 
-def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> None:
+def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the climate-settings command, preserving current CLI behavior."""
     dashboard = api.get_dashboard(vin, fresh=args.fresh)
     ev = parse_ev_status(dashboard)
@@ -240,7 +244,7 @@ def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Nam
             "interior_temp": ev["interior_temp"],
             "temp_unit": ev["temp_unit"],
         }, indent=2))
-        return
+        return 0
 
     tu = ev['temp_unit']
     print(f"Active:      {'ON' if ev['climate_active'] else 'OFF'}")
@@ -249,11 +253,12 @@ def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Nam
     print(f"Defrost:     {'on' if ev['climate_defrost'] else 'off'}")
     print(f"Cabin:       {ev['cabin_temp']} {tu}")
     print(f"Interior:    {ev['interior_temp']} {tu}")
+    return 0
 
 
-def _handle_climate_settings_set_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> None:
+def _handle_climate_settings_set_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the climate-settings-set command, preserving current CLI behavior."""
-    _wait_command_or_exit(
+    return _wait_command(
         api, args.timeout,
         api.set_climate_settings(vin, temp=args.temp, duration=args.duration,
                               defrost=args.defrost),
@@ -261,39 +266,40 @@ def _handle_climate_settings_set_command(api: HondaAPI, vin: str, args: argparse
     )
 
 
-def _handle_charge_limit_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> None:
+def _handle_charge_limit_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the charge-limit command, preserving current CLI behavior."""
-    _wait_command_or_exit(
+    return _wait_command(
         api, args.timeout,
         api.set_charge_limit(vin, home=args.home, away=args.away),
         f"Charge limit ({args.home}% home, {args.away}% away)",
     )
 
 
-def _handle_trip_detail_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> None:
+def _handle_trip_detail_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the trip-detail command, preserving current CLI behavior."""
     try:
         locs = api.get_trip_locations(vin, args.start_time, args.end_time)
     except HondaAPIError as e:
         print(f"Failed to fetch trip detail: {e}", file=sys.stderr)
-        sys.exit(1)
+        return 1
     if args.json:
         print(json.dumps(locs, indent=2))
-    else:
-        print("Start:")
-        print(f"  Time:      {locs.get('start_time', 'N/A')}")
-        print(f"  Location:  {locs.get('start_lat', 'N/A')}, {locs.get('start_lon', 'N/A')}")
-        print("End:")
-        print(f"  Time:      {locs.get('end_time', 'N/A')}")
-        print(f"  Location:  {locs.get('end_lat', 'N/A')}, {locs.get('end_lon', 'N/A')}")
+        return 0
+    print("Start:")
+    print(f"  Time:      {locs.get('start_time', 'N/A')}")
+    print(f"  Location:  {locs.get('start_lat', 'N/A')}, {locs.get('start_lon', 'N/A')}")
+    print("End:")
+    print(f"  Time:      {locs.get('end_time', 'N/A')}")
+    print(f"  Location:  {locs.get('end_lat', 'N/A')}, {locs.get('end_lon', 'N/A')}")
+    return 0
 
 
-def _handle_charge_schedule_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> None:
+def _handle_charge_schedule_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the charge-schedule command, preserving current CLI behavior."""
     schedule = api.get_charge_schedule(vin, fresh=args.fresh)
     if args.json:
         print(json.dumps(schedule, indent=2))
-        return
+        return 0
 
     has_rules = False
     for i, rule in enumerate(schedule, 1):
@@ -303,14 +309,15 @@ def _handle_charge_schedule_command(api: HondaAPI, vin: str, args: argparse.Name
             print(f"Rule {i}: {days}  {rule['start_time']}-{rule['end_time']}  ({rule['location']})")
     if not has_rules:
         print("No charge prohibition schedule set.")
+    return 0
 
 
-def _handle_climate_schedule_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> None:
+def _handle_climate_schedule_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the climate-schedule command, preserving current CLI behavior."""
     schedule = api.get_climate_schedule(vin, fresh=args.fresh)
     if args.json:
         print(json.dumps(schedule, indent=2))
-        return
+        return 0
 
     has_rules = False
     for i, rule in enumerate(schedule, 1):
@@ -320,17 +327,19 @@ def _handle_climate_schedule_command(api: HondaAPI, vin: str, args: argparse.Nam
             print(f"Slot {i}: {days}  {rule['start_time']}")
     if not has_rules:
         print("No climate schedule set.")
+    return 0
 
 
-def _handle_role_restricted_schedule_error(role: str, feature: str, exc: HondaAPIError) -> None:
+def _handle_role_restricted_schedule_error(role: str, feature: str, exc: HondaAPIError) -> int:
     """Preserve current messaging for schedule features unavailable to non-primary users."""
     if role and role != "primary":
         print(f"{feature} is not available for {role} users.")
+        return 0
     else:
         raise exc
 
 
-def _handle_charge_schedule_set_command(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> None:
+def _handle_charge_schedule_set_command(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> int:
     """Handle the charge-schedule-set command, preserving current CLI behavior."""
     try:
         current = api.get_charge_schedule(vin)
@@ -349,28 +358,28 @@ def _handle_charge_schedule_set_command(api: HondaAPI, vin: str, args: argparse.
             "start_time": args.start,
             "end_time": args.end,
         }
-        _wait_command_or_exit(
+        return _wait_command(
             api, args.timeout,
             api.set_charge_schedule(vin, rules),
             f"Charge schedule rule {args.rule}",
         )
     except HondaAPIError as exc:
-        _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Charge schedule", exc)
+        return _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Charge schedule", exc)
 
 
-def _handle_charge_schedule_clear_command(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> None:
+def _handle_charge_schedule_clear_command(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> int:
     """Handle the charge-schedule-clear command, preserving current CLI behavior."""
     try:
-        _wait_command_or_exit(
+        return _wait_command(
             api, args.timeout,
             api.set_charge_schedule(vin, []),
             "Clear charge schedule",
         )
     except HondaAPIError as exc:
-        _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Charge schedule", exc)
+        return _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Charge schedule", exc)
 
 
-def _handle_climate_schedule_set_command(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> None:
+def _handle_climate_schedule_set_command(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> int:
     """Handle the climate-schedule-set command, preserving current CLI behavior."""
     try:
         current = api.get_climate_schedule(vin)
@@ -387,63 +396,65 @@ def _handle_climate_schedule_set_command(api: HondaAPI, vin: str, args: argparse
             "days": args.days,
             "start_time": args.start,
         }
-        _wait_command_or_exit(
+        return _wait_command(
             api, args.timeout,
             api.set_climate_schedule(vin, rules),
             f"Climate schedule slot {args.slot}",
         )
     except HondaAPIError as exc:
-        _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Climate schedule", exc)
+        return _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Climate schedule", exc)
 
 
-def _handle_climate_schedule_clear_command(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> None:
+def _handle_climate_schedule_clear_command(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> int:
     """Handle the climate-schedule-clear command, preserving current CLI behavior."""
     try:
-        _wait_command_or_exit(
+        return _wait_command(
             api, args.timeout,
             api.set_climate_schedule(vin, []),
             "Clear climate schedule",
         )
     except HondaAPIError as exc:
-        _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Climate schedule", exc)
+        return _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Climate schedule", exc)
 
 
-def _load_trip_rows_or_exit(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> list[dict] | None:
+def _load_trip_rows(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> tuple[list[dict] | None, int]:
     """Load trip rows, preserving current CLI behavior and error handling."""
     try:
         if args.all_pages or args.csv:
-            return api.get_all_trips(vin, month_start=args.month)
+            return api.get_all_trips(vin, month_start=args.month), 0
 
         data = api.get_trips(vin, month_start=args.month, page=args.page)
         if args.json and not args.locations and not args.csv:
             print(json.dumps(data, indent=2))
-            return None
+            return None, 0
         payload = data.get("payload", {})
         fields = payload.get("def", [])
         rows = [dict(zip(fields, trip)) for trip in payload.get("data", [])]
         if not args.json and not args.csv:
             print(f"Page {data.get('page', '?')}/{data.get('maxPage', '?')}")
-        return rows
+        return rows, 0
     except HondaAPIError as e:
         role = (vehicle_info or {}).get("role", "")
         if role and role != "primary":
             print(f"Trip history is not available for {role} users.", file=sys.stderr)
         else:
             print(f"Failed to fetch trips: {e}", file=sys.stderr)
-        sys.exit(1)
+        return None, 1
 
 
 def _handle_trips_command(
     api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None, consumption_unit: str
-) -> None:
+) -> int:
     """Handle the trips command, preserving current CLI behavior."""
-    rows = _load_trip_rows_or_exit(api, vin, args, vehicle_info)
+    rows, exit_code = _load_trip_rows(api, vin, args, vehicle_info)
+    if exit_code != 0:
+        return exit_code
     if rows is None:
-        return
+        return 0
 
     if not rows:
         print("No trips found.")
-        return
+        return 0
 
     for row in rows:
         start = row.get("StartTime", "?")
@@ -471,6 +482,7 @@ def _handle_trips_command(
                 line += (f"\n    from {row['start_lat']},{row['start_lon']}"
                          f"  to {row['end_lat']},{row['end_lon']}")
             print(line)
+    return 0
 
 
 def _trip_stats_period_bounds(ref: date, period: str) -> tuple[date, date]:
@@ -488,9 +500,9 @@ def _trip_stats_period_bounds(ref: date, period: str) -> tuple[date, date]:
     return start_date, end_date
 
 
-def _load_trip_stats_rows_or_exit(
+def _load_trip_stats_rows(
     api: HondaAPI, vin: str, start_date: date, end_date: date, vehicle_info: dict | None
-) -> list[dict]:
+) -> tuple[list[dict], int]:
     """Load cross-month trip rows for trip-stats, preserving current CLI behavior."""
     try:
         all_rows = []
@@ -513,7 +525,7 @@ def _load_trip_stats_rows_or_exit(
             print(f"Trip history is not available for {role} users.", file=sys.stderr)
         else:
             print(f"Failed to fetch trips: {e}", file=sys.stderr)
-        sys.exit(1)
+        return [], 1
 
     rows = []
     for row in all_rows:
@@ -523,18 +535,20 @@ def _load_trip_stats_rows_or_exit(
             continue
         if start_date <= trip_date <= end_date:
             rows.append(row)
-    return rows
+    return rows, 0
 
 
-def _handle_trip_stats_command(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> None:
+def _handle_trip_stats_command(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> int:
     """Handle the trip-stats command, preserving current CLI behavior."""
     ref = date.fromisoformat(args.ref_date) if args.ref_date else date.today()
     start_date, end_date = _trip_stats_period_bounds(ref, args.period)
-    rows = _load_trip_stats_rows_or_exit(api, vin, start_date, end_date, vehicle_info)
+    rows, exit_code = _load_trip_stats_rows(api, vin, start_date, end_date, vehicle_info)
+    if exit_code != 0:
+        return exit_code
 
     if not rows:
         print("No trips found.")
-        return
+        return 0
 
     fuel_type = (vehicle_info or {}).get("fuel_type", "")
     stats = compute_trip_stats(rows, args.period, fuel_type=fuel_type)
@@ -559,6 +573,7 @@ def _handle_trip_stats_command(api: HondaAPI, vin: str, args: argparse.Namespace
         print(f"Avg speed:       {stats['avg_speed']} {su}")
         print(f"Max speed:       {stats['max_speed']} {su}")
         print(f"Avg consumption: {stats['avg_consumption']} {stats['consumption_unit']}")
+    return 0
 
 
 CONFIRM_COMMANDS = frozenset({
@@ -771,18 +786,8 @@ vehicle selection (only needed with multiple vehicles):
     return parser
 
 
-def main():
-    logging.basicConfig(level=logging.INFO)
-
-    parser = build_parser()
-
-    if argcomplete:
-        argcomplete.autocomplete(parser)
-
-    args = parser.parse_args()
-
-    storage = get_storage(args.token_file, args.key_file, args.storage)
-
+def _run_main(args: argparse.Namespace, storage) -> int:
+    """Run the CLI command flow and return an exit code."""
     if args.command == "login":
         device_key = DeviceKey(storage=storage)
         auth = HondaAuth(device_key=device_key)
@@ -791,7 +796,7 @@ def main():
             result = auth.full_login(args.email, password, locale=args.locale)
         except HondaAuthError as e:
             print(f"\nLogin failed: {e}", file=sys.stderr)
-            sys.exit(2)
+            return 2
 
         print("\nLogin successful!")
         print(f"Expires in: {result.get('expires_in', 'N/A')}s")
@@ -816,7 +821,7 @@ def main():
                 print(f"Vehicle: {label}{plate}")
 
         print(f"Tokens saved to {args.token_file}")
-        return
+        return 0
 
     if args.command == "logout":
         has_files = args.token_file.exists() or args.key_file.exists()
@@ -825,14 +830,14 @@ def main():
             print("Logged out (credentials removed)")
         else:
             print("Nothing to remove (not logged in)")
-        return
+        return 0
 
     api = HondaAPI(storage=storage)
 
     if args.user_info:
         info = api.get_user_info()
         print(json.dumps(info, indent=2))
-        return
+        return 0
 
     if args.command == "list":
         vehicles = api.get_vehicles()
@@ -847,85 +852,121 @@ def main():
                 print(f"  {v['vin']}  {label}{plate}")
         else:
             print("No vehicles found on this account.")
-        return
+        return 0
 
     if not args.command:
         args.command = "status"
 
-    vin = _resolve_vehicle_or_exit(api, args.vin)
+    vin, exit_code = _resolve_vehicle(api, args.vin)
+    if exit_code != 0 or vin is None:
+        return exit_code
 
     vehicle_info, consumption_unit = _get_vehicle_display_context(api, vin, args)
 
-    _confirm_command_or_exit(args)
+    confirm_exit = _confirm_command(args)
+    if confirm_exit is not None:
+        return confirm_exit
 
     if args.command == "status":
-        _handle_status_command(api, vin, args)
+        return _handle_status_command(api, vin, args)
 
     elif args.command == "location":
-        _handle_location_command(api, vin, args)
+        return _handle_location_command(api, vin, args)
 
     elif args.command == "lock":
-        _wait_command_or_exit(api, args.timeout, api.remote_lock(vin), "Lock")
+        return _wait_command(api, args.timeout, api.remote_lock(vin), "Lock")
 
     elif args.command == "unlock":
-        _wait_command_or_exit(api, args.timeout, api.remote_unlock(vin), "Unlock")
+        return _wait_command(api, args.timeout, api.remote_unlock(vin), "Unlock")
 
     elif args.command == "horn":
-        _wait_command_or_exit(api, args.timeout, api.remote_horn_lights(vin), "Horn & lights")
+        return _wait_command(api, args.timeout, api.remote_horn_lights(vin), "Horn & lights")
 
     elif args.command == "charge-start":
-        _wait_command_or_exit(api, args.timeout, api.remote_charge_start(vin), "Charge start")
+        return _wait_command(api, args.timeout, api.remote_charge_start(vin), "Charge start")
 
     elif args.command == "charge-stop":
-        _wait_command_or_exit(api, args.timeout, api.remote_charge_stop(vin), "Charge stop")
+        return _wait_command(api, args.timeout, api.remote_charge_stop(vin), "Charge stop")
 
     elif args.command == "climate-start":
-        _wait_command_or_exit(api, args.timeout, api.remote_climate_start(vin), "Climate start")
+        return _wait_command(api, args.timeout, api.remote_climate_start(vin), "Climate start")
 
     elif args.command == "climate-stop":
-        _wait_command_or_exit(api, args.timeout, api.remote_climate_stop(vin), "Climate stop")
+        return _wait_command(api, args.timeout, api.remote_climate_stop(vin), "Climate stop")
 
     elif args.command == "climate-settings":
-        _handle_climate_settings_command(api, vin, args)
+        return _handle_climate_settings_command(api, vin, args)
 
     elif args.command == "climate-settings-set":
-        _handle_climate_settings_set_command(api, vin, args)
+        return _handle_climate_settings_set_command(api, vin, args)
 
     elif args.command == "charge-limit":
-        _handle_charge_limit_command(api, vin, args)
+        return _handle_charge_limit_command(api, vin, args)
 
     elif args.command == "charge-schedule":
-        _handle_charge_schedule_command(api, vin, args)
+        return _handle_charge_schedule_command(api, vin, args)
 
     elif args.command == "charge-schedule-set":
-        _handle_charge_schedule_set_command(api, vin, args, vehicle_info)
+        return _handle_charge_schedule_set_command(api, vin, args, vehicle_info)
 
     elif args.command == "charge-schedule-clear":
-        _handle_charge_schedule_clear_command(api, vin, args, vehicle_info)
+        return _handle_charge_schedule_clear_command(api, vin, args, vehicle_info)
 
     elif args.command == "climate-schedule":
-        _handle_climate_schedule_command(api, vin, args)
+        return _handle_climate_schedule_command(api, vin, args)
 
     elif args.command == "climate-schedule-set":
-        _handle_climate_schedule_set_command(api, vin, args, vehicle_info)
+        return _handle_climate_schedule_set_command(api, vin, args, vehicle_info)
 
     elif args.command == "climate-schedule-clear":
-        _handle_climate_schedule_clear_command(api, vin, args, vehicle_info)
+        return _handle_climate_schedule_clear_command(api, vin, args, vehicle_info)
 
     elif args.command == "trips":
-        _handle_trips_command(api, vin, args, vehicle_info, consumption_unit)
+        return _handle_trips_command(api, vin, args, vehicle_info, consumption_unit)
 
     elif args.command == "trip-detail":
-        _handle_trip_detail_command(api, vin, args)
+        return _handle_trip_detail_command(api, vin, args)
 
     elif args.command == "trip-stats":
-        _handle_trip_stats_command(api, vin, args, vehicle_info)
+        return _handle_trip_stats_command(api, vin, args, vehicle_info)
+
+    return 0
+
+
+def main() -> int:
+    logging.basicConfig(level=logging.INFO)
+
+    parser = build_parser()
+
+    if argcomplete:
+        argcomplete.autocomplete(parser)
+
+    args = parser.parse_args()
+    storage = get_storage(args.token_file, args.key_file, args.storage)
+
+    try:
+        return _run_main(args, storage)
+    except HondaAuthError as e:
+        if "--debug" in sys.argv:
+            raise
+        print(f"Error: {e}", file=sys.stderr)
+        return 2
+    except HondaAPIError as e:
+        if "--debug" in sys.argv:
+            raise
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        if "--debug" in sys.argv:
+            raise
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
 
 def _main():
     """Wrapper with catch-all error handling."""
     try:
-        main()
+        sys.exit(main())
     except KeyboardInterrupt:
         print()
         sys.exit(130)
