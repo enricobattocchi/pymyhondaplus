@@ -3,6 +3,13 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.local/
+.claude/
+.codex
 .honda_tokens.json
 .honda_device_key.pem
 .env
