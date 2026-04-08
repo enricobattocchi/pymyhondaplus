@@ -106,3 +106,21 @@ def test_period_label():
              "MaxSpeed": "1", "DriveTime": "1", "AveFuelEconomy": "1"}]
     assert compute_trip_stats(rows, period="day")["period"] == "day"
     assert compute_trip_stats(rows, period="week")["period"] == "week"
+
+
+def test_malformed_numeric_fields_are_treated_as_zero():
+    rows = [{
+        "OneTripDate": "2026-03-21",
+        "Mileage": "bad",
+        "AveSpeed": None,
+        "MaxSpeed": "fast",
+        "DriveTime": "",
+        "AveFuelEconomy": "oops",
+    }]
+    stats = compute_trip_stats(rows)
+    assert stats["trips"] == 1
+    assert stats["total_distance"] == 0
+    assert stats["total_minutes"] == 0
+    assert stats["avg_speed"] == 0
+    assert stats["max_speed"] == 0
+    assert stats["avg_consumption"] == 0

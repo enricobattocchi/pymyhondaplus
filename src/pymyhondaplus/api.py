@@ -37,6 +37,29 @@ DEFAULT_TOKEN_FILE = Path(os.environ.get(
 ))
 
 
+def _safe_float(value, default: float = 0.0) -> float:
+    """Convert a numeric-looking value to float, returning default on bad input."""
+    try:
+        if isinstance(value, str):
+            value = value.strip()
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_int(value, default: int = 0) -> int:
+    """Convert a numeric-looking value to int, tolerating float-like strings."""
+    return int(_safe_float(value, float(default)))
+
+
+def _format_hhmm(raw: str) -> str:
+    """Format an HHMM-ish string as HH:MM, falling back to 00:00."""
+    digits = "".join(ch for ch in str(raw or "") if ch.isdigit())
+    if len(digits) < 4:
+        digits = digits.zfill(4)
+    return f"{digits[:2]}:{digits[2:4]}"
+
+
 @dataclass
 class AuthTokens:
     access_token: str = ""
@@ -690,21 +713,21 @@ def parse_ev_status(dashboard: dict) -> dict:
     temp_unit = dashboard.get("temperature", {}).get("cabin", {}).get("unit", "c")
 
     return {
-        "battery_level": int(ev.get("soc", 0)),
-        "range": int(ev.get("evRange", 0)),
-        "total_range": int(ev.get("totalRange", 0)),
+        "battery_level": _safe_int(ev.get("soc", 0)),
+        "range": _safe_int(ev.get("evRange", 0)),
+        "total_range": _safe_int(ev.get("totalRange", 0)),
         "distance_unit": distance_unit,
         "speed_unit": speed_unit,
         "temp_unit": temp_unit,
         "charge_status": ev.get("chargeStatus", "unknown"),
         "plug_status": ev.get("plugStatus", "unknown"),
         "home_away": ev.get("homeAway", "unknown").lower(),
-        "charge_limit_home": int(ev.get("chargeLimitHome", 0)),
-        "charge_limit_away": int(ev.get("chargeLimitAway", 0)),
+        "charge_limit_home": _safe_int(ev.get("chargeLimitHome", 0)),
+        "charge_limit_away": _safe_int(ev.get("chargeLimitAway", 0)),
         "climate_active": dashboard.get("climateControl", {}).get("status", {}).get("isActive", False),
-        "cabin_temp": int(dashboard.get("temperature", {}).get("cabin", {}).get("value", 0)),
-        "interior_temp": int(ev.get("intTemp", 0)),
-        "odometer": int(dashboard.get("odometer", {}).get("value", 0)),
+        "cabin_temp": _safe_int(dashboard.get("temperature", {}).get("cabin", {}).get("value", 0)),
+        "interior_temp": _safe_int(ev.get("intTemp", 0)),
+        "odometer": _safe_int(dashboard.get("odometer", {}).get("value", 0)),
         "latitude": coord.get("latitude", ""),
         "longitude": coord.get("longitude", ""),
         "timestamp": dashboard.get("timestamp", ""),
@@ -732,7 +755,7 @@ def parse_ev_status(dashboard: dict) -> dict:
         "parking_lights": dashboard.get("lightStatus", {}).get("parkingLights", {}).get("lightState", "unknown"),
         "ignition": ev.get("igStatus", "unknown"),
         "charge_mode": ev.get("chargeMode", "unknown"),
-        "time_to_charge": int(ev.get("timeToTargetSoc", 0)),
+        "time_to_charge": _safe_int(ev.get("timeToTargetSoc", 0)),
         "hood_open": dashboard.get("doorStatus", {}).get("hood", {}).get("openState", "unknown") != "closed",
         "trunk_open": dashboard.get("doorStatus", {}).get("trunk", {}).get("openState", "unknown") != "closed",
         "warning_lamps": [
@@ -740,11 +763,11 @@ def parse_ev_status(dashboard: dict) -> dict:
             for msg in dashboard.get("warningLamps", {}).get("messages", [])
             if msg.get("condition") == "ON"
         ],
-        "speed": float(gps.get("velocity", {}).get("value", 0)),
+        "speed": _safe_float(gps.get("velocity", {}).get("value", 0)),
         "climate_temp": {"05": "cooler", "04": "normal", "03": "hotter",
                          "cool": "cooler", "warm": "hotter"}.get(
             ev.get("acTempVal", "normal"), ev.get("acTempVal", "unknown")),
-        "climate_duration": int(ev.get("acDurationSetting", 0)),
+        "climate_duration": _safe_int(ev.get("acDurationSetting", 0)),
         "climate_defrost": ev.get("acDefAutoSetting", "").lower().startswith("def auto on"),
     }
 
@@ -760,14 +783,12 @@ def parse_charge_schedule(dashboard: dict) -> list[dict]:
         days_str = entry.get("chargeProhibitionDayOfWeek", "")
         days = [d.strip() for d in days_str.split(",") if d.strip()] if days_str else []
         opts = entry.get("chargeProhibitionTimerOption", {})
-        start = opts.get("chargeProhibitionStartTime", "0000")
-        end = opts.get("chargeProhibitionEndTime", "0000")
         rules.append({
             "enabled": enabled,
             "days": days,
             "location": entry.get("chargeProhibitionLocation", "home").lower(),
-            "start_time": f"{start[:2]}:{start[2:]}",
-            "end_time": f"{end[:2]}:{end[2:]}",
+            "start_time": _format_hhmm(opts.get("chargeProhibitionStartTime", "0000")),
+            "end_time": _format_hhmm(opts.get("chargeProhibitionEndTime", "0000")),
         })
     return rules
 
@@ -783,11 +804,10 @@ def parse_climate_schedule(dashboard: dict) -> list[dict]:
         days_str = entry.get("acDayOfWeek", "")
         days = [d.strip() for d in days_str.split(",") if d.strip() and d.strip() != "unknown"] if days_str else []
         opts = entry.get("acTimerOption", {})
-        start = opts.get("acStartTime1", "0000")
         rules.append({
             "enabled": enabled,
             "days": days,
-            "start_time": f"{start[:2]}:{start[2:]}",
+            "start_time": _format_hhmm(opts.get("acStartTime1", "0000")),
         })
     return rules
 
@@ -805,21 +825,15 @@ def compute_trip_stats(rows: list[dict], period: str = "month",
     Returns:
         Dict with aggregated stats.
     """
-    def to_float(val):
-        try:
-            return float(val)
-        except (ValueError, TypeError):
-            return 0.0
-
     count = len(rows)
-    total_km = sum(to_float(r.get("Mileage")) for r in rows)
-    total_min = sum(to_float(r.get("DriveTime")) for r in rows)
-    avg_speed = sum(to_float(r.get("AveSpeed")) for r in rows) / count if count else 0
-    max_speed = max((to_float(r.get("MaxSpeed")) for r in rows), default=0)
+    total_km = sum(_safe_float(r.get("Mileage")) for r in rows)
+    total_min = sum(_safe_float(r.get("DriveTime")) for r in rows)
+    avg_speed = sum(_safe_float(r.get("AveSpeed")) for r in rows) / count if count else 0
+    max_speed = max((_safe_float(r.get("MaxSpeed")) for r in rows), default=0)
 
     if total_km > 0:
         avg_consumption = sum(
-            to_float(r.get("AveFuelEconomy")) * to_float(r.get("Mileage"))
+            _safe_float(r.get("AveFuelEconomy")) * _safe_float(r.get("Mileage"))
             for r in rows
         ) / total_km
     else:
@@ -843,5 +857,3 @@ def compute_trip_stats(rows: list[dict], period: str = "month",
         "speed_unit": speed_unit,
         "consumption_unit": "kWh/100km" if fuel_type == "E" else "L/100km",
     }
-
-
