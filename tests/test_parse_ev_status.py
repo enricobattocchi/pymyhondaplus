@@ -135,3 +135,23 @@ def test_empty_dashboard():
     assert ev["doors_locked"] is True  # all() on empty is True
     assert ev["lights_on"] is False
     assert ev["warning_lamps"] == []
+
+
+def test_malformed_numeric_fields_do_not_crash(dashboard_ev):
+    dashboard_ev["evStatus"]["soc"] = "n/a"
+    dashboard_ev["evStatus"]["evRange"] = None
+    dashboard_ev["evStatus"]["chargeLimitHome"] = "eighty"
+    dashboard_ev["evStatus"]["acDurationSetting"] = "30m"
+    dashboard_ev["gpsData"]["velocity"]["value"] = "fast"
+    dashboard_ev["temperature"]["cabin"]["value"] = ""
+    dashboard_ev["odometer"]["value"] = "unknown"
+
+    ev = parse_ev_status(dashboard_ev)
+
+    assert ev["battery_level"] == 0
+    assert ev["range"] == 0
+    assert ev["charge_limit_home"] == 0
+    assert ev["climate_duration"] == 0
+    assert ev["speed"] == 0.0
+    assert ev["cabin_temp"] == 0
+    assert ev["odometer"] == 0
