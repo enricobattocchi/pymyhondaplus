@@ -143,9 +143,8 @@ class _Spinner:
             i += 1
 
 
-def main():
-    logging.basicConfig(level=logging.INFO)
-
+def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
         description="Unofficial Honda Connect Europe (My Honda+) API client",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -299,6 +298,14 @@ vehicle selection (only needed with multiple vehicles):
                              help="Reference date YYYY-MM-DD (default: today)")
     trip_stats.add_argument("--csv", action="store_true",
                              help="Output as CSV")
+
+    return parser
+
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+
+    parser = build_parser()
 
     if argcomplete:
         argcomplete.autocomplete(parser)
