@@ -35,6 +35,16 @@ class _FakeAPI:
         self.remote_lock_called = True
         return "cmd-1"
 
+    def wait_for_command(self, cmd_id: str, timeout: int = 60):
+        class _Result:
+            success = True
+            complete = True
+            status = "success"
+            timed_out = False
+            reason = None
+
+        return _Result()
+
 
 def _patch_common(monkeypatch, fake_api):
     monkeypatch.setattr(importlib.metadata, "version", lambda _: "0.0")
@@ -91,3 +101,73 @@ def test_location_json_outputs_raw_gps_payload(monkeypatch, capsys):
     assert '"coordinate": {' in out.out
     assert '"latitude": "41.890251"' in out.out
     assert '"dtTime": "2026-03-24T22:53:01+00:00"' in out.out
+
+
+def test_status_json_outputs_raw_dashboard(monkeypatch, capsys):
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Honda e", "plate": "", "fuel_type": "E"},
+    ], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(
+        cli.sys, "argv", ["pymyhondaplus", "--json", "status"]
+    )
+
+    cli.main()
+
+    out = capsys.readouterr()
+    assert '"gpsData": {' in out.out
+    assert '"coordinate": {' in out.out
+    assert '"latitude": "41.890251"' in out.out
+
+
+def test_climate_settings_json_outputs_parsed_fields(monkeypatch, capsys):
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Honda e", "plate": "", "fuel_type": "E"},
+    ], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(
+        cli.sys, "argv", ["pymyhondaplus", "--json", "climate-settings"]
+    )
+    monkeypatch.setattr(cli, "parse_ev_status", lambda dashboard: {
+        "climate_active": True,
+        "climate_temp": "normal",
+        "climate_duration": 30,
+        "climate_defrost": True,
+        "cabin_temp": 21,
+        "interior_temp": 19,
+        "temp_unit": "c",
+    })
+
+    cli.main()
+
+    out = capsys.readouterr()
+    assert '"active": true' in out.out
+    assert '"temp": "normal"' in out.out
+    assert '"duration": 30' in out.out
+    assert '"temp_unit": "c"' in out.out
+
+
+def test_remote_command_timeout_exits_with_error(monkeypatch, capsys):
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Honda e", "plate": "", "fuel_type": "E"},
+    ], default_vin="VIN123")
+
+    class _TimeoutResult:
+        success = False
+        complete = False
+        status = "pending"
+        timed_out = True
+        reason = "car may be unreachable"
+
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(
+        cli.sys, "argv", ["pymyhondaplus", "lock", "--yes"]
+    )
+    fake_api.wait_for_command = lambda cmd_id, timeout=60: _TimeoutResult()
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+
+    out = capsys.readouterr()
+    assert exc.value.code == 1
+    assert "Lock: timed out (car may be unreachable)" in out.err
