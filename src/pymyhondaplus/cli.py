@@ -78,6 +78,20 @@ def _to_camel_case(name: str) -> str:
     return "".join(p.title() for p in name.split("_"))
 
 
+def _month_starts_for_period(start_date: date, end_date: date) -> list[str]:
+    """Return month-start timestamps covering the inclusive date range."""
+    month_starts = []
+    current = start_date.replace(day=1)
+    last = end_date.replace(day=1)
+    while current <= last:
+        month_starts.append(current.strftime("%Y-%m-%dT00:00:00.000Z"))
+        if current.month == 12:
+            current = current.replace(year=current.year + 1, month=1)
+        else:
+            current = current.replace(month=current.month + 1)
+    return month_starts
+
+
 CONFIRM_COMMANDS = frozenset({
     "lock", "unlock", "horn",
     "climate-start", "climate-stop", "climate-settings-set",
@@ -719,7 +733,6 @@ vehicle selection (only needed with multiple vehicles):
 
     elif args.command == "trip-stats":
         ref = date.fromisoformat(args.ref_date) if args.ref_date else date.today()
-        month_start = ref.replace(day=1).strftime("%Y-%m-%dT00:00:00.000Z")
 
         # Determine filter range
         if args.period == "day":
@@ -735,7 +748,20 @@ vehicle selection (only needed with multiple vehicles):
                 end_date = ref.replace(month=ref.month + 1, day=1) - timedelta(days=1)
 
         try:
-            all_rows = api.get_all_trips(vin, month_start=month_start)
+            all_rows = []
+            seen_trip_ids = set()
+            for month_start in _month_starts_for_period(start_date, end_date):
+                for row in api.get_all_trips(vin, month_start=month_start):
+                    trip_key = (
+                        row.get("OneTripNo"),
+                        row.get("OneTripDate"),
+                        row.get("StartTime"),
+                        row.get("EndTime"),
+                    )
+                    if trip_key in seen_trip_ids:
+                        continue
+                    seen_trip_ids.add(trip_key)
+                    all_rows.append(row)
         except HondaAPIError as e:
             role = (vehicle_info or {}).get("role", "")
             if role and role != "primary":
