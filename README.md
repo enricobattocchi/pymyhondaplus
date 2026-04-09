@@ -48,14 +48,14 @@ See [USAGE.md](https://github.com/enricobattocchi/pymyhondaplus/blob/main/USAGE.
 When the car is in deep sleep or out of cellular range, remote commands and fresh status requests will time out on Honda's server side (~60 seconds). The library detects this via the `CommandResult` type:
 
 ```python
-result = api.wait_for_command(command_id)
+result = api.refresh_dashboard(vin)
 if result.success:
-    print("Command succeeded")
+    print("Fresh data received")
 elif result.timed_out:
     print("Car unreachable — showing cached data")
 ```
 
-The CLI surfaces this automatically: `Refresh: timed out (car may be unreachable)`.
+The CLI surfaces this automatically with a spinner during the wait, and a clear message on failure: `Refresh failed: car did not respond. Showing cached data from <timestamp>.`
 
 ## Related projects
 
