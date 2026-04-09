@@ -14,3 +14,4 @@ build/
 .honda_device_key.pem
 .env
 .idea/
+scratch/
