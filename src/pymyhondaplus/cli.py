@@ -155,6 +155,29 @@ def _confirm_command(args: argparse.Namespace) -> int | None:
     return None
 
 
+def _get_dashboard(api: HondaAPI, vin: str, fresh: bool, json_mode: bool = False) -> dict:
+    """Fetch dashboard data with user-facing feedback for --fresh failures."""
+    if not fresh:
+        return api.get_dashboard(vin)
+
+    with _Spinner("Refreshing from car"):
+        result = api.refresh_dashboard(vin)
+    dashboard = api.get_dashboard_cached(vin)
+
+    if not result.success and not json_mode:
+        ts = dashboard.get("timestamp", "unknown")
+        if result.timed_out:
+            print(f"Refresh failed: car did not respond. Showing cached data from {ts}.",
+                  file=sys.stderr)
+        else:
+            reason = result.reason or result.status
+            print(f"Refresh failed ({reason}). Showing cached data from {ts}.",
+                  file=sys.stderr)
+        print(file=sys.stderr)
+
+    return dashboard
+
+
 def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the status command, preserving current CLI behavior."""
     if args.watch:
@@ -163,7 +186,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
         prev_ev = None
         try:
             while True:
-                dashboard = api.get_dashboard(vin, fresh=args.fresh)
+                dashboard = _get_dashboard(api, vin, fresh=args.fresh, json_mode=args.json)
                 ev = parse_ev_status(dashboard)
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 if args.json:
@@ -178,7 +201,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
             print()
         return 0
 
-    dashboard = api.get_dashboard(vin, fresh=args.fresh)
+    dashboard = _get_dashboard(api, vin, fresh=args.fresh, json_mode=args.json)
     if args.json:
         print(json.dumps(dashboard, indent=2))
         return 0
@@ -215,7 +238,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
 
 def _handle_location_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the location command, preserving current CLI behavior."""
-    dashboard = api.get_dashboard(vin, fresh=args.fresh)
+    dashboard = _get_dashboard(api, vin, fresh=args.fresh, json_mode=args.json)
     gps = dashboard.get("gpsData", {})
     if args.json:
         print(json.dumps(gps, indent=2))
@@ -232,7 +255,7 @@ def _handle_location_command(api: HondaAPI, vin: str, args: argparse.Namespace) 
 
 def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the climate-settings command, preserving current CLI behavior."""
-    dashboard = api.get_dashboard(vin, fresh=args.fresh)
+    dashboard = _get_dashboard(api, vin, fresh=args.fresh, json_mode=args.json)
     ev = parse_ev_status(dashboard)
     if args.json:
         print(json.dumps({
