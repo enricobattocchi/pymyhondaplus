@@ -351,7 +351,7 @@ class HondaAPI:
         return CommandResult.pending_timeout()
 
     def get_dashboard(self, vin: str, language: str = "it", fresh: bool = False,
-                      timeout: int = 60, poll_interval: float = 1.5) -> dict:
+                      timeout: int = 90, poll_interval: float = 1.5) -> dict:
         """
         Get full dashboard data.
 
@@ -365,17 +365,24 @@ class HondaAPI:
         if not fresh:
             return self.get_dashboard_cached(vin, language)
 
-        command_id = self.request_dashboard_refresh(vin)
-        if not command_id:
-            logger.warning("No command ID, falling back to cached data")
-            return self.get_dashboard_cached(vin, language)
-
-        result = self.wait_for_command(command_id, timeout, poll_interval)
+        result = self.refresh_dashboard(vin, timeout, poll_interval)
         if not result.success:
             logger.warning("Dashboard refresh did not succeed (status=%s), using cached data",
                            result.status)
 
         return self.get_dashboard_cached(vin, language)
+
+    def refresh_dashboard(self, vin: str, timeout: int = 90,
+                          poll_interval: float = 1.5) -> CommandResult:
+        """Request fresh data from car and wait for completion.
+
+        Returns the CommandResult (check .success to see if the car responded).
+        """
+        command_id = self.request_dashboard_refresh(vin)
+        if not command_id:
+            logger.warning("No command ID returned")
+            return CommandResult(complete=False, status="no_command_id")
+        return self.wait_for_command(command_id, timeout, poll_interval)
 
     # -- Location --
 
