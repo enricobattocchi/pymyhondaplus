@@ -342,8 +342,8 @@ class HondaAPI:
             result = self.poll_command(command_id)
             if result.complete:
                 if not result.success:
-                    logger.warning("Command %s finished: status=%s timedOut=%s reason=%s",
-                                   command_id, result.status, result.timed_out, result.reason)
+                    logger.debug("Command %s finished: status=%s timedOut=%s reason=%s",
+                                 command_id, result.status, result.timed_out, result.reason)
                 return result
             time.sleep(poll_interval)
 
@@ -367,8 +367,8 @@ class HondaAPI:
 
         result = self.refresh_dashboard(vin, timeout, poll_interval)
         if not result.success:
-            logger.warning("Dashboard refresh did not succeed (status=%s), using cached data",
-                           result.status)
+            logger.debug("Dashboard refresh did not succeed (status=%s), using cached data",
+                         result.status)
 
         return self.get_dashboard_cached(vin, language)
 
