@@ -6,7 +6,6 @@ from pymyhondaplus.api import parse_ev_status
 def test_basic_fields(dashboard_ev):
     ev = parse_ev_status(dashboard_ev)
     assert ev["battery_level"] == 82
-    assert ev["range"] == 176
     assert ev["range_climate_on"] == 176
     assert ev["range_climate_off"] == 181
     assert ev["charge_status"] == "stopped"
@@ -132,7 +131,7 @@ def test_warning_lamps(dashboard_ev):
 def test_empty_dashboard():
     ev = parse_ev_status({})
     assert ev["battery_level"] == 0
-    assert ev["range"] == 0
+    assert ev["range_climate_on"] == 0
     assert ev["charge_status"] == "unknown"
     assert ev["doors_locked"] is True  # all() on empty is True
     assert ev["lights_on"] is False
@@ -151,7 +150,7 @@ def test_malformed_numeric_fields_do_not_crash(dashboard_ev):
     ev = parse_ev_status(dashboard_ev)
 
     assert ev["battery_level"] == 0
-    assert ev["range"] == 0
+    assert ev["range_climate_on"] == 0
     assert ev["charge_limit_home"] == 0
     assert ev["climate_duration"] == 0
     assert ev["speed"] == 0.0
