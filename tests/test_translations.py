@@ -9,9 +9,13 @@ from pymyhondaplus.translations import (
 
 
 def test_all_languages_have_required_keys():
-    """Every language should have the core charge mode keys."""
-    required = {"charge_speed_normal", "charge_speed_fast", "charging", "not_charging",
-                "unplugged", "locked", "unlocked"}
+    """Every language should have the core value and label keys."""
+    required = {
+        "charge_speed_normal", "charge_speed_fast", "charging", "not_charging",
+        "unplugged", "locked", "unlocked", "open", "closed",
+        "battery_label", "charge_speed_label", "time_remaining_label",
+        "climate_label", "bonnet_label", "boot_label", "defrost_label",
+    }
     for lang, strings in TRANSLATIONS.items():
         missing = required - set(strings)
         assert not missing, f"{lang} is missing keys: {missing}"
@@ -114,3 +118,22 @@ def test_plug_status_unknown_passes_through():
     t = get_translator("en")
     assert PLUG_STATUS_MAP.get("plugged in") is None  # not mapped
     assert CHARGE_STATUS_MAP.get("unavailable") is None  # not mapped
+
+
+def test_label_translations_italian():
+    t = get_translator("it")
+    assert t("battery_label") == "Percentuale della batteria"
+    assert t("charge_speed_label") == "Velocità di ricarica"
+    assert t("bonnet_label") == "Cofano"
+    assert t("boot_label") == "Bagagliaio"
+    assert t("open") == "Apri"
+    assert t("closed") == "Chiuso"
+
+
+def test_label_translations_german():
+    t = get_translator("de")
+    assert t("battery_label") == "Batterieladestand in Prozent"
+    assert t("bonnet_label") == "Motorhaube"
+    assert t("boot_label") == "Kofferraum"
+    assert t("open") == "Geöffnet"
+    assert t("closed") == "Geschlossen"
