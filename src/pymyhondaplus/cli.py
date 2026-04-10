@@ -21,7 +21,10 @@ except ImportError:
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, HondaAuthError, compute_trip_stats, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .storage import get_storage
-from .translations import CHARGE_MODE_MAP, CHARGE_STATUS_MAP, PLUG_STATUS_MAP, TEMP_UNIT_MAP, get_translator
+from .translations import (
+    CHARGE_MODE_FALLBACK_MAP, CHARGE_MODE_MAP, CHARGE_STATUS_MAP,
+    IG_STATUS_MAP, PLUG_STATUS_MAP, TEMP_UNIT_MAP, get_translator,
+)
 
 WATCH_FIELDS = {
     "battery_level": ("Battery", "%"),
@@ -77,7 +80,7 @@ def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None, t=Non
 def _translate_field(key, val, t):
     """Translate a single status field value."""
     if key == "charge_mode":
-        tkey = CHARGE_MODE_MAP.get(val)
+        tkey = CHARGE_MODE_MAP.get(val) or CHARGE_MODE_FALLBACK_MAP.get(val)
         return t(tkey, raw=val) if tkey else val
     if key == "charge_status":
         tkey = CHARGE_STATUS_MAP.get(val)
@@ -85,8 +88,11 @@ def _translate_field(key, val, t):
     if key == "plug_status":
         tkey = PLUG_STATUS_MAP.get(val)
         return t(tkey, raw=val) if tkey else val
+    if key == "ignition":
+        tkey = IG_STATUS_MAP.get(val)
+        return t(tkey, raw=val) if tkey else val
     if key == "climate_active":
-        return "ON" if val else "OFF"
+        return t("on") if val else t("off")
     if key == "doors_locked":
         return t("locked") if val else t("unlocked")
     return val
@@ -237,7 +243,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     away = t("away")
 
     rows = [
-        (t("ignition_label"), ev['ignition']),
+        (t("ignition_label"), _translate_field('ignition', ev['ignition'], t)),
         (t("speed_label"), f"{ev['speed']} {su}"),
         (t("battery_label"), f"{ev['battery_level']}%"),
         (t("climate_on_label"), f"{ev['range_climate_on']} {du}"),
@@ -252,7 +258,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
         (t("location_label"), t("home") if ev['home_away'] == "home" else t("away_location", raw=ev['home_away'])),
         (t("coordinates_label"), f"{ev['latitude']}, {ev['longitude']}"),
         (t("charge_limit_label"), f"{ev['charge_limit_home']}% ({home}) / {ev['charge_limit_away']}% ({away})"),
-        (t("climate_label"), "ON" if ev['climate_active'] else "OFF"),
+        (t("climate_label"), _translate_field('climate_active', ev['climate_active'], t)),
         (t("cabin_temp_label"), f"{ev['cabin_temp']} {tu}"),
         (t("interior_temp_label"), f"{ev['interior_temp']} {tu}"),
         (t("odometer_label"), f"{ev['odometer']} {du}"),
@@ -313,7 +319,7 @@ def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Nam
     t = get_translator()
     tu = TEMP_UNIT_MAP.get(ev['temp_unit'], ev['temp_unit'])
     rows = [
-        (t("climate_label"), "ON" if ev['climate_active'] else "OFF"),
+        (t("climate_label"), _translate_field('climate_active', ev['climate_active'], t)),
         ("Temperature", ev['climate_temp']),
         ("Duration", f"{ev['climate_duration']} {t('mins')}"),
         (t("defrost_label"), "on" if ev['climate_defrost'] else "off"),

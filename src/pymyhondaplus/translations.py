@@ -61,6 +61,12 @@ TRANSLATIONS = {
         "odometer_label": "Počítadlo km",
         "warnings_label": "Varování",
         "timestamp_label": "Časové razítko",
+        "plugged_in": "Připojeno",
+        "unconfirmed": "Nepotvrzeno",
+        "unavailable": "Nedostupné",
+        "unknown": "Neznámé",
+        "on": "ZAP",
+        "off": "VYP",
     },
     "da": {
         "charge_speed_normal": "Normal",
@@ -101,6 +107,12 @@ TRANSLATIONS = {
         "odometer_label": "Kilometertæller",
         "warnings_label": "Advarsler",
         "timestamp_label": "Tidsstempel",
+        "plugged_in": "Tilsluttet",
+        "unconfirmed": "Ubekræftet",
+        "unavailable": "Utilgængelig",
+        "unknown": "Ukendt",
+        "on": "TIL",
+        "off": "FRA",
     },
     "de": {
         "charge_speed_normal": "Normal",
@@ -141,6 +153,12 @@ TRANSLATIONS = {
         "odometer_label": "Kilometerstand",
         "warnings_label": "Warnungen",
         "timestamp_label": "Zeitstempel",
+        "plugged_in": "Angeschlossen",
+        "unconfirmed": "Unbestätigt",
+        "unavailable": "Nicht verfügbar",
+        "unknown": "Unbekannt",
+        "on": "EIN",
+        "off": "AUS",
     },
     "en": {
         "charge_speed_normal": "Normal",
@@ -181,6 +199,12 @@ TRANSLATIONS = {
         "odometer_label": "Odometer",
         "warnings_label": "Warnings",
         "timestamp_label": "Timestamp",
+        "plugged_in": "Plugged in",
+        "unconfirmed": "Unconfirmed",
+        "unavailable": "Unavailable",
+        "unknown": "Unknown",
+        "on": "ON",
+        "off": "OFF",
     },
     "es": {
         "charge_speed_normal": "Normal",
@@ -221,6 +245,12 @@ TRANSLATIONS = {
         "odometer_label": "Cuentakilómetros",
         "warnings_label": "Avisos",
         "timestamp_label": "Marca de tiempo",
+        "plugged_in": "Enchufado",
+        "unconfirmed": "Sin confirmar",
+        "unavailable": "No disponible",
+        "unknown": "Desconocido",
+        "on": "ON",
+        "off": "OFF",
     },
     "fr": {
         "charge_speed_normal": "Normale",
@@ -261,6 +291,12 @@ TRANSLATIONS = {
         "odometer_label": "Compteur kilométrique",
         "warnings_label": "Avertissements",
         "timestamp_label": "Horodatage",
+        "plugged_in": "Branché",
+        "unconfirmed": "Non confirmé",
+        "unavailable": "Indisponible",
+        "unknown": "Inconnu",
+        "on": "ON",
+        "off": "OFF",
     },
     "hu": {
         "charge_speed_normal": "Normál",
@@ -301,6 +337,12 @@ TRANSLATIONS = {
         "odometer_label": "Kilométeróra",
         "warnings_label": "Figyelmeztetések",
         "timestamp_label": "Időbélyeg",
+        "plugged_in": "Csatlakoztatva",
+        "unconfirmed": "Nem megerősített",
+        "unavailable": "Nem elérhető",
+        "unknown": "Ismeretlen",
+        "on": "BE",
+        "off": "KI",
     },
     "it": {
         "charge_speed_normal": "Normale",
@@ -341,6 +383,12 @@ TRANSLATIONS = {
         "odometer_label": "Contachilometri",
         "warnings_label": "Avvisi",
         "timestamp_label": "Data e ora",
+        "plugged_in": "Collegato",
+        "unconfirmed": "Non confermato",
+        "unavailable": "Non disponibile",
+        "unknown": "Sconosciuto",
+        "on": "ON",
+        "off": "OFF",
     },
     "nl": {
         "charge_speed_normal": "Normaal",
@@ -381,6 +429,12 @@ TRANSLATIONS = {
         "odometer_label": "Kilometerteller",
         "warnings_label": "Waarschuwingen",
         "timestamp_label": "Tijdstempel",
+        "plugged_in": "Aangesloten",
+        "unconfirmed": "Onbevestigd",
+        "unavailable": "Niet beschikbaar",
+        "unknown": "Onbekend",
+        "on": "AAN",
+        "off": "UIT",
     },
     "no": {
         "charge_speed_normal": "normal",
@@ -421,6 +475,12 @@ TRANSLATIONS = {
         "odometer_label": "Kilometerteller",
         "warnings_label": "Advarsler",
         "timestamp_label": "Tidsstempel",
+        "plugged_in": "Tilkoblet",
+        "unconfirmed": "Ubekreftet",
+        "unavailable": "Utilgjengelig",
+        "unknown": "Ukjent",
+        "on": "PÅ",
+        "off": "AV",
     },
     "pl": {
         "charge_speed_normal": "Temperatura optymalna",
@@ -461,6 +521,12 @@ TRANSLATIONS = {
         "odometer_label": "Licznik km",
         "warnings_label": "Ostrzeżenia",
         "timestamp_label": "Znacznik czasu",
+        "plugged_in": "Podłączone",
+        "unconfirmed": "Niepotwierdzone",
+        "unavailable": "Niedostępne",
+        "unknown": "Nieznany",
+        "on": "WŁ",
+        "off": "WYŁ",
     },
     "sk": {
         "charge_speed_normal": "Normálne",
@@ -501,6 +567,12 @@ TRANSLATIONS = {
         "odometer_label": "Počítadlo km",
         "warnings_label": "Varovania",
         "timestamp_label": "Časová pečiatka",
+        "plugged_in": "Pripojené",
+        "unconfirmed": "Nepotvrdené",
+        "unavailable": "Nedostupné",
+        "unknown": "Neznáme",
+        "on": "ZAP",
+        "off": "VYP",
     },
     "sv": {
         "charge_speed_normal": "Normalt",
@@ -541,6 +613,12 @@ TRANSLATIONS = {
         "odometer_label": "Mätarställning",
         "warnings_label": "Varningar",
         "timestamp_label": "Tidsstämpel",
+        "plugged_in": "Inkopplad",
+        "unconfirmed": "Obekräftad",
+        "unavailable": "Ej tillgänglig",
+        "unknown": "Okänd",
+        "on": "PÅ",
+        "off": "AV",
     },
 }
 
@@ -558,12 +636,31 @@ CHARGE_MODE_MAP = {
 CHARGE_STATUS_MAP = {
     "running": "charging",
     "stopped": "not_charging",
+    "unavailable": "unavailable",
+    "unknown": "unknown",
 }
 
 # Map raw API plugStatus values to translation keys.
 # Possible values (from enums): unknown, unplugged, plugged in.
 PLUG_STATUS_MAP = {
     "unplugged": "unplugged",
+    "plugged in": "plugged_in",
+    "unknown": "unknown",
+}
+
+# Map raw API chargeMode values that don't map to speed labels.
+# Possible values (from enums): unconfirmed, unknown.
+CHARGE_MODE_FALLBACK_MAP = {
+    "unconfirmed": "unconfirmed",
+    "unknown": "unknown",
+}
+
+# Map raw API igStatus values to translation keys.
+# Possible values (from enums): unknown, OFF, ON.
+IG_STATUS_MAP = {
+    "ON": "on",
+    "OFF": "off",
+    "unknown": "unknown",
 }
 
 # Map raw API temperature unit to display symbol.
