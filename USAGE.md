@@ -60,7 +60,9 @@ pymyhondaplus status --fresh
 pymyhondaplus --json status
 ```
 
-Shows: ignition, speed, battery, range, charge status/mode, plug status, time to full charge, location, coordinates, charge limits, climate, temperatures, odometer, doors, hood, trunk, lights, warnings, and timestamp.
+Shows: ignition, speed, battery, range (with and without climate), charge status/mode, plug status, time to full charge, location, coordinates, charge limits, climate, temperatures, odometer, doors, hood, trunk, lights, warnings, and timestamp.
+
+Labels and values are automatically translated based on your system locale (`LANG` / `LC_ALL`). Supported languages: cs, da, de, en, es, fr, hu, it, nl, no, pl, sk, sv.
 
 ### Watch mode
 
