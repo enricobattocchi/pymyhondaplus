@@ -249,7 +249,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     if ev['time_to_charge']:
         rows.append((t("time_remaining_label"), f"{ev['time_to_charge']} {t('mins')}"))
     rows += [
-        ("Location", ev['home_away']),
+        ("Location", t("home") if ev['home_away'] == "home" else t("away_location", raw=ev['home_away'])),
         ("Coordinates", f"{ev['latitude']}, {ev['longitude']}"),
         ("Charge limit", f"{ev['charge_limit_home']}% ({home}) / {ev['charge_limit_away']}% ({away})"),
         (t("climate_label"), "ON" if ev['climate_active'] else "OFF"),
