@@ -272,8 +272,8 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     rows.append((t("timestamp_label"), ev['timestamp']))
 
     # Separate labeled rows from standalone flags
-    labeled = [(l, v) for l, v in rows if v is not None]
-    standalone = [l for l, v in rows if v is None and l is not None]
+    labeled = [(lbl, val) for lbl, val in rows if val is not None]
+    standalone = [lbl for lbl, val in rows if val is None and lbl is not None]
 
     w = max(len(label) for label, _ in labeled)
     for label, value in labeled:
