@@ -48,6 +48,7 @@ TRANSLATIONS = {
         "doors_label": "Dveře",
         "home": "Doma",
         "away": "Kdekoli",
+        "away_location": "Mimo domov",
     },
     "da": {
         "charge_speed_normal": "Normal",
@@ -75,6 +76,7 @@ TRANSLATIONS = {
         "doors_label": "Døre",
         "home": "Hjem",
         "away": "Hvor som helst",
+        "away_location": "Ude",
     },
     "de": {
         "charge_speed_normal": "Normal",
@@ -102,6 +104,7 @@ TRANSLATIONS = {
         "doors_label": "Türen",
         "home": "Zuhause",
         "away": "Nicht zuhause",
+        "away_location": "Nicht zuhause",
     },
     "en": {
         "charge_speed_normal": "Normal",
@@ -129,6 +132,7 @@ TRANSLATIONS = {
         "doors_label": "Doors",
         "home": "Home",
         "away": "Anywhere",
+        "away_location": "Away",
     },
     "es": {
         "charge_speed_normal": "Normal",
@@ -156,6 +160,7 @@ TRANSLATIONS = {
         "doors_label": "Puertas",
         "home": "En casa",
         "away": "En cualquier lugar",
+        "away_location": "Fuera",
     },
     "fr": {
         "charge_speed_normal": "Normale",
@@ -183,6 +188,7 @@ TRANSLATIONS = {
         "doors_label": "Portes",
         "home": "Domicile",
         "away": "Partout",
+        "away_location": "Absent",
     },
     "hu": {
         "charge_speed_normal": "Normál",
@@ -210,6 +216,7 @@ TRANSLATIONS = {
         "doors_label": "Ajtók",
         "home": "Otthon",
         "away": "Bárhol",
+        "away_location": "Távol",
     },
     "it": {
         "charge_speed_normal": "Normale",
@@ -237,6 +244,7 @@ TRANSLATIONS = {
         "doors_label": "Portiere",
         "home": "A casa",
         "away": "Ovunque",
+        "away_location": "Fuori casa",
     },
     "nl": {
         "charge_speed_normal": "Normaal",
@@ -264,6 +272,7 @@ TRANSLATIONS = {
         "doors_label": "Portieren",
         "home": "Thuis",
         "away": "Overal",
+        "away_location": "Onderweg",
     },
     "no": {
         "charge_speed_normal": "normal",
@@ -291,6 +300,7 @@ TRANSLATIONS = {
         "doors_label": "Dører",
         "home": "Hjem",
         "away": "Hvor som helst",
+        "away_location": "Borte",
     },
     "pl": {
         "charge_speed_normal": "Temperatura optymalna",
@@ -318,6 +328,7 @@ TRANSLATIONS = {
         "doors_label": "Drzwi",
         "home": "W domu",
         "away": "Wszędzie",
+        "away_location": "Poza domem",
     },
     "sk": {
         "charge_speed_normal": "Normálne",
@@ -345,6 +356,7 @@ TRANSLATIONS = {
         "doors_label": "Dvere",
         "home": "Doma",
         "away": "Kdekoľvek",
+        "away_location": "Mimo domova",
     },
     "sv": {
         "charge_speed_normal": "Normalt",
@@ -372,6 +384,7 @@ TRANSLATIONS = {
         "doors_label": "Dörrar",
         "home": "Hemma",
         "away": "Var som helst",
+        "away_location": "Borta",
     },
 }
 
