@@ -373,7 +373,7 @@ TRANSLATIONS = {
         "away_location": "Fuori casa",
         "ignition_label": "Accensione",
         "speed_label": "Velocità",
-        "charge_status_label": "Stato di carica",
+        "charge_status_label": "Stato ricarica",
         "plug_status_label": "Stato del cavo",
         "location_label": "Posizione",
         "coordinates_label": "Coordinate",
