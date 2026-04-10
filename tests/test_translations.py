@@ -114,11 +114,21 @@ def test_plug_status_map():
     assert t(PLUG_STATUS_MAP["unplugged"]) == "Unplugged"
 
 
-def test_plug_status_unknown_passes_through():
-    """Values not in the map should pass through unchanged."""
+def test_plug_status_mapped():
+    """All known plug status values should be mapped."""
     t = get_translator("en")
-    assert PLUG_STATUS_MAP.get("plugged in") is None  # not mapped
-    assert CHARGE_STATUS_MAP.get("unavailable") is None  # not mapped
+    assert t(PLUG_STATUS_MAP["plugged in"]) == "Plugged in"
+    assert t(PLUG_STATUS_MAP["unplugged"]) == "Unplugged"
+    assert t(PLUG_STATUS_MAP["unknown"]) == "Unknown"
+
+
+def test_charge_status_all_mapped():
+    """All known charge status values should be mapped."""
+    t = get_translator("en")
+    assert t(CHARGE_STATUS_MAP["running"]) == "Charging"
+    assert t(CHARGE_STATUS_MAP["stopped"]) == "Not charging"
+    assert t(CHARGE_STATUS_MAP["unavailable"]) == "Unavailable"
+    assert t(CHARGE_STATUS_MAP["unknown"]) == "Unknown"
 
 
 def test_label_translations_italian():
