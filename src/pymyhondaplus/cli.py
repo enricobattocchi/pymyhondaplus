@@ -237,33 +237,33 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     away = t("away")
 
     rows = [
-        ("Ignition", ev['ignition']),
-        ("Speed", f"{ev['speed']} {su}"),
+        (t("ignition_label"), ev['ignition']),
+        (t("speed_label"), f"{ev['speed']} {su}"),
         (t("battery_label"), f"{ev['battery_level']}%"),
         (t("climate_on_label"), f"{ev['range_climate_on']} {du}"),
         (t("climate_off_label"), f"{ev['range_climate_off']} {du}"),
-        ("Charge status", _translate_field('charge_status', ev['charge_status'], t)),
+        (t("charge_status_label"), _translate_field('charge_status', ev['charge_status'], t)),
         (t("charge_speed_label"), _translate_field('charge_mode', ev['charge_mode'], t)),
-        ("Plug status", _translate_field('plug_status', ev['plug_status'], t)),
+        (t("plug_status_label"), _translate_field('plug_status', ev['plug_status'], t)),
     ]
     if ev['time_to_charge']:
         rows.append((t("time_remaining_label"), f"{ev['time_to_charge']} {t('mins')}"))
     rows += [
-        ("Location", t("home") if ev['home_away'] == "home" else t("away_location", raw=ev['home_away'])),
-        ("Coordinates", f"{ev['latitude']}, {ev['longitude']}"),
-        ("Charge limit", f"{ev['charge_limit_home']}% ({home}) / {ev['charge_limit_away']}% ({away})"),
+        (t("location_label"), t("home") if ev['home_away'] == "home" else t("away_location", raw=ev['home_away'])),
+        (t("coordinates_label"), f"{ev['latitude']}, {ev['longitude']}"),
+        (t("charge_limit_label"), f"{ev['charge_limit_home']}% ({home}) / {ev['charge_limit_away']}% ({away})"),
         (t("climate_label"), "ON" if ev['climate_active'] else "OFF"),
-        ("Cabin temp", f"{ev['cabin_temp']} {tu}"),
-        ("Interior temp", f"{ev['interior_temp']} {tu}"),
-        ("Odometer", f"{ev['odometer']} {du}"),
+        (t("cabin_temp_label"), f"{ev['cabin_temp']} {tu}"),
+        (t("interior_temp_label"), f"{ev['interior_temp']} {tu}"),
+        (t("odometer_label"), f"{ev['odometer']} {du}"),
         (t("doors_label"), t("locked") if ev['doors_locked'] else t("unlocked")),
         (t("bonnet_label"), t("open") if ev['hood_open'] else t("closed")),
         (t("boot_label"), t("open") if ev['trunk_open'] else t("closed")),
         (t("lights_on") if ev['lights_on'] else None, None),
     ]
     if ev['warning_lamps']:
-        rows.append(("Warnings", ", ".join(ev['warning_lamps'])))
-    rows.append(("Timestamp", ev['timestamp']))
+        rows.append((t("warnings_label"), ", ".join(ev['warning_lamps'])))
+    rows.append((t("timestamp_label"), ev['timestamp']))
 
     # Separate labeled rows from standalone flags
     labeled = [(l, v) for l, v in rows if v is not None]
