@@ -137,7 +137,7 @@ def test_label_translations_italian():
     assert t("charge_speed_label") == "Velocità di ricarica"
     assert t("bonnet_label") == "Cofano"
     assert t("boot_label") == "Bagagliaio"
-    assert t("open") == "Apri"
+    assert t("open") == "Aperto"
     assert t("closed") == "Chiuso"
 
 
