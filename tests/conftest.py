@@ -48,6 +48,7 @@ def dashboard_ev():
         "evStatus": {
             "soc": "82",
             "evRange": "176",
+            "evClimateOffRange": "5",
             "totalRange": "176",
             "chargeStatus": "stopped",
             "plugStatus": "plugged in",
