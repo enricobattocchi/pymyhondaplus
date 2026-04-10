@@ -21,6 +21,10 @@ except ImportError:
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, HondaAuthError, compute_trip_stats, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .storage import get_storage
+from .translations import (
+    CHARGE_MODE_FALLBACK_MAP, CHARGE_MODE_MAP, CHARGE_STATUS_MAP,
+    IG_STATUS_MAP, PLUG_STATUS_MAP, TEMP_UNIT_MAP, get_translator,
+)
 
 WATCH_FIELDS = {
     "battery_level": ("Battery", "%"),
@@ -51,12 +55,15 @@ def _parse_interval(s: str) -> int:
     return int(s)
 
 
-def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None) -> str:
+def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None, t=None) -> str:
     """Format changed fields for watch output. If prev is None, format all fields."""
+    if t is None:
+        t = get_translator()
+    raw_temp = ev.get("temp_unit", "c")
     units = {
         "dist": ev.get("distance_unit", "km"),
         "speed": ev.get("speed_unit", "km/h"),
-        "temp": ev.get("temp_unit", "c"),
+        "temp": TEMP_UNIT_MAP.get(raw_temp, raw_temp),
     }
     parts = []
     for key, (label, suffix) in fields.items():
@@ -65,10 +72,30 @@ def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None) -> st
             continue
         if prev is not None and prev.get(key) == val:
             continue
-        if key == "climate_active":
-            val = "ON" if val else "OFF"
+        val = _translate_field(key, val, t)
         parts.append(f"{label}: {val}{suffix.format_map(units)}")
     return "  ".join(parts)
+
+
+def _translate_field(key, val, t):
+    """Translate a single status field value."""
+    if key == "charge_mode":
+        tkey = CHARGE_MODE_MAP.get(val) or CHARGE_MODE_FALLBACK_MAP.get(val)
+        return t(tkey, raw=val) if tkey else val
+    if key == "charge_status":
+        tkey = CHARGE_STATUS_MAP.get(val)
+        return t(tkey, raw=val) if tkey else val
+    if key == "plug_status":
+        tkey = PLUG_STATUS_MAP.get(val)
+        return t(tkey, raw=val) if tkey else val
+    if key == "ignition":
+        tkey = IG_STATUS_MAP.get(val)
+        return t(tkey, raw=val) if tkey else val
+    if key == "climate_active":
+        return t("on") if val else t("off")
+    if key == "doors_locked":
+        return t("locked") if val else t("unlocked")
+    return val
 
 
 def _to_camel_case(name: str) -> str:
@@ -183,6 +210,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     if args.watch:
         interval = _parse_interval(args.watch)
         print(f"Watching every {args.watch} (Ctrl+C to stop)\n")
+        t = get_translator()
         prev_ev = None
         try:
             while True:
@@ -192,7 +220,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
                 if args.json:
                     print(json.dumps(ev), flush=True)
                 else:
-                    line = _format_watch_fields(ev, WATCH_FIELDS, prev_ev)
+                    line = _format_watch_fields(ev, WATCH_FIELDS, prev_ev, t)
                     if line:
                         print(f"{ts}  {line}", flush=True)
                 prev_ev = ev.copy()
@@ -207,32 +235,51 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
         return 0
 
     ev = parse_ev_status(dashboard)
+    t = get_translator()
     du = ev['distance_unit']
     su = ev['speed_unit']
-    tu = ev['temp_unit']
-    print(f"Ignition:      {ev['ignition']}")
-    print(f"Speed:         {ev['speed']} {su}")
-    print(f"Battery:       {ev['battery_level']}%")
-    print(f"Range:         {ev['range']} {du}")
-    print(f"Charge status: {ev['charge_status']}")
-    print(f"Charge mode:   {ev['charge_mode']}")
-    print(f"Plug status:   {ev['plug_status']}")
+    tu = TEMP_UNIT_MAP.get(ev['temp_unit'], ev['temp_unit'])
+    home = t("home")
+    away = t("away")
+
+    rows = [
+        (t("ignition_label"), _translate_field('ignition', ev['ignition'], t)),
+        (t("speed_label"), f"{ev['speed']} {su}"),
+        (t("battery_label"), f"{ev['battery_level']}%"),
+        (t("climate_on_label"), f"{ev['range_climate_on']} {du}"),
+        (t("climate_off_label"), f"{ev['range_climate_off']} {du}"),
+        (t("charge_status_label"), _translate_field('charge_status', ev['charge_status'], t)),
+        (t("charge_speed_label"), _translate_field('charge_mode', ev['charge_mode'], t)),
+        (t("plug_status_label"), _translate_field('plug_status', ev['plug_status'], t)),
+    ]
     if ev['time_to_charge']:
-        print(f"Time to full:  {ev['time_to_charge']} min")
-    print(f"Location:      {ev['home_away']}")
-    print(f"Coordinates:   {ev['latitude']}, {ev['longitude']}")
-    print(f"Charge limit:  {ev['charge_limit_home']}% (home) / {ev['charge_limit_away']}% (away)")
-    print(f"Climate:       {'ON' if ev['climate_active'] else 'OFF'}")
-    print(f"Cabin temp:    {ev['cabin_temp']} {tu}")
-    print(f"Interior temp: {ev['interior_temp']} {tu}")
-    print(f"Odometer:      {ev['odometer']} {du}")
-    print(f"Doors locked:  {ev['doors_locked']}")
-    print(f"Hood:          {'open' if ev['hood_open'] else 'closed'}")
-    print(f"Trunk:         {'open' if ev['trunk_open'] else 'closed'}")
-    print(f"Lights on:     {ev['lights_on']}")
+        rows.append((t("time_remaining_label"), f"{ev['time_to_charge']} {t('mins')}"))
+    rows += [
+        (t("location_label"), t("home") if ev['home_away'] == "home" else t("away_location", raw=ev['home_away'])),
+        (t("coordinates_label"), f"{ev['latitude']}, {ev['longitude']}"),
+        (t("charge_limit_label"), f"{ev['charge_limit_home']}% ({home}) / {ev['charge_limit_away']}% ({away})"),
+        (t("climate_label"), _translate_field('climate_active', ev['climate_active'], t)),
+        (t("cabin_temp_label"), f"{ev['cabin_temp']} {tu}"),
+        (t("interior_temp_label"), f"{ev['interior_temp']} {tu}"),
+        (t("odometer_label"), f"{ev['odometer']} {du}"),
+        (t("doors_label"), t("locked") if ev['doors_locked'] else t("unlocked")),
+        (t("bonnet_label"), t("open") if ev['hood_open'] else t("closed")),
+        (t("boot_label"), t("open") if ev['trunk_open'] else t("closed")),
+        (t("lights_on") if ev['lights_on'] else None, None),
+    ]
     if ev['warning_lamps']:
-        print(f"Warnings:      {', '.join(ev['warning_lamps'])}")
-    print(f"Timestamp:     {ev['timestamp']}")
+        rows.append((t("warnings_label"), ", ".join(ev['warning_lamps'])))
+    rows.append((t("timestamp_label"), ev['timestamp']))
+
+    # Separate labeled rows from standalone flags
+    labeled = [(l, v) for l, v in rows if v is not None]
+    standalone = [l for l, v in rows if v is None and l is not None]
+
+    w = max(len(label) for label, _ in labeled)
+    for label, value in labeled:
+        print(f"{label + ':':<{w + 2}}{value}")
+    for line in standalone:
+        print(line)
     return 0
 
 
@@ -269,13 +316,19 @@ def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Nam
         }, indent=2))
         return 0
 
-    tu = ev['temp_unit']
-    print(f"Active:      {'ON' if ev['climate_active'] else 'OFF'}")
-    print(f"Temperature: {ev['climate_temp']}")
-    print(f"Duration:    {ev['climate_duration']} min")
-    print(f"Defrost:     {'on' if ev['climate_defrost'] else 'off'}")
-    print(f"Cabin:       {ev['cabin_temp']} {tu}")
-    print(f"Interior:    {ev['interior_temp']} {tu}")
+    t = get_translator()
+    tu = TEMP_UNIT_MAP.get(ev['temp_unit'], ev['temp_unit'])
+    rows = [
+        (t("climate_label"), _translate_field('climate_active', ev['climate_active'], t)),
+        ("Temperature", ev['climate_temp']),
+        ("Duration", f"{ev['climate_duration']} {t('mins')}"),
+        (t("defrost_label"), "on" if ev['climate_defrost'] else "off"),
+        ("Cabin", f"{ev['cabin_temp']} {tu}"),
+        ("Interior", f"{ev['interior_temp']} {tu}"),
+    ]
+    w = max(len(label) for label, _ in rows)
+    for label, value in rows:
+        print(f"{label + ':':<{w + 2}}{value}")
     return 0
 
 
