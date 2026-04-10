@@ -21,6 +21,7 @@ except ImportError:
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, HondaAuthError, compute_trip_stats, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .storage import get_storage
+from .translations import CHARGE_MODE_MAP, CHARGE_STATUS_MAP, PLUG_STATUS_MAP, get_translator
 
 WATCH_FIELDS = {
     "battery_level": ("Battery", "%"),
@@ -51,8 +52,10 @@ def _parse_interval(s: str) -> int:
     return int(s)
 
 
-def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None) -> str:
+def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None, t=None) -> str:
     """Format changed fields for watch output. If prev is None, format all fields."""
+    if t is None:
+        t = get_translator()
     units = {
         "dist": ev.get("distance_unit", "km"),
         "speed": ev.get("speed_unit", "km/h"),
@@ -65,10 +68,27 @@ def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None) -> st
             continue
         if prev is not None and prev.get(key) == val:
             continue
-        if key == "climate_active":
-            val = "ON" if val else "OFF"
+        val = _translate_field(key, val, t)
         parts.append(f"{label}: {val}{suffix.format_map(units)}")
     return "  ".join(parts)
+
+
+def _translate_field(key, val, t):
+    """Translate a single status field value."""
+    if key == "charge_mode":
+        tkey = CHARGE_MODE_MAP.get(val)
+        return t(tkey, raw=val) if tkey else val
+    if key == "charge_status":
+        tkey = CHARGE_STATUS_MAP.get(val)
+        return t(tkey, raw=val) if tkey else val
+    if key == "plug_status":
+        tkey = PLUG_STATUS_MAP.get(val)
+        return t(tkey, raw=val) if tkey else val
+    if key == "climate_active":
+        return "ON" if val else "OFF"
+    if key == "doors_locked":
+        return t("locked") if val else t("unlocked")
+    return val
 
 
 def _to_camel_case(name: str) -> str:
@@ -183,6 +203,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     if args.watch:
         interval = _parse_interval(args.watch)
         print(f"Watching every {args.watch} (Ctrl+C to stop)\n")
+        t = get_translator()
         prev_ev = None
         try:
             while True:
@@ -192,7 +213,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
                 if args.json:
                     print(json.dumps(ev), flush=True)
                 else:
-                    line = _format_watch_fields(ev, WATCH_FIELDS, prev_ev)
+                    line = _format_watch_fields(ev, WATCH_FIELDS, prev_ev, t)
                     if line:
                         print(f"{ts}  {line}", flush=True)
                 prev_ev = ev.copy()
@@ -207,18 +228,22 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
         return 0
 
     ev = parse_ev_status(dashboard)
+    t = get_translator()
     du = ev['distance_unit']
     su = ev['speed_unit']
     tu = ev['temp_unit']
+    charge_mode = _translate_field('charge_mode', ev['charge_mode'], t)
+    charge_status = _translate_field('charge_status', ev['charge_status'], t)
+    plug_status = _translate_field('plug_status', ev['plug_status'], t)
     print(f"Ignition:      {ev['ignition']}")
     print(f"Speed:         {ev['speed']} {su}")
     print(f"Battery:       {ev['battery_level']}%")
     print(f"Range:         {ev['range']} {du}")
-    print(f"Charge status: {ev['charge_status']}")
-    print(f"Charge mode:   {ev['charge_mode']}")
-    print(f"Plug status:   {ev['plug_status']}")
+    print(f"Charge status: {charge_status}")
+    print(f"Charge mode:   {charge_mode}")
+    print(f"Plug status:   {plug_status}")
     if ev['time_to_charge']:
-        print(f"Time to full:  {ev['time_to_charge']} min")
+        print(f"Time to full:  {ev['time_to_charge']} {t('mins')}")
     print(f"Location:      {ev['home_away']}")
     print(f"Coordinates:   {ev['latitude']}, {ev['longitude']}")
     print(f"Charge limit:  {ev['charge_limit_home']}% (home) / {ev['charge_limit_away']}% (away)")
@@ -226,7 +251,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     print(f"Cabin temp:    {ev['cabin_temp']} {tu}")
     print(f"Interior temp: {ev['interior_temp']} {tu}")
     print(f"Odometer:      {ev['odometer']} {du}")
-    print(f"Doors locked:  {ev['doors_locked']}")
+    print(f"Doors:         {t('locked') if ev['doors_locked'] else t('unlocked')}")
     print(f"Hood:          {'open' if ev['hood_open'] else 'closed'}")
     print(f"Trunk:         {'open' if ev['trunk_open'] else 'closed'}")
     print(f"Lights on:     {ev['lights_on']}")
@@ -269,10 +294,11 @@ def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Nam
         }, indent=2))
         return 0
 
+    t = get_translator()
     tu = ev['temp_unit']
     print(f"Active:      {'ON' if ev['climate_active'] else 'OFF'}")
     print(f"Temperature: {ev['climate_temp']}")
-    print(f"Duration:    {ev['climate_duration']} min")
+    print(f"Duration:    {ev['climate_duration']} {t('mins')}")
     print(f"Defrost:     {'on' if ev['climate_defrost'] else 'off'}")
     print(f"Cabin:       {ev['cabin_temp']} {tu}")
     print(f"Interior:    {ev['interior_temp']} {tu}")
