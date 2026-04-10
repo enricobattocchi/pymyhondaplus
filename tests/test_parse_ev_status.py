@@ -7,6 +7,8 @@ def test_basic_fields(dashboard_ev):
     ev = parse_ev_status(dashboard_ev)
     assert ev["battery_level"] == 82
     assert ev["range"] == 176
+    assert ev["range_climate_on"] == 176
+    assert ev["range_climate_off"] == 181
     assert ev["charge_status"] == "stopped"
     assert ev["plug_status"] == "plugged in"
     assert ev["home_away"] == "away"
