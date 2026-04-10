@@ -21,7 +21,7 @@ except ImportError:
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, HondaAuthError, compute_trip_stats, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .storage import get_storage
-from .translations import CHARGE_MODE_MAP, CHARGE_STATUS_MAP, PLUG_STATUS_MAP, get_translator
+from .translations import CHARGE_MODE_MAP, CHARGE_STATUS_MAP, PLUG_STATUS_MAP, TEMP_UNIT_MAP, get_translator
 
 WATCH_FIELDS = {
     "battery_level": ("Battery", "%"),
@@ -56,10 +56,11 @@ def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None, t=Non
     """Format changed fields for watch output. If prev is None, format all fields."""
     if t is None:
         t = get_translator()
+    raw_temp = ev.get("temp_unit", "c")
     units = {
         "dist": ev.get("distance_unit", "km"),
         "speed": ev.get("speed_unit", "km/h"),
-        "temp": ev.get("temp_unit", "c"),
+        "temp": TEMP_UNIT_MAP.get(raw_temp, raw_temp),
     }
     parts = []
     for key, (label, suffix) in fields.items():
@@ -231,7 +232,9 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     t = get_translator()
     du = ev['distance_unit']
     su = ev['speed_unit']
-    tu = ev['temp_unit']
+    tu = TEMP_UNIT_MAP.get(ev['temp_unit'], ev['temp_unit'])
+    home = t("home")
+    away = t("away")
 
     rows = [
         ("Ignition", ev['ignition']),
@@ -247,23 +250,29 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     rows += [
         ("Location", ev['home_away']),
         ("Coordinates", f"{ev['latitude']}, {ev['longitude']}"),
-        ("Charge limit", f"{ev['charge_limit_home']}% (home) / {ev['charge_limit_away']}% (away)"),
+        ("Charge limit", f"{ev['charge_limit_home']}% ({home}) / {ev['charge_limit_away']}% ({away})"),
         (t("climate_label"), "ON" if ev['climate_active'] else "OFF"),
         ("Cabin temp", f"{ev['cabin_temp']} {tu}"),
         ("Interior temp", f"{ev['interior_temp']} {tu}"),
         ("Odometer", f"{ev['odometer']} {du}"),
-        ("Doors", t("locked") if ev['doors_locked'] else t("unlocked")),
+        (t("doors_label"), t("locked") if ev['doors_locked'] else t("unlocked")),
         (t("bonnet_label"), t("open") if ev['hood_open'] else t("closed")),
         (t("boot_label"), t("open") if ev['trunk_open'] else t("closed")),
-        ("Lights", t("lights_on") if ev['lights_on'] else "OFF"),
+        (t("lights_on") if ev['lights_on'] else None, None),
     ]
     if ev['warning_lamps']:
         rows.append(("Warnings", ", ".join(ev['warning_lamps'])))
     rows.append(("Timestamp", ev['timestamp']))
 
-    w = max(len(label) for label, _ in rows)
-    for label, value in rows:
+    # Separate labeled rows from standalone flags
+    labeled = [(l, v) for l, v in rows if v is not None]
+    standalone = [l for l, v in rows if v is None and l is not None]
+
+    w = max(len(label) for label, _ in labeled)
+    for label, value in labeled:
         print(f"{label + ':':<{w + 2}}{value}")
+    for line in standalone:
+        print(line)
     return 0
 
 
@@ -301,7 +310,7 @@ def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Nam
         return 0
 
     t = get_translator()
-    tu = ev['temp_unit']
+    tu = TEMP_UNIT_MAP.get(ev['temp_unit'], ev['temp_unit'])
     rows = [
         (t("climate_label"), "ON" if ev['climate_active'] else "OFF"),
         ("Temperature", ev['climate_temp']),

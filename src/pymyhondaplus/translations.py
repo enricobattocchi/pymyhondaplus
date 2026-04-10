@@ -8,16 +8,17 @@ with English as the fallback.
 import locale
 import os
 
-# Extracted from myhondaplus_translations_final.json.
+# Extracted from myhondaplus_translations_final.json (indexed keys).
 #
-# Value keys from: chargeSpeedNormalText, chargeSpeedFastText, chargingLabel,
-#   notChargingLabel, chargeUnpluggedLabel, lockedLabel, unlockedLabel,
-#   openText@221, closedText@221, lightsText@101, doorsText@101,
-#   windowsText@101, minsText/unitsText.
+# Value keys: chargeSpeedNormalText@120, chargeSpeedFastText@120,
+#   chargingLabel@103, notChargingLabel@103, chargeUnpluggedLabel@103,
+#   lockedLabel@103, unlockedLabel@103, openText@221, closedText@221,
+#   lightsText@101, doorsText@101, windowsText@101, minsText@120.
 #
-# Label keys from: batteryPercentageLabel@120, chargeSpeedLabel@120,
+# Label keys: batteryPercentageLabel@120, chargeSpeedLabel@120,
 #   timeRemainingLabel@120, climateLabel@103, bonnetLabel@221,
-#   bootLabel@221, autoDefrostLabel@117.
+#   bootLabel@221, autoDefrostLabel@117, subHeading@220,
+#   homeRadio@185, anywhereRadio@185.
 TRANSLATIONS = {
     "cs": {
         "charge_speed_normal": "Normální",
@@ -30,8 +31,8 @@ TRANSLATIONS = {
         "open": "Otevřeno",
         "closed": "Zavřeno",
         "lights_on": "Zapnutá světla",
-        "windows_open": "Otevřená okna",
         "doors_open": "Otevřené dveře",
+        "windows_open": "Otevřená okna",
         "mins": "min",
         "battery_label": "Úroveň nabití akumulátoru (%)",
         "charge_speed_label": "Rychlost nabíjení",
@@ -40,6 +41,9 @@ TRANSLATIONS = {
         "bonnet_label": "Kapota",
         "boot_label": "Zavazadlový prostor",
         "defrost_label": "Automatické odmrazování",
+        "doors_label": "Dveře",
+        "home": "Doma",
+        "away": "Kdekoli",
     },
     "da": {
         "charge_speed_normal": "Normal",
@@ -52,8 +56,8 @@ TRANSLATIONS = {
         "open": "Åben",
         "closed": "Lukket",
         "lights_on": "Lygter tændt",
-        "windows_open": "Vinduer åbne",
         "doors_open": "Døre åbne",
+        "windows_open": "Vinduer åbne",
         "mins": "minutter",
         "battery_label": "Status for batteriet",
         "charge_speed_label": "Opladningshastighed",
@@ -62,6 +66,9 @@ TRANSLATIONS = {
         "bonnet_label": "Frontklap",
         "boot_label": "Bagagerum",
         "defrost_label": "Automatisk afrimning",
+        "doors_label": "Døre",
+        "home": "Hjem",
+        "away": "Hvor som helst",
     },
     "de": {
         "charge_speed_normal": "Normal",
@@ -74,8 +81,8 @@ TRANSLATIONS = {
         "open": "Geöffnet",
         "closed": "Geschlossen",
         "lights_on": "Beleuchtung ein",
-        "windows_open": "Fenster geöffnet",
         "doors_open": "Türen geöffnet",
+        "windows_open": "Fenster geöffnet",
         "mins": "Min.",
         "battery_label": "Batterieladestand in Prozent",
         "charge_speed_label": "Ladegeschwindigkeit",
@@ -84,6 +91,9 @@ TRANSLATIONS = {
         "bonnet_label": "Motorhaube",
         "boot_label": "Kofferraum",
         "defrost_label": "Auto-Defrost",
+        "doors_label": "Türen",
+        "home": "Zuhause",
+        "away": "Nicht zuhause",
     },
     "en": {
         "charge_speed_normal": "Normal",
@@ -96,8 +106,8 @@ TRANSLATIONS = {
         "open": "Open",
         "closed": "Closed",
         "lights_on": "Lights on",
-        "windows_open": "Windows open",
         "doors_open": "Doors open",
+        "windows_open": "Windows open",
         "mins": "mins",
         "battery_label": "Battery percentage",
         "charge_speed_label": "Charge speed",
@@ -106,6 +116,9 @@ TRANSLATIONS = {
         "bonnet_label": "Bonnet",
         "boot_label": "Boot",
         "defrost_label": "Auto-Defrost",
+        "doors_label": "Doors",
+        "home": "Home",
+        "away": "Anywhere",
     },
     "es": {
         "charge_speed_normal": "Normal",
@@ -118,8 +131,8 @@ TRANSLATIONS = {
         "open": "Abierto",
         "closed": "Cerrado",
         "lights_on": "Luces encendidas",
-        "windows_open": "Ventanas abiertas",
         "doors_open": "Puertas abiertas",
+        "windows_open": "Ventanas abiertas",
         "mins": "minutos",
         "battery_label": "Porcentaje de la batería",
         "charge_speed_label": "Velocidad de carga",
@@ -128,6 +141,9 @@ TRANSLATIONS = {
         "bonnet_label": "Capó",
         "boot_label": "Funda",
         "defrost_label": "Descongelación automática",
+        "doors_label": "Puertas",
+        "home": "En casa",
+        "away": "En cualquier lugar",
     },
     "fr": {
         "charge_speed_normal": "Normale",
@@ -140,8 +156,8 @@ TRANSLATIONS = {
         "open": "Ouverte(s)",
         "closed": "Fermée(s)",
         "lights_on": "Feux allumés",
-        "windows_open": "Fenêtres ouvertes",
         "doors_open": "Portes ouvertes",
+        "windows_open": "Fenêtres ouvertes",
         "mins": "min",
         "battery_label": "Pourcentage de batterie",
         "charge_speed_label": "Vitesse de charge",
@@ -150,6 +166,9 @@ TRANSLATIONS = {
         "bonnet_label": "Capot",
         "boot_label": "Coffre",
         "defrost_label": "Dégivrage automatique",
+        "doors_label": "Portes",
+        "home": "Domicile",
+        "away": "Partout",
     },
     "hu": {
         "charge_speed_normal": "Normál",
@@ -162,8 +181,8 @@ TRANSLATIONS = {
         "open": "Nyitva",
         "closed": "Zárva",
         "lights_on": "Lámpák bekapcsolva",
-        "windows_open": "Ablakok nyitva",
         "doors_open": "Ajtók nyitva",
+        "windows_open": "Ablakok nyitva",
         "mins": "perc",
         "battery_label": "Akkumulátor-töltöttség százalékos aránya",
         "charge_speed_label": "Töltési sebesség",
@@ -172,6 +191,9 @@ TRANSLATIONS = {
         "bonnet_label": "Motorháztető",
         "boot_label": "Csomagtartó",
         "defrost_label": "Automatikus jégtelenítés",
+        "doors_label": "Ajtók",
+        "home": "Otthon",
+        "away": "Bárhol",
     },
     "it": {
         "charge_speed_normal": "Normale",
@@ -184,8 +206,8 @@ TRANSLATIONS = {
         "open": "Apri",
         "closed": "Chiuso",
         "lights_on": "Luci accese",
-        "windows_open": "Finestrini aperti",
         "doors_open": "Portiere aperte",
+        "windows_open": "Finestrini aperti",
         "mins": "min",
         "battery_label": "Percentuale della batteria",
         "charge_speed_label": "Velocità di ricarica",
@@ -194,6 +216,9 @@ TRANSLATIONS = {
         "bonnet_label": "Cofano",
         "boot_label": "Bagagliaio",
         "defrost_label": "Sbrinamento automatico",
+        "doors_label": "Portiere",
+        "home": "A casa",
+        "away": "Ovunque",
     },
     "nl": {
         "charge_speed_normal": "Normaal",
@@ -206,8 +231,8 @@ TRANSLATIONS = {
         "open": "Geopend",
         "closed": "Gesloten",
         "lights_on": "Verlichting aan",
-        "windows_open": "Ramen open",
         "doors_open": "Portieren open",
+        "windows_open": "Ramen open",
         "mins": "min.",
         "battery_label": "Accupercentage",
         "charge_speed_label": "Laadsnelheid",
@@ -216,6 +241,9 @@ TRANSLATIONS = {
         "bonnet_label": "Motorkap",
         "boot_label": "Bagageruimte",
         "defrost_label": "Automatisch ontdooien",
+        "doors_label": "Portieren",
+        "home": "Thuis",
+        "away": "Overal",
     },
     "no": {
         "charge_speed_normal": "normal",
@@ -228,8 +256,8 @@ TRANSLATIONS = {
         "open": "Åpne",
         "closed": "Lukket",
         "lights_on": "Lys på",
-        "windows_open": "Vinduer åpne",
         "doors_open": "Dører åpne",
+        "windows_open": "Vinduer åpne",
         "mins": "min",
         "battery_label": "Batteriprosent",
         "charge_speed_label": "Ladehastighet",
@@ -238,6 +266,9 @@ TRANSLATIONS = {
         "bonnet_label": "Panser",
         "boot_label": "Bagasjerom",
         "defrost_label": "Automatisk defroster",
+        "doors_label": "Dører",
+        "home": "Hjem",
+        "away": "Hvor som helst",
     },
     "pl": {
         "charge_speed_normal": "Temperatura optymalna",
@@ -250,8 +281,8 @@ TRANSLATIONS = {
         "open": "Otwarta",
         "closed": "Zamknięta",
         "lights_on": "Włączone światła",
-        "windows_open": "Otwarte szyby",
         "doors_open": "Otwarte drzwi",
+        "windows_open": "Otwarte szyby",
         "mins": "min",
         "battery_label": "Procentowe naładowanie akumulatorów",
         "charge_speed_label": "Szybkość ładowania",
@@ -260,6 +291,9 @@ TRANSLATIONS = {
         "bonnet_label": "Pokrywa silnika",
         "boot_label": "Osłona bagażnika",
         "defrost_label": "Automatyczne ogrzewanie szyby",
+        "doors_label": "Drzwi",
+        "home": "W domu",
+        "away": "Wszędzie",
     },
     "sk": {
         "charge_speed_normal": "Normálne",
@@ -272,8 +306,8 @@ TRANSLATIONS = {
         "open": "Otvorené",
         "closed": "Zatvorené",
         "lights_on": "Zapnuté svetlá",
-        "windows_open": "Otvorené okná",
         "doors_open": "Otvorené dvere",
+        "windows_open": "Otvorené okná",
         "mins": "minúty",
         "battery_label": "Percento nabitia batérie",
         "charge_speed_label": "Rýchlosť nabíjania",
@@ -282,6 +316,9 @@ TRANSLATIONS = {
         "bonnet_label": "Kapota",
         "boot_label": "Batožinový priestor",
         "defrost_label": "Automatické odmrazovanie",
+        "doors_label": "Dvere",
+        "home": "Doma",
+        "away": "Kdekoľvek",
     },
     "sv": {
         "charge_speed_normal": "Normalt",
@@ -294,8 +331,8 @@ TRANSLATIONS = {
         "open": "Öppet/öppna",
         "closed": "Stängd/stängda",
         "lights_on": "Lampor på",
-        "windows_open": "Fönster öppna",
         "doors_open": "Dörrar öppna",
+        "windows_open": "Fönster öppna",
         "mins": "minuter",
         "battery_label": "Batteriprocent",
         "charge_speed_label": "Laddningshastighet",
@@ -304,6 +341,9 @@ TRANSLATIONS = {
         "bonnet_label": "Motorhuv",
         "boot_label": "Baklucka",
         "defrost_label": "Automatisk avfrostning",
+        "doors_label": "Dörrar",
+        "home": "Hemma",
+        "away": "Var som helst",
     },
 }
 
@@ -327,6 +367,12 @@ CHARGE_STATUS_MAP = {
 # Possible values (from enums): unknown, unplugged, plugged in.
 PLUG_STATUS_MAP = {
     "unplugged": "unplugged",
+}
+
+# Map raw API temperature unit to display symbol.
+TEMP_UNIT_MAP = {
+    "c": "°C",
+    "f": "°F",
 }
 
 
