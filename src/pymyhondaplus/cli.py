@@ -232,32 +232,38 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     du = ev['distance_unit']
     su = ev['speed_unit']
     tu = ev['temp_unit']
-    charge_mode = _translate_field('charge_mode', ev['charge_mode'], t)
-    charge_status = _translate_field('charge_status', ev['charge_status'], t)
-    plug_status = _translate_field('plug_status', ev['plug_status'], t)
-    print(f"Ignition:      {ev['ignition']}")
-    print(f"Speed:         {ev['speed']} {su}")
-    print(f"Battery:       {ev['battery_level']}%")
-    print(f"Range:         {ev['range']} {du}")
-    print(f"Charge status: {charge_status}")
-    print(f"Charge mode:   {charge_mode}")
-    print(f"Plug status:   {plug_status}")
+
+    rows = [
+        ("Ignition", ev['ignition']),
+        ("Speed", f"{ev['speed']} {su}"),
+        (t("battery_label"), f"{ev['battery_level']}%"),
+        ("Range", f"{ev['range']} {du}"),
+        ("Charge status", _translate_field('charge_status', ev['charge_status'], t)),
+        (t("charge_speed_label"), _translate_field('charge_mode', ev['charge_mode'], t)),
+        ("Plug status", _translate_field('plug_status', ev['plug_status'], t)),
+    ]
     if ev['time_to_charge']:
-        print(f"Time to full:  {ev['time_to_charge']} {t('mins')}")
-    print(f"Location:      {ev['home_away']}")
-    print(f"Coordinates:   {ev['latitude']}, {ev['longitude']}")
-    print(f"Charge limit:  {ev['charge_limit_home']}% (home) / {ev['charge_limit_away']}% (away)")
-    print(f"Climate:       {'ON' if ev['climate_active'] else 'OFF'}")
-    print(f"Cabin temp:    {ev['cabin_temp']} {tu}")
-    print(f"Interior temp: {ev['interior_temp']} {tu}")
-    print(f"Odometer:      {ev['odometer']} {du}")
-    print(f"Doors:         {t('locked') if ev['doors_locked'] else t('unlocked')}")
-    print(f"Hood:          {'open' if ev['hood_open'] else 'closed'}")
-    print(f"Trunk:         {'open' if ev['trunk_open'] else 'closed'}")
-    print(f"Lights on:     {ev['lights_on']}")
+        rows.append((t("time_remaining_label"), f"{ev['time_to_charge']} {t('mins')}"))
+    rows += [
+        ("Location", ev['home_away']),
+        ("Coordinates", f"{ev['latitude']}, {ev['longitude']}"),
+        ("Charge limit", f"{ev['charge_limit_home']}% (home) / {ev['charge_limit_away']}% (away)"),
+        (t("climate_label"), "ON" if ev['climate_active'] else "OFF"),
+        ("Cabin temp", f"{ev['cabin_temp']} {tu}"),
+        ("Interior temp", f"{ev['interior_temp']} {tu}"),
+        ("Odometer", f"{ev['odometer']} {du}"),
+        ("Doors", t("locked") if ev['doors_locked'] else t("unlocked")),
+        (t("bonnet_label"), t("open") if ev['hood_open'] else t("closed")),
+        (t("boot_label"), t("open") if ev['trunk_open'] else t("closed")),
+        ("Lights", t("lights_on") if ev['lights_on'] else "OFF"),
+    ]
     if ev['warning_lamps']:
-        print(f"Warnings:      {', '.join(ev['warning_lamps'])}")
-    print(f"Timestamp:     {ev['timestamp']}")
+        rows.append(("Warnings", ", ".join(ev['warning_lamps'])))
+    rows.append(("Timestamp", ev['timestamp']))
+
+    w = max(len(label) for label, _ in rows)
+    for label, value in rows:
+        print(f"{label + ':':<{w + 2}}{value}")
     return 0
 
 
@@ -296,12 +302,17 @@ def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Nam
 
     t = get_translator()
     tu = ev['temp_unit']
-    print(f"Active:      {'ON' if ev['climate_active'] else 'OFF'}")
-    print(f"Temperature: {ev['climate_temp']}")
-    print(f"Duration:    {ev['climate_duration']} {t('mins')}")
-    print(f"Defrost:     {'on' if ev['climate_defrost'] else 'off'}")
-    print(f"Cabin:       {ev['cabin_temp']} {tu}")
-    print(f"Interior:    {ev['interior_temp']} {tu}")
+    rows = [
+        (t("climate_label"), "ON" if ev['climate_active'] else "OFF"),
+        ("Temperature", ev['climate_temp']),
+        ("Duration", f"{ev['climate_duration']} {t('mins')}"),
+        (t("defrost_label"), "on" if ev['climate_defrost'] else "off"),
+        ("Cabin", f"{ev['cabin_temp']} {tu}"),
+        ("Interior", f"{ev['interior_temp']} {tu}"),
+    ]
+    w = max(len(label) for label, _ in rows)
+    for label, value in rows:
+        print(f"{label + ':':<{w + 2}}{value}")
     return 0
 
 
