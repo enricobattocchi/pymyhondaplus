@@ -28,7 +28,8 @@ from .translations import (
 
 WATCH_FIELDS = {
     "battery_level": ("Battery", "%"),
-    "range": ("Range", " {dist}"),
+    "range_climate_on": ("Range (climate)", " {dist}"),
+    "range_climate_off": ("Range", " {dist}"),
     "charge_status": ("Charge", ""),
     "plug_status": ("Plug", ""),
     "time_to_charge": ("ETA", " min"),
