@@ -14,23 +14,9 @@ from dataclasses import dataclass, field
 from typing import Optional, TYPE_CHECKING
 
 import requests
-from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-DEFAULT_TIMEOUT = 10
-
-
-class _TimeoutAdapter(HTTPAdapter):
-    """HTTPAdapter with a default timeout for all requests."""
-
-    def __init__(self, *args, timeout=DEFAULT_TIMEOUT, **kwargs):
-        self._timeout = timeout
-        super().__init__(*args, **kwargs)
-
-    def send(self, *args, **kwargs):
-        if kwargs.get("timeout") is None:
-            kwargs["timeout"] = self._timeout
-        return super().send(*args, **kwargs)
+from .http import DEFAULT_REQUEST_TIMEOUT, TimeoutAdapter
 
 if TYPE_CHECKING:
     from .storage import SecretStorage
@@ -563,13 +549,16 @@ class HondaAPI:
     Args:
         storage: SecretStorage backend for token persistence. None disables persistence.
         token_file: Deprecated — use storage instead. Kept for backward compatibility.
+        request_timeout: Default timeout in seconds for HTTP requests.
     """
 
     def __init__(self, storage: Optional["SecretStorage"] = None,
-                 token_file: Optional[Path] = None):
+                 token_file: Optional[Path] = None,
+                 request_timeout: float = DEFAULT_REQUEST_TIMEOUT):
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
         self._lock = threading.Lock()
+        self.request_timeout = request_timeout
         retry = Retry(
             total=None,
             status=3,
@@ -581,7 +570,7 @@ class HondaAPI:
             allowed_methods=None,
             raise_on_status=False,
         )
-        adapter = _TimeoutAdapter(max_retries=retry)
+        adapter = TimeoutAdapter(timeout=request_timeout, max_retries=retry)
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
         self._storage = storage

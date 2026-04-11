@@ -49,7 +49,7 @@ def test_trip_stats_week_fetches_all_months_in_range(monkeypatch, capsys):
 
     monkeypatch.setattr(importlib.metadata, "version", lambda _: "0.0")
     monkeypatch.setattr(cli, "get_storage", lambda *args, **kwargs: object())
-    monkeypatch.setattr(cli, "HondaAPI", lambda storage=None: fake_api)
+    monkeypatch.setattr(cli, "HondaAPI", lambda storage=None, request_timeout=None: fake_api)
     monkeypatch.setattr(
         cli.sys,
         "argv",

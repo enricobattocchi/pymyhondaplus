@@ -194,33 +194,40 @@ class TestErrorTypes:
 
 
 class TestTimeoutAdapter:
-    """_TimeoutAdapter applies default timeout to all requests."""
+    """TimeoutAdapter applies default timeout to all requests."""
 
     def test_applies_default_timeout(self):
-        from pymyhondaplus.api import _TimeoutAdapter, DEFAULT_TIMEOUT
+        from pymyhondaplus.http import DEFAULT_REQUEST_TIMEOUT, TimeoutAdapter
         from requests import PreparedRequest
         from unittest.mock import patch
 
-        adapter = _TimeoutAdapter()
+        adapter = TimeoutAdapter()
         with patch("requests.adapters.HTTPAdapter.send") as mock_send:
             request = PreparedRequest()
             request.prepare(method="GET", url="https://example.com")
             adapter.send(request)
             _, call_kwargs = mock_send.call_args
-            assert call_kwargs["timeout"] == DEFAULT_TIMEOUT
+            assert call_kwargs["timeout"] == DEFAULT_REQUEST_TIMEOUT
 
     def test_respects_explicit_timeout(self):
-        from pymyhondaplus.api import _TimeoutAdapter
+        from pymyhondaplus.http import TimeoutAdapter
         from requests import PreparedRequest
         from unittest.mock import patch
 
-        adapter = _TimeoutAdapter()
+        adapter = TimeoutAdapter()
         with patch("requests.adapters.HTTPAdapter.send") as mock_send:
             request = PreparedRequest()
             request.prepare(method="GET", url="https://example.com")
             adapter.send(request, timeout=10)
             _, call_kwargs = mock_send.call_args
             assert call_kwargs["timeout"] == 10
+
+    def test_honda_api_uses_configured_timeout(self):
+        api = HondaAPI(request_timeout=3.5)
+        adapter = api.session.get_adapter("https://example.com")
+
+        assert api.request_timeout == 3.5
+        assert adapter._timeout == 3.5
 
 
 class TestRetryPolicy:

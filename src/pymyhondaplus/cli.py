@@ -21,6 +21,7 @@ except ImportError:
 
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, HondaAuthError, compute_trip_stats, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
+from .http import DEFAULT_REQUEST_TIMEOUT
 from .storage import get_storage
 from .translations import (
     CHARGE_MODE_FALLBACK_MAP, CHARGE_MODE_MAP, CHARGE_STATUS_MAP,
@@ -755,6 +756,12 @@ vehicle selection (only needed with multiple vehicles):
                          help="Show full tracebacks on error")
     _common.add_argument("--timeout", type=int, default=60,
                          help="Timeout in seconds for remote commands (default: 60)")
+    _common.add_argument(
+        "--http-timeout",
+        type=float,
+        default=DEFAULT_REQUEST_TIMEOUT,
+        help=f"Timeout in seconds for each HTTP request (default: {DEFAULT_REQUEST_TIMEOUT:g})",
+    )
 
     subparsers = parser.add_subparsers(dest="command")
 
@@ -883,7 +890,7 @@ def _run_main(args: argparse.Namespace, storage) -> int:
     """Run the CLI command flow and return an exit code."""
     if args.command == "login":
         device_key = DeviceKey(storage=storage)
-        auth = HondaAuth(device_key=device_key)
+        auth = HondaAuth(device_key=device_key, request_timeout=args.http_timeout)
         password = args.password or getpass.getpass("Password: ")
         try:
             result = auth.full_login(args.email, password, locale=args.locale)
@@ -895,7 +902,7 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         print(f"Expires in: {result.get('expires_in', 'N/A')}s")
 
         user_id = HondaAuth.extract_user_id(result["access_token"])
-        api = HondaAPI(storage=storage)
+        api = HondaAPI(storage=storage, request_timeout=args.http_timeout)
         api.set_tokens(
             access_token=result["access_token"],
             refresh_token=result["refresh_token"],
@@ -925,7 +932,7 @@ def _run_main(args: argparse.Namespace, storage) -> int:
             print("Nothing to remove (not logged in)")
         return 0
 
-    api = HondaAPI(storage=storage)
+    api = HondaAPI(storage=storage, request_timeout=args.http_timeout)
 
     if args.user_info:
         info = api.get_user_info()

@@ -161,6 +161,13 @@ class TestHondaAuthLogin:
         with pytest.raises(HondaAuthError, match="register failed"):
             auth.register_device("user@test.com", "pass123")
 
+    def test_uses_configured_request_timeout(self):
+        auth = HondaAuth(device_key=DeviceKey(), request_timeout=2.5)
+        adapter = auth.session.get_adapter("https://example.com")
+
+        assert auth.request_timeout == 2.5
+        assert adapter._timeout == 2.5
+
 
 class TestHondaAuthErrorInheritance:
 
