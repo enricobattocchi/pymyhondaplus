@@ -56,7 +56,7 @@ class _FakeAPI:
 def _patch_common(monkeypatch, fake_api):
     monkeypatch.setattr(importlib.metadata, "version", lambda _: "0.0")
     monkeypatch.setattr(cli, "get_storage", lambda *args, **kwargs: object())
-    monkeypatch.setattr(cli, "HondaAPI", lambda storage=None: fake_api)
+    monkeypatch.setattr(cli, "HondaAPI", lambda storage=None, request_timeout=None: fake_api)
 
 
 def test_multi_vehicle_without_vin_exits_with_message(monkeypatch, capsys):
@@ -223,7 +223,7 @@ def test_login_auth_failure_returns_2(monkeypatch, capsys):
     monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "login", "--email", "user@example.com", "--password", "secret"])
 
     class _FakeAuth:
-        def __init__(self, device_key=None):
+        def __init__(self, device_key=None, request_timeout=None):
             pass
 
         def full_login(self, email: str, password: str, locale: str = "it"):
@@ -237,6 +237,62 @@ def test_login_auth_failure_returns_2(monkeypatch, capsys):
     err = capsys.readouterr().err
     assert rc == 2
     assert "Login failed: HTTP 401: bad credentials" in err
+
+
+def test_http_timeout_is_forwarded_to_clients(monkeypatch, capsys):
+    recorded = {}
+
+    class _FakeAuth:
+        def __init__(self, device_key=None, request_timeout=None):
+            recorded["auth_timeout"] = request_timeout
+
+        def full_login(self, email: str, password: str, locale: str = "it"):
+            return {
+                "access_token": "header.eyJzdWIiOiAidXNlci0xIn0.signature",
+                "refresh_token": "refresh",
+                "expires_in": 3600,
+            }
+
+        @staticmethod
+        def extract_user_id(token: str) -> str:
+            return "user-1"
+
+    class _FakeAPI:
+        def __init__(self, storage=None, request_timeout=None):
+            recorded.setdefault("api_timeouts", []).append(request_timeout)
+            self.tokens = type("Tokens", (), {"vehicles": []})()
+
+        def set_tokens(self, **kwargs):
+            return None
+
+        def get_vehicles(self):
+            return []
+
+    monkeypatch.setattr(importlib.metadata, "version", lambda _: "0.0")
+    monkeypatch.setattr(cli, "get_storage", lambda *args, **kwargs: object())
+    monkeypatch.setattr(cli, "DeviceKey", lambda storage=None: object())
+    monkeypatch.setattr(cli, "HondaAuth", _FakeAuth)
+    monkeypatch.setattr(cli, "HondaAPI", _FakeAPI)
+    monkeypatch.setattr(
+        cli.sys,
+        "argv",
+        [
+            "pymyhondaplus",
+            "login",
+            "--email",
+            "user@example.com",
+            "--password",
+            "secret",
+            "--http-timeout",
+            "4.5",
+        ],
+    )
+
+    rc = cli.main()
+
+    assert rc == 0
+    assert recorded["auth_timeout"] == 4.5
+    assert recorded["api_timeouts"] == [4.5]
 
 
 def test__main_exits_130_on_keyboard_interrupt(monkeypatch):

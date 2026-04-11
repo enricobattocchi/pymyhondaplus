@@ -191,3 +191,56 @@ class TestErrorTypes:
 
         with pytest.raises(HondaAPIError):
             api.set_charge_limit("VIN123", home=80, away=90)
+
+
+class TestTimeoutAdapter:
+    """TimeoutAdapter applies default timeout to all requests."""
+
+    def test_applies_default_timeout(self):
+        from pymyhondaplus.http import DEFAULT_REQUEST_TIMEOUT, TimeoutAdapter
+        from requests import PreparedRequest
+        from unittest.mock import patch
+
+        adapter = TimeoutAdapter()
+        with patch("requests.adapters.HTTPAdapter.send") as mock_send:
+            request = PreparedRequest()
+            request.prepare(method="GET", url="https://example.com")
+            adapter.send(request)
+            _, call_kwargs = mock_send.call_args
+            assert call_kwargs["timeout"] == DEFAULT_REQUEST_TIMEOUT
+
+    def test_respects_explicit_timeout(self):
+        from pymyhondaplus.http import TimeoutAdapter
+        from requests import PreparedRequest
+        from unittest.mock import patch
+
+        adapter = TimeoutAdapter()
+        with patch("requests.adapters.HTTPAdapter.send") as mock_send:
+            request = PreparedRequest()
+            request.prepare(method="GET", url="https://example.com")
+            adapter.send(request, timeout=10)
+            _, call_kwargs = mock_send.call_args
+            assert call_kwargs["timeout"] == 10
+
+    def test_honda_api_uses_configured_timeout(self):
+        api = HondaAPI(request_timeout=3.5)
+        adapter = api.session.get_adapter("https://example.com")
+
+        assert api.request_timeout == 3.5
+        assert adapter._timeout == 3.5
+
+
+class TestRetryPolicy:
+    """HondaAPI retries only configured HTTP status responses."""
+
+    def test_retries_status_responses_but_not_transport_errors(self):
+        api = HondaAPI()
+        adapter = api.session.get_adapter("https://example.com")
+        retry = adapter.max_retries
+
+        assert retry.total is None
+        assert retry.status == 3
+        assert retry.connect == 0
+        assert retry.read == 0
+        assert retry.other == 0
+        assert retry.status_forcelist == (500, 502, 503, 504)

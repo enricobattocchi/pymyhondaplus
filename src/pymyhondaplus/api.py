@@ -14,8 +14,9 @@ from dataclasses import dataclass, field
 from typing import Optional, TYPE_CHECKING
 
 import requests
-from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+from .http import DEFAULT_REQUEST_TIMEOUT, TimeoutAdapter
 
 if TYPE_CHECKING:
     from .storage import SecretStorage
@@ -548,21 +549,28 @@ class HondaAPI:
     Args:
         storage: SecretStorage backend for token persistence. None disables persistence.
         token_file: Deprecated — use storage instead. Kept for backward compatibility.
+        request_timeout: Default timeout in seconds for HTTP requests.
     """
 
     def __init__(self, storage: Optional["SecretStorage"] = None,
-                 token_file: Optional[Path] = None):
+                 token_file: Optional[Path] = None,
+                 request_timeout: float = DEFAULT_REQUEST_TIMEOUT):
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
         self._lock = threading.Lock()
+        self.request_timeout = request_timeout
         retry = Retry(
-            total=3,
+            total=None,
+            status=3,
+            connect=0,
+            read=0,
+            other=0,
             backoff_factor=1,
             status_forcelist=(500, 502, 503, 504),
             allowed_methods=None,
             raise_on_status=False,
         )
-        adapter = HTTPAdapter(max_retries=retry)
+        adapter = TimeoutAdapter(timeout=request_timeout, max_retries=retry)
         self.session.mount("https://", adapter)
         self.session.mount("http://", adapter)
         self._storage = storage
