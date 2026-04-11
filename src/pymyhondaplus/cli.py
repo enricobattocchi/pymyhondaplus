@@ -761,7 +761,10 @@ vehicle selection (only needed with multiple vehicles):
     login_parser.add_argument("--locale", "-l", default="it", help="Locale (default: it)")
 
     subparsers.add_parser("logout", parents=[_common], help="Remove saved tokens and device key")
-    subparsers.add_parser("list", parents=[_common], help="List vehicles on your account")
+    list_parser = subparsers.add_parser("list", parents=[_common], help="List vehicles on your account")
+    list_parser.add_argument("-v", "--verbose", action="store_true", help="Show model, grade, year, and images")
+    subparsers.add_parser("capabilities", parents=[_common], help="Show vehicle capabilities")
+    subparsers.add_parser("subscription", parents=[_common], help="Show subscription info")
 
     # vehicle commands
     status_parser = subparsers.add_parser("status", parents=[_common], help="Get vehicle status")
@@ -917,18 +920,33 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         return 0
 
     if args.command == "list":
+        t = get_translator()
         vehicles = api.get_vehicles()
         if vehicles:
             # Update stored vehicles
             api.tokens.vehicles = vehicles
             api._save_tokens()
-            print(f"Found {len(vehicles)} vehicle(s):")
+            print(f"{t('found_vehicles')} {len(vehicles)}")
             for v in vehicles:
                 label = v["name"] or v["vin"]
                 plate = f" ({v['plate']})" if v["plate"] else ""
-                print(f"  {v['vin']}  {label}{plate}")
+                model = f"  {v.model_name}" if v.model_name else ""
+                print(f"  {v['vin']}  {label}{plate}{model}")
+                if args.verbose:
+                    detail_keys = [
+                        ("grade_label", v.grade),
+                        ("vehicle_year", v.model_year),
+                        ("vehicle_fuel", v.fuel_type),
+                        ("image_front", v.image_front),
+                        ("image_side", v.image_side),
+                    ]
+                    rows = [(t(k), val) for k, val in detail_keys if val]
+                    if rows:
+                        w = max(len(lbl) for lbl, _ in rows) + 1
+                        for lbl, val in rows:
+                            print(f"    {lbl + ':':<{w}}  {val}")
         else:
-            print("No vehicles found on this account.")
+            print(t("no_vehicles"))
         return 0
 
     if not args.command:
@@ -937,6 +955,62 @@ def _run_main(args: argparse.Namespace, storage) -> int:
     vin, exit_code = _resolve_vehicle(api, args.vin)
     if exit_code != 0 or vin is None:
         return exit_code
+
+    if args.command == "capabilities":
+        t = get_translator()
+        vehicle = next((v for v in api.tokens.vehicles if v["vin"] == vin), None)
+        if vehicle is None or not hasattr(vehicle, "capabilities"):
+            print(t("no_capability_data"))
+            return 1
+        caps = vehicle.capabilities
+        cap_fields = {
+            "remote_lock": "cap_lock_unlock",
+            "remote_climate": "cap_climate",
+            "remote_charge": "cap_charging",
+            "remote_horn": "cap_horn",
+            "digital_key": "cap_digital_key",
+            "charge_schedule": "cap_charge_schedule",
+            "climate_schedule": "cap_climate_schedule",
+            "max_charge": "cap_max_charge",
+            "car_finder": "cap_car_finder",
+            "journey_history": "cap_journeys",
+            "send_poi": "cap_send_nav",
+            "geo_fence": "cap_geo_fence",
+        }
+        label = vehicle.name or vin
+        print(f"{t('capabilities_for')} {label}:")
+        translated = [(t(t_key), getattr(caps, fn, False)) for fn, t_key in cap_fields.items()]
+        w = max(len(name) for name, _ in translated) + 2
+        for name, active in translated:
+            status = t("cap_active") if active else t("cap_not_supported")
+            print(f"  {name:<{w}} {status}")
+        return 0
+
+    if args.command == "subscription":
+        t = get_translator()
+        vehicle = next((v for v in api.tokens.vehicles if v["vin"] == vin), None)
+        if vehicle is None or not hasattr(vehicle, "subscription") or vehicle.subscription is None:
+            print(t("no_subscription_data"))
+            return 1
+        sub = vehicle.subscription
+        label = vehicle.name or vin
+        yes_no = t("on") if sub.renewal else t("off")
+        status = t(f"sub_status_{sub.status.lower()}", sub.status.lower())
+        payment = t(f"sub_payment_{sub.payment_term.lower()}", sub.payment_term.lower())
+        rows = [
+            (t("sub_package"), sub.package_name),
+            (t("sub_status"), status),
+            (t("sub_price"), f"{sub.price:.2f} {sub.currency}"),
+            (t("sub_payment"), payment),
+            (t("sub_auto_renewal"), yes_no),
+            (t("sub_period"), f"{sub.start_date} — {sub.end_date}"),
+            (t("sub_next_payment"), sub.next_payment_date),
+        ]
+        w = max(len(lbl) for lbl, _ in rows) + 1
+        print(f"{t('sub_subscription')} — {label}:")
+        for lbl, val in rows:
+            print(f"  {lbl + ':':<{w}}  {val}")
+        return 0
 
     vehicle_info, consumption_unit = _get_vehicle_display_context(api, vin, args)
 

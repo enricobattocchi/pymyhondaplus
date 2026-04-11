@@ -68,7 +68,7 @@ class AuthTokens:
     expires_at: float = 0
     personal_id: str = ""
     user_id: str = ""
-    vehicles: list[dict] = field(default_factory=list)
+    vehicles: list = field(default_factory=list)  # list[Vehicle]
 
     @property
     def default_vin(self) -> str:
@@ -101,13 +101,22 @@ class AuthTokens:
             "user_id": self.user_id,
         }
         if self.vehicles:
-            data["vehicles"] = self.vehicles
+            data["vehicles"] = [
+                v.to_dict() if isinstance(v, Vehicle) else v
+                for v in self.vehicles
+            ]
         return data
 
     @classmethod
     def from_dict(cls, data: dict) -> "AuthTokens":
         """Deserialize from a dict."""
-        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+        fields = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
+        if "vehicles" in fields:
+            fields["vehicles"] = [
+                Vehicle.from_dict(v) if isinstance(v, dict) else v
+                for v in fields["vehicles"]
+            ]
+        return cls(**fields)
 
 
 @dataclass
@@ -143,6 +152,212 @@ class CommandResult:
     @property
     def success(self) -> bool:
         return self.complete and self.status == "success" and not self.timed_out
+
+
+@dataclass
+class VehicleCapabilities:
+    """Feature capabilities reported by the Honda API for a vehicle."""
+    remote_lock: bool = False
+    remote_climate: bool = False
+    remote_charge: bool = False
+    remote_horn: bool = False
+    digital_key: bool = False
+    charge_schedule: bool = False
+    climate_schedule: bool = False
+    max_charge: bool = False
+    car_finder: bool = False
+    journey_history: bool = False
+    send_poi: bool = False
+    geo_fence: bool = False
+    raw: dict = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_api(cls, cap_map: dict) -> "VehicleCapabilities":
+        """Parse the vehicleCapability map from the API."""
+        caps = cap_map.get("capabilities", {})
+
+        def _active(key: str) -> bool:
+            return caps.get(key, {}).get("featureStatus") == "active"
+
+        return cls(
+            remote_lock=_active("telematicsRemoteLockUnlock"),
+            remote_climate=_active("telematicsRemoteClimate"),
+            remote_charge=_active("telematicsRemoteCharge"),
+            remote_horn=_active("telematicsRemoteHorn"),
+            digital_key=_active("digitalKey"),
+            charge_schedule=_active("telematicsRemoteChargeSchedule"),
+            climate_schedule=_active("telematicsRemoteClimateSchedule"),
+            max_charge=_active("telematicsMaxChargeSettings"),
+            car_finder=_active("telematicsRemoteCarFinder"),
+            journey_history=_active("telematicsJourneyHistory"),
+            send_poi=_active("telematicsSendPoi"),
+            geo_fence=_active("telematicsGeoFence"),
+            raw=caps,
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "remote_lock": self.remote_lock,
+            "remote_climate": self.remote_climate,
+            "remote_charge": self.remote_charge,
+            "remote_horn": self.remote_horn,
+            "digital_key": self.digital_key,
+            "charge_schedule": self.charge_schedule,
+            "climate_schedule": self.climate_schedule,
+            "max_charge": self.max_charge,
+            "car_finder": self.car_finder,
+            "journey_history": self.journey_history,
+            "send_poi": self.send_poi,
+            "geo_fence": self.geo_fence,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "VehicleCapabilities":
+        if not data:
+            return cls()
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
+class Subscription:
+    """Subscription package info for a vehicle."""
+    package_name: str = ""
+    status: str = ""
+    price: float = 0.0
+    currency: str = ""
+    payment_term: str = ""
+    renewal: bool = False
+    start_date: str = ""
+    end_date: str = ""
+    next_payment_date: str = ""
+
+    @classmethod
+    def from_api(cls, packages: list) -> "Subscription | None":
+        """Parse the first active packageInfo entry."""
+        if not packages:
+            return None
+        p = packages[0]
+        return cls(
+            package_name=p.get("description", ""),
+            status=p.get("billStatus", ""),
+            price=float(p.get("price", 0)),
+            currency=p.get("currency1", ""),
+            payment_term=p.get("paymentTerm", ""),
+            renewal=p.get("renewal", False),
+            start_date=p.get("startDate", "").split("T")[0] if p.get("startDate") else "",
+            end_date=p.get("endDate", "").split("T")[0] if p.get("endDate") else "",
+            next_payment_date=p.get("nextPaymentDate", "").split("T")[0] if p.get("nextPaymentDate") else "",
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "package_name": self.package_name,
+            "status": self.status,
+            "price": self.price,
+            "currency": self.currency,
+            "payment_term": self.payment_term,
+            "renewal": self.renewal,
+            "start_date": self.start_date,
+            "end_date": self.end_date,
+            "next_payment_date": self.next_payment_date,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Subscription":
+        if not data:
+            return cls()
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
+class Vehicle:
+    """A vehicle from the Honda account."""
+    vin: str = ""
+    name: str = ""
+    plate: str = ""
+    role: str = ""
+    fuel_type: str = ""
+    model_name: str = ""
+    grade: str = ""
+    model_year: str = ""
+    category_code: str = ""
+    image_front: str = ""
+    image_side: str = ""
+    capabilities: VehicleCapabilities = field(default_factory=VehicleCapabilities)
+    subscription: Subscription | None = None
+
+    def __getitem__(self, key: str):
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            raise KeyError(key)
+
+    def get(self, key: str, default=None):
+        return getattr(self, key, default)
+
+    def __contains__(self, key: str) -> bool:
+        return hasattr(self, key)
+
+    @classmethod
+    def from_api(cls, v: dict) -> "Vehicle":
+        """Build a Vehicle from a vehiclesInfo entry."""
+        ui_config = v.get("vehicleUIConfiguration", {})
+        cap_map = v.get("vehicleCapability", {})
+        return cls(
+            vin=v.get("vin", ""),
+            name=v.get("vehicleNickName", ""),
+            plate=v.get("vehicleRegNumber", ""),
+            role=v.get("role", ""),
+            fuel_type=v.get("fuelType", ""),
+            model_name=ui_config.get("friendlyModelName", ""),
+            grade=v.get("grade", ""),
+            model_year=str(v.get("modelYear", "")),
+            category_code=v.get("vehicleCategoryCode", ""),
+            image_front=v.get("vehicleFront34ImageUrl", ""),
+            image_side=v.get("vehicleSideImageUrl", ""),
+            capabilities=VehicleCapabilities.from_api(cap_map),
+            subscription=Subscription.from_api(v.get("packageInfo", [])),
+        )
+
+    def to_dict(self) -> dict:
+        d = {
+            "vin": self.vin,
+            "name": self.name,
+            "plate": self.plate,
+            "role": self.role,
+            "fuel_type": self.fuel_type,
+            "model_name": self.model_name,
+            "grade": self.grade,
+            "model_year": self.model_year,
+            "category_code": self.category_code,
+            "image_front": self.image_front,
+            "image_side": self.image_side,
+        }
+        d["capabilities"] = self.capabilities.to_dict()
+        if self.subscription:
+            d["subscription"] = self.subscription.to_dict()
+        return d
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Vehicle":
+        """Deserialize from storage. Handles both old 5-field and new formats."""
+        caps = data.get("capabilities")
+        sub = data.get("subscription")
+        return cls(
+            vin=data.get("vin", ""),
+            name=data.get("name", ""),
+            plate=data.get("plate", ""),
+            role=data.get("role", ""),
+            fuel_type=data.get("fuel_type", ""),
+            model_name=data.get("model_name", ""),
+            grade=data.get("grade", ""),
+            model_year=data.get("model_year", ""),
+            category_code=data.get("category_code", ""),
+            image_front=data.get("image_front", ""),
+            image_side=data.get("image_side", ""),
+            capabilities=VehicleCapabilities.from_dict(caps) if caps else VehicleCapabilities(),
+            subscription=Subscription.from_dict(sub) if sub else None,
+        )
 
 
 class HondaAPIError(Exception):
@@ -296,17 +511,11 @@ class HondaAPI:
             raise HondaAPIError(resp.status_code, resp.text)
         return resp.json()
 
-    def get_vehicles(self, **kwargs) -> list[dict]:
-        """Return list of vehicles with VIN, name, and plate."""
+    def get_vehicles(self, **kwargs) -> list[Vehicle]:
+        """Return list of vehicles with model info, images, and capabilities."""
         info = self.get_user_info(**kwargs)
         return [
-            {
-                "vin": v["vin"],
-                "name": v.get("vehicleNickName", ""),
-                "plate": v.get("vehicleRegNumber", ""),
-                "role": v.get("role", ""),
-                "fuel_type": v.get("fuelType", ""),
-            }
+            Vehicle.from_api(v)
             for v in info.get("vehiclesInfo", [])
             if "vin" in v
         ]
@@ -727,7 +936,59 @@ class HondaAPI:
 
 # -- Convenience helpers --
 
-def parse_ev_status(dashboard: dict) -> dict:
+@dataclass
+class EVStatus:
+    """Parsed EV status from a dashboard response."""
+    battery_level: int = 0
+    range_climate_on: int = 0
+    range_climate_off: int = 0
+    total_range: int = 0
+    distance_unit: str = "km"
+    speed_unit: str = "km/h"
+    temp_unit: str = "c"
+    charge_status: str = "unknown"
+    plug_status: str = "unknown"
+    home_away: str = "unknown"
+    charge_limit_home: int = 0
+    charge_limit_away: int = 0
+    climate_active: bool = False
+    cabin_temp: int = 0
+    interior_temp: int = 0
+    odometer: int = 0
+    latitude: str = ""
+    longitude: str = ""
+    timestamp: str = ""
+    doors_locked: bool = True
+    all_doors_closed: bool = True
+    all_windows_closed: bool = True
+    lights_on: bool = False
+    headlights: str = "unknown"
+    parking_lights: str = "unknown"
+    ignition: str = "unknown"
+    charge_mode: str = "unknown"
+    time_to_charge: int = 0
+    hood_open: bool = False
+    trunk_open: bool = False
+    warning_lamps: list = field(default_factory=list)
+    speed: float = 0.0
+    climate_temp: str = "unknown"
+    climate_duration: int = 0
+    climate_defrost: bool = False
+
+    def __getitem__(self, key: str):
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            raise KeyError(key)
+
+    def get(self, key: str, default=None):
+        return getattr(self, key, default)
+
+    def __contains__(self, key: str) -> bool:
+        return hasattr(self, key)
+
+
+def parse_ev_status(dashboard: dict) -> EVStatus:
     """Extract the most useful EV data from a dashboard response."""
     ev = dashboard.get("evStatus", {})
     gps = dashboard.get("gpsData", {})
@@ -736,65 +997,65 @@ def parse_ev_status(dashboard: dict) -> dict:
     speed_unit = gps.get("velocity", {}).get("unit", f"{distance_unit}/h")
     temp_unit = dashboard.get("temperature", {}).get("cabin", {}).get("unit", "c")
 
-    return {
-        "battery_level": _safe_int(ev.get("soc", 0)),
-        "range_climate_on": _safe_int(ev.get("evRange", 0)),
-        "range_climate_off": _safe_int(ev.get("evRange", 0)) + _safe_int(ev.get("evClimateOffRange", 0)),
-        "total_range": _safe_int(ev.get("totalRange", 0)),
-        "distance_unit": distance_unit,
-        "speed_unit": speed_unit,
-        "temp_unit": temp_unit,
-        "charge_status": ev.get("chargeStatus", "unknown"),
-        "plug_status": ev.get("plugStatus", "unknown"),
-        "home_away": ev.get("homeAway", "unknown").lower(),
-        "charge_limit_home": _safe_int(ev.get("chargeLimitHome", 0)),
-        "charge_limit_away": _safe_int(ev.get("chargeLimitAway", 0)),
-        "climate_active": dashboard.get("climateControl", {}).get("status", {}).get("isActive", False),
-        "cabin_temp": _safe_int(dashboard.get("temperature", {}).get("cabin", {}).get("value", 0)),
-        "interior_temp": _safe_int(ev.get("intTemp", 0)),
-        "odometer": _safe_int(dashboard.get("odometer", {}).get("value", 0)),
-        "latitude": coord.get("latitude", ""),
-        "longitude": coord.get("longitude", ""),
-        "timestamp": dashboard.get("timestamp", ""),
-        "doors_locked": all(
+    return EVStatus(
+        battery_level=_safe_int(ev.get("soc", 0)),
+        range_climate_on=_safe_int(ev.get("evRange", 0)),
+        range_climate_off=_safe_int(ev.get("evRange", 0)) + _safe_int(ev.get("evClimateOffRange", 0)),
+        total_range=_safe_int(ev.get("totalRange", 0)),
+        distance_unit=distance_unit,
+        speed_unit=speed_unit,
+        temp_unit=temp_unit,
+        charge_status=ev.get("chargeStatus", "unknown"),
+        plug_status=ev.get("plugStatus", "unknown"),
+        home_away=ev.get("homeAway", "unknown").lower(),
+        charge_limit_home=_safe_int(ev.get("chargeLimitHome", 0)),
+        charge_limit_away=_safe_int(ev.get("chargeLimitAway", 0)),
+        climate_active=dashboard.get("climateControl", {}).get("status", {}).get("isActive", False),
+        cabin_temp=_safe_int(dashboard.get("temperature", {}).get("cabin", {}).get("value", 0)),
+        interior_temp=_safe_int(ev.get("intTemp", 0)),
+        odometer=_safe_int(dashboard.get("odometer", {}).get("value", 0)),
+        latitude=coord.get("latitude", ""),
+        longitude=coord.get("longitude", ""),
+        timestamp=dashboard.get("timestamp", ""),
+        doors_locked=all(
             door.get("lockState") == "lock"
             for key, door in dashboard.get("doorStatus", {}).items()
             if "lockState" in door
         ),
-        "all_doors_closed": all(
+        all_doors_closed=all(
             door.get("openState") == "closed"
             for door in dashboard.get("doorStatus", {}).values()
             if isinstance(door, dict)
         ),
-        "all_windows_closed": all(
+        all_windows_closed=all(
             w.get("closeState") == "closed"
             for w in dashboard.get("windowStatus", {}).values()
             if isinstance(w, dict)
         ),
-        "lights_on": any(
+        lights_on=any(
             light.get("lightState") == "on"
             for light in dashboard.get("lightStatus", {}).values()
             if isinstance(light, dict)
         ),
-        "headlights": dashboard.get("lightStatus", {}).get("headlights", {}).get("lightState", "unknown"),
-        "parking_lights": dashboard.get("lightStatus", {}).get("parkingLights", {}).get("lightState", "unknown"),
-        "ignition": ev.get("igStatus", "unknown"),
-        "charge_mode": ev.get("chargeMode", "unknown"),
-        "time_to_charge": _safe_int(ev.get("timeToTargetSoc", 0)),
-        "hood_open": dashboard.get("doorStatus", {}).get("hood", {}).get("openState", "unknown") != "closed",
-        "trunk_open": dashboard.get("doorStatus", {}).get("trunk", {}).get("openState", "unknown") != "closed",
-        "warning_lamps": [
+        headlights=dashboard.get("lightStatus", {}).get("headlights", {}).get("lightState", "unknown"),
+        parking_lights=dashboard.get("lightStatus", {}).get("parkingLights", {}).get("lightState", "unknown"),
+        ignition=ev.get("igStatus", "unknown"),
+        charge_mode=ev.get("chargeMode", "unknown"),
+        time_to_charge=_safe_int(ev.get("timeToTargetSoc", 0)),
+        hood_open=dashboard.get("doorStatus", {}).get("hood", {}).get("openState", "unknown") != "closed",
+        trunk_open=dashboard.get("doorStatus", {}).get("trunk", {}).get("openState", "unknown") != "closed",
+        warning_lamps=[
             msg.get("lampName", "")
             for msg in dashboard.get("warningLamps", {}).get("messages", [])
             if msg.get("condition") == "ON"
         ],
-        "speed": _safe_float(gps.get("velocity", {}).get("value", 0)),
-        "climate_temp": {"05": "cooler", "04": "normal", "03": "hotter",
-                         "cool": "cooler", "warm": "hotter"}.get(
+        speed=_safe_float(gps.get("velocity", {}).get("value", 0)),
+        climate_temp={"05": "cooler", "04": "normal", "03": "hotter",
+                      "cool": "cooler", "warm": "hotter"}.get(
             ev.get("acTempVal", "normal"), ev.get("acTempVal", "unknown")),
-        "climate_duration": _safe_int(ev.get("acDurationSetting", 0)),
-        "climate_defrost": ev.get("acDefAutoSetting", "").lower().startswith("def auto on"),
-    }
+        climate_duration=_safe_int(ev.get("acDurationSetting", 0)),
+        climate_defrost=ev.get("acDefAutoSetting", "").lower().startswith("def auto on"),
+    )
 
 
 def parse_charge_schedule(dashboard: dict) -> list[dict]:

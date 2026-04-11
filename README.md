@@ -24,6 +24,12 @@ pip install pymyhondaplus[keyring]
 # Login (first time — triggers email verification)
 pymyhondaplus login --email user@example.com
 
+# Vehicle info
+pymyhondaplus list                      # VIN, model, plate
+pymyhondaplus list -v                   # grade, year, image URLs
+pymyhondaplus capabilities              # remote features per vehicle
+pymyhondaplus subscription              # package and billing info
+
 # Vehicle status
 pymyhondaplus status
 pymyhondaplus status --fresh            # wake TCU for fresh data

@@ -44,8 +44,27 @@ pymyhondaplus status
 ### List vehicles
 
 ```bash
-pymyhondaplus list
+pymyhondaplus list              # VIN, nickname, plate, model name
+pymyhondaplus list -v           # also show grade, year, fuel type, image URLs
 ```
+
+### Capabilities
+
+Show which remote features are active on your vehicle's subscription:
+
+```bash
+pymyhondaplus capabilities
+```
+
+### Subscription
+
+Show subscription package, billing status, and renewal info:
+
+```bash
+pymyhondaplus subscription
+```
+
+Note: `capabilities` and `subscription` use data cached by `list`. Run `list` at least once after login to populate the data.
 
 ## Vehicle status
 
@@ -334,8 +353,40 @@ tokens = auth.full_login("user@example.com", "password")
 api = HondaAPI()
 api.set_tokens(**tokens)
 
-# Vehicle status (units from car: distance_unit, speed_unit, temp_unit)
-status = api.get_dashboard("JHMZC7840LXXXXXX")
+# Vehicles — returns list[Vehicle] with typed fields
+vehicles = api.get_vehicles()
+v = vehicles[0]
+v.vin               # "JHMZC7840LXXXXXX"
+v.model_name        # "Honda e"
+v.grade             # "E ADVANCE"
+v.model_year        # "2020"
+v.image_front       # "https://..."
+v.image_side        # "https://..."
+
+# Capabilities
+v.capabilities.remote_lock      # True
+v.capabilities.remote_climate   # True
+v.capabilities.digital_key      # True
+v.capabilities.raw              # full API capability map
+
+# Subscription
+v.subscription.package_name     # "My Honda+"
+v.subscription.status           # "ACTIVE"
+v.subscription.price            # 4.99
+v.subscription.end_date         # "2026-05-05"
+
+# Backward-compatible dict access still works
+v["vin"]            # "JHMZC7840LXXXXXX"
+v.get("fuel_type")  # "E"
+
+# Vehicle status — returns EVStatus dataclass
+from pymyhondaplus import parse_ev_status
+dashboard = api.get_dashboard("JHMZC7840LXXXXXX")
+ev = parse_ev_status(dashboard)
+ev.battery_level    # 82
+ev.charge_status    # "stopped"
+ev.doors_locked     # True
+ev["battery_level"] # also works (backward compat)
 
 # Trips (all pages, parsed as dicts)
 trips = api.get_all_trips("JHMZC7840LXXXXXX")

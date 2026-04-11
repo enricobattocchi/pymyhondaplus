@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.5.0 — 2026-04-11
+
+- Add typed `Vehicle`, `VehicleCapabilities`, `Subscription`, and `EVStatus` dataclasses
+- `get_vehicles()` now returns `list[Vehicle]` with model name, grade, year, images, capabilities, and subscription info
+- `parse_ev_status()` now returns an `EVStatus` dataclass instead of a plain dict
+- All new types support dict-style access (`v["vin"]`, `v.get("fuel_type")`) for backward compatibility
+- Add `capabilities` CLI command to show which remote features are active per vehicle
+- Add `subscription` CLI command to show package, billing, and renewal info per vehicle
+- Add `--verbose` flag to `list` command for model details and image URLs
+- Add translations for all new CLI strings across 13 languages
+- `AuthTokens` serialization handles both old 5-field and new Vehicle format
+
 ## 5.4.0 — 2026-04-11
 
 - Add thread-safety to `HondaAPI` so a single instance can be shared across threads without external locking
