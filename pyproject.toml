@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["honda", "honda-e", "my-honda-plus", "home-assistant", "ev"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -34,6 +34,7 @@ dev = ["pytest>=7.0", "ruff>=0.4", "mypy>=1.10", "types-requests>=2.31"]
 Homepage = "https://github.com/enricobattocchi/pymyhondaplus"
 Repository = "https://github.com/enricobattocchi/pymyhondaplus"
 Issues = "https://github.com/enricobattocchi/pymyhondaplus/issues"
+Changelog = "https://github.com/enricobattocchi/pymyhondaplus/blob/main/CHANGELOG.md"
 
 [project.scripts]
 pymyhondaplus = "pymyhondaplus.cli:_main"
