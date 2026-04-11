@@ -517,6 +517,13 @@ try:
     status = api.get_dashboard("JHMZC7840LXXXXXX")
 except HondaAPIError as e:
     print(f"API error: {e.status_code} — {e}")
+
+# Capability checks — command methods raise ValueError if the feature
+# is not supported by the vehicle's subscription
+try:
+    api.remote_lock("JHMZC7840LXXXXXX")
+except ValueError as e:
+    print(f"Not supported: {e}")
 ```
 
 Transient errors (5xx, connection timeouts) are automatically retried up to 3 times with backoff.

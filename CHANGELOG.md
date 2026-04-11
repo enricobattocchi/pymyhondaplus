@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file.
 - Add `UserProfile` dataclass and `get_user_profile()` API method
 - New CLI commands: `profile`, `subscription` now shows services list
 - Translated fuel types (EV/PHEV/Petrol) and transmission (Automatic/Manual) in CLI output
+- Capability checks at library level: all command methods raise `ValueError` if the feature is not supported
+- Translated confirmation prompt, abort message, and capability error across 13 languages
 - Fix Polish `charge_speed_normal` translation
 
 ## 5.5.0 — 2026-04-11
