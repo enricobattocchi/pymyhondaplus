@@ -132,6 +132,7 @@ TRANSLATIONS = {
         "geofence_radius": "Poloměr",
         "geofence_none": "Žádný geofence není nastaven.",
         "geofence_processing": "Zpracovává se",
+        "feature_not_available": "Tato funkce není k dispozici pro toto vozidlo.",
     },
     "da": {
         "charge_speed_normal": "Normal",
@@ -243,6 +244,7 @@ TRANSLATIONS = {
         "geofence_radius": "Radius",
         "geofence_none": "Ingen geofence konfigureret.",
         "geofence_processing": "Behandler",
+        "feature_not_available": "Denne funktion er ikke tilgængelig for dette køretøj.",
     },
     "de": {
         "charge_speed_normal": "Normal",
@@ -354,6 +356,7 @@ TRANSLATIONS = {
         "geofence_radius": "Radius",
         "geofence_none": "Kein Geofence konfiguriert.",
         "geofence_processing": "Wird verarbeitet",
+        "feature_not_available": "Diese Funktion ist für dieses Fahrzeug nicht verfügbar.",
     },
     "en": {
         "charge_speed_normal": "Normal",
@@ -465,6 +468,7 @@ TRANSLATIONS = {
         "geofence_radius": "Radius",
         "geofence_none": "No geofence configured.",
         "geofence_processing": "Processing",
+        "feature_not_available": "This feature is not available for this vehicle.",
     },
     "es": {
         "charge_speed_normal": "Normal",
@@ -576,6 +580,7 @@ TRANSLATIONS = {
         "geofence_radius": "Radio",
         "geofence_none": "No hay zona de control configurada.",
         "geofence_processing": "Procesando",
+        "feature_not_available": "Esta función no está disponible para este vehículo.",
     },
     "fr": {
         "charge_speed_normal": "Normale",
@@ -687,6 +692,7 @@ TRANSLATIONS = {
         "geofence_radius": "Rayon",
         "geofence_none": "Aucun géorepérage configuré.",
         "geofence_processing": "En cours de traitement",
+        "feature_not_available": "Cette fonctionnalité n'est pas disponible pour ce véhicule.",
     },
     "hu": {
         "charge_speed_normal": "Normál",
@@ -798,6 +804,7 @@ TRANSLATIONS = {
         "geofence_radius": "Sugár",
         "geofence_none": "Nincs geofence beállítva.",
         "geofence_processing": "Feldolgozás alatt",
+        "feature_not_available": "Ez a funkció nem érhető el ehhez a járműhöz.",
     },
     "it": {
         "charge_speed_normal": "Normale",
@@ -909,6 +916,7 @@ TRANSLATIONS = {
         "geofence_radius": "Raggio",
         "geofence_none": "Nessun geo-fence configurato.",
         "geofence_processing": "In elaborazione",
+        "feature_not_available": "Questa funzionalità non è disponibile per questo veicolo.",
     },
     "nl": {
         "charge_speed_normal": "Normaal",
@@ -1020,6 +1028,7 @@ TRANSLATIONS = {
         "geofence_radius": "Radius",
         "geofence_none": "Geen geo-fence geconfigureerd.",
         "geofence_processing": "Wordt verwerkt",
+        "feature_not_available": "Deze functie is niet beschikbaar voor dit voertuig.",
     },
     "no": {
         "charge_speed_normal": "normal",
@@ -1131,6 +1140,7 @@ TRANSLATIONS = {
         "geofence_radius": "Radius",
         "geofence_none": "Ingen geofence konfigurert.",
         "geofence_processing": "Behandler",
+        "feature_not_available": "Denne funksjonen er ikke tilgjengelig for dette kjøretøyet.",
     },
     "pl": {
         "charge_speed_normal": "Normalne",
@@ -1242,6 +1252,7 @@ TRANSLATIONS = {
         "geofence_radius": "Promień",
         "geofence_none": "Brak skonfigurowanego geofencingu.",
         "geofence_processing": "Przetwarzanie",
+        "feature_not_available": "Ta funkcja nie jest dostępna dla tego pojazdu.",
     },
     "sk": {
         "charge_speed_normal": "Normálne",
@@ -1353,6 +1364,7 @@ TRANSLATIONS = {
         "geofence_radius": "Polomer",
         "geofence_none": "Žiadny geofence nie je nastavený.",
         "geofence_processing": "Spracováva sa",
+        "feature_not_available": "Táto funkcia nie je k dispozícii pre toto vozidlo.",
     },
     "sv": {
         "charge_speed_normal": "Normalt",
@@ -1464,6 +1476,7 @@ TRANSLATIONS = {
         "geofence_radius": "Radie",
         "geofence_none": "Inget larmområde konfigurerat.",
         "geofence_processing": "Bearbetar",
+        "feature_not_available": "Den här funktionen är inte tillgänglig för detta fordon.",
     },
 }
 

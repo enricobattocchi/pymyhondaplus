@@ -639,6 +639,16 @@ class HondaAPI:
         if self.tokens.is_expired:
             self._refresh_auth_locked()
 
+    def _check_capability(self, vin: str, capability: str):
+        """Raise if the vehicle lacks the required capability."""
+        for v in self.tokens.vehicles:
+            if v["vin"] == vin and hasattr(v, "capabilities"):
+                if not getattr(v.capabilities, capability, True):
+                    raise ValueError(
+                        f"Vehicle {vin} does not support {capability}",
+                    )
+                return
+
     def _request(self, method: str, path: str, **kwargs) -> requests.Response:
         """Make an authenticated API request. Thread-safe."""
         with self._lock:
@@ -815,15 +825,18 @@ class HondaAPI:
 
     def remote_lock(self, vin: str) -> str:
         """Lock all doors."""
+        self._check_capability(vin, "remote_lock")
         return self._remote_command("remote-lock", vin, command="allLock")
 
     def remote_unlock(self, vin: str) -> str:
         """Unlock doors."""
+        self._check_capability(vin, "remote_lock")
         return self._remote_command("remote-lock", vin, command="doorUnlock")
 
     def set_climate_settings(self, vin: str, temp: str = "normal",
                              duration: int = 30, defrost: bool = True) -> str:
         """Configure climate control settings (temperature, duration, defrost)."""
+        self._check_capability(vin, "remote_climate")
         temp_map = {"cooler": "05", "normal": "04", "hotter": "03"}
         if temp not in temp_map:
             raise ValueError(f"temp must be one of {list(temp_map.keys())}")
@@ -841,6 +854,7 @@ class HondaAPI:
 
     def remote_climate_start(self, vin: str) -> str:
         """Start climate control (uses previously configured settings)."""
+        self._check_capability(vin, "remote_climate")
         return self._remote_command(
             "remote-climate", vin,
             command="start",
@@ -851,18 +865,22 @@ class HondaAPI:
 
     def remote_climate_stop(self, vin: str) -> str:
         """Stop climate control."""
+        self._check_capability(vin, "remote_climate")
         return self._remote_command("remote-climate", vin, command="stop")
 
     def remote_horn_lights(self, vin: str) -> str:
         """Activate horn and lights."""
+        self._check_capability(vin, "remote_horn")
         return self._remote_command("remote-horn-light", vin, command="horn")
 
     def remote_charge_start(self, vin: str) -> str:
         """Start charging."""
+        self._check_capability(vin, "remote_charge")
         return self._remote_command("remote-charge", vin, command="start")
 
     def remote_charge_stop(self, vin: str) -> str:
         """Stop charging."""
+        self._check_capability(vin, "remote_charge")
         return self._remote_command("remote-charge", vin, command="stop")
 
     def set_charge_limit(self, vin: str, home: int = 80, away: int = 90) -> str:
@@ -870,6 +888,7 @@ class HondaAPI:
 
         Valid values: 80, 85, 90, 95, 100.
         """
+        self._check_capability(vin, "max_charge")
         valid = (80, 85, 90, 95, 100)
         if home not in valid or away not in valid:
             raise ValueError(f"Charge limits must be one of {valid}")
@@ -911,6 +930,7 @@ class HondaAPI:
         Returns:
             Async command ID for polling.
         """
+        self._check_capability(vin, "charge_schedule")
         settings = []
         for i in range(2):
             if i < len(rules) and rules[i].get("enabled", True):
@@ -974,6 +994,7 @@ class HondaAPI:
         Returns:
             Async command ID for polling.
         """
+        self._check_capability(vin, "climate_schedule")
         settings = []
         for i in range(7):
             if i < len(rules) and rules[i].get("enabled", True):
@@ -1003,6 +1024,7 @@ class HondaAPI:
 
     def get_geofence(self, vin: str) -> Geofence | None:
         """Get current geofence config. Returns None if no geofence is set."""
+        self._check_capability(vin, "geo_fence")
         resp = self._request("GET", f"/tsp/geo-fence-config?vin={vin}")
         if resp.status_code != 200:
             raise HondaAPIError(resp.status_code, resp.text)
@@ -1019,6 +1041,7 @@ class HondaAPI:
             radius: Radius in km (default: 1.0)
             name: Geofence display name (default: "Geofence")
         """
+        self._check_capability(vin, "geo_fence")
         lat_mas = int(latitude * 3_600_000)
         lon_mas = int(longitude * 3_600_000)
         body = {
@@ -1058,6 +1081,7 @@ class HondaAPI:
 
     def clear_geofence(self, vin: str) -> str:
         """Delete the geofence. Returns async command ID for polling."""
+        self._check_capability(vin, "geo_fence")
         resp = self._request("DELETE", f"/tsp/geo-fence-config?vin={vin}")
         if resp.status_code not in (200, 202):
             raise HondaAPIError(resp.status_code, resp.text)
