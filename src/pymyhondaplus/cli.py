@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import dataclasses
 import getpass
 import importlib.metadata
 import json
@@ -56,7 +57,7 @@ def _parse_interval(s: str) -> int:
     return int(s)
 
 
-def _format_watch_fields(ev: dict, fields: dict, prev: dict | None = None, t=None) -> str:
+def _format_watch_fields(ev, fields: dict, prev=None, t=None) -> str:
     """Format changed fields for watch output. If prev is None, format all fields."""
     if t is None:
         t = get_translator()
@@ -219,12 +220,12 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
                 ev = parse_ev_status(dashboard)
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 if args.json:
-                    print(json.dumps(ev), flush=True)
+                    print(json.dumps(dataclasses.asdict(ev)), flush=True)
                 else:
                     line = _format_watch_fields(ev, WATCH_FIELDS, prev_ev, t)
                     if line:
                         print(f"{ts}  {line}", flush=True)
-                prev_ev = ev.copy()
+                prev_ev = ev
                 time.sleep(interval)
         except KeyboardInterrupt:
             print()

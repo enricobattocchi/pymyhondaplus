@@ -320,7 +320,7 @@ class Vehicle:
         )
 
     def to_dict(self) -> dict:
-        d = {
+        d: dict = {
             "vin": self.vin,
             "name": self.name,
             "plate": self.plate,
@@ -332,8 +332,8 @@ class Vehicle:
             "category_code": self.category_code,
             "image_front": self.image_front,
             "image_side": self.image_side,
+            "capabilities": self.capabilities.to_dict(),
         }
-        d["capabilities"] = self.capabilities.to_dict()
         if self.subscription:
             d["subscription"] = self.subscription.to_dict()
         return d
