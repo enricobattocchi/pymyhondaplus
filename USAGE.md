@@ -45,7 +45,8 @@ pymyhondaplus status
 
 ```bash
 pymyhondaplus list              # VIN, nickname, plate, model name
-pymyhondaplus list -v           # also show grade, year, fuel type, image URLs
+pymyhondaplus list -v           # grade, year, fuel, transmission, doors, weight,
+                                # registration/production dates, country, image URLs
 ```
 
 ### Capabilities
@@ -58,10 +59,18 @@ pymyhondaplus capabilities
 
 ### Subscription
 
-Show subscription package, billing status, and renewal info:
+Show subscription package, billing status, renewal info, and included services:
 
 ```bash
 pymyhondaplus subscription
+```
+
+### User profile
+
+Show account profile (name, email, phone, address, preferences):
+
+```bash
+pymyhondaplus profile
 ```
 
 Note: `capabilities` and `subscription` use data cached by `list`. Run `list` at least once after login to populate the data.
@@ -360,6 +369,13 @@ v.vin               # "JHMZC7840LXXXXXX"
 v.model_name        # "Honda e"
 v.grade             # "E ADVANCE"
 v.model_year        # "2020"
+v.fuel_type         # "E" (E=EV, X=PHEV, other=ICE)
+v.transmission      # "A" (A=Automatic, M=Manual)
+v.doors             # 5
+v.weight            # 1595.0
+v.registration_date # "2021-03-23"
+v.production_date   # "2020-11-03"
+v.country_code      # "IT"
 v.image_front       # "https://..."
 v.image_side        # "https://..."
 
@@ -369,11 +385,32 @@ v.capabilities.remote_climate   # True
 v.capabilities.digital_key      # True
 v.capabilities.raw              # full API capability map
 
+# UI display hints (useful for hiding unsupported entities in HA)
+v.ui_config.hide_window_status                  # False
+v.ui_config.hide_rear_door_status               # False
+v.ui_config.hide_internal_temperature           # False
+v.ui_config.hide_climate_settings               # False
+v.ui_config.show_plugin_warning_climate_schedule # False
+
 # Subscription
 v.subscription.package_name     # "My Honda+"
 v.subscription.status           # "ACTIVE"
+v.subscription.package_type     # "STANDARD"
 v.subscription.price            # 4.99
+v.subscription.currency         # "EUR"
+v.subscription.payment_term     # "MONTHLY"
+v.subscription.term             # 1
+v.subscription.trial_term       # 0
 v.subscription.end_date         # "2026-05-05"
+v.subscription.services         # [SubscriptionService(code="remote-lock", ...), ...]
+
+# User profile
+profile = api.get_user_profile()
+profile.first_name              # "Enrico"
+profile.email                   # "user@example.com"
+profile.country                 # "IT"
+profile.pref_language           # "it"
+profile.subs_expiry             # True (subscription about to expire)
 
 # Backward-compatible dict access still works
 v["vin"]            # "JHMZC7840LXXXXXX"

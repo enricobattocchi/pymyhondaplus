@@ -766,6 +766,7 @@ vehicle selection (only needed with multiple vehicles):
     list_parser.add_argument("-v", "--verbose", action="store_true", help="Show model, grade, year, and images")
     subparsers.add_parser("capabilities", parents=[_common], help="Show vehicle capabilities")
     subparsers.add_parser("subscription", parents=[_common], help="Show subscription info")
+    subparsers.add_parser("profile", parents=[_common], help="Show user profile")
 
     # vehicle commands
     status_parser = subparsers.add_parser("status", parents=[_common], help="Get vehicle status")
@@ -934,10 +935,21 @@ def _run_main(args: argparse.Namespace, storage) -> int:
                 model = f"  {v.model_name}" if v.model_name else ""
                 print(f"  {v['vin']}  {label}{plate}{model}")
                 if args.verbose:
+                    fuel_map = {"E": "fuel_ev", "X": "fuel_hybrid"}
+                    fuel = t(fuel_map.get(v.fuel_type, "fuel_petrol")) if v.fuel_type else ""
+                    trans_map = {"A": "transmission_auto", "M": "transmission_manual"}
+                    trans = t(trans_map.get(v.transmission, v.transmission)) if v.transmission else ""
+                    weight = f"{v.weight:.0f} kg" if v.weight else ""
                     detail_keys = [
                         ("grade_label", v.grade),
                         ("vehicle_year", v.model_year),
-                        ("vehicle_fuel", v.fuel_type),
+                        ("vehicle_fuel", fuel),
+                        ("transmission_label", trans),
+                        ("vehicle_doors", str(v.doors) if v.doors else ""),
+                        ("weight_label", weight),
+                        ("registration_label", v.registration_date),
+                        ("production_label", v.production_date),
+                        ("country_label", v.country_code),
                         ("image_front", v.image_front),
                         ("image_side", v.image_side),
                     ]
@@ -948,6 +960,28 @@ def _run_main(args: argparse.Namespace, storage) -> int:
                             print(f"    {lbl + ':':<{w}}  {val}")
         else:
             print(t("no_vehicles"))
+        return 0
+
+    if args.command == "profile":
+        t = get_translator()
+        profile = api.get_user_profile()
+        rows = [
+            (t("profile_name"), f"{profile.title} {profile.first_name} {profile.last_name}".strip()),
+            (t("profile_email"), profile.email),
+            (t("profile_phone"), profile.phone_number),
+            (t("profile_address"), profile.postal_address),
+            (t("profile_city"), f"{profile.postal_code} {profile.city}".strip()),
+            (t("profile_state"), profile.state),
+            (t("profile_country"), profile.country),
+            (t("profile_language"), profile.pref_language),
+            (t("profile_notifications"), profile.pref_notification_setting),
+        ]
+        rows = [(lbl, val) for lbl, val in rows if val]
+        if rows:
+            w = max(len(lbl) for lbl, _ in rows) + 1
+            print(f"{t('profile_heading')}:")
+            for lbl, val in rows:
+                print(f"  {lbl + ':':<{w}}  {val}")
         return 0
 
     if not args.command:
@@ -998,19 +1032,28 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         yes_no = t("on") if sub.renewal else t("off")
         status = t(f"sub_status_{sub.status.lower()}", sub.status.lower())
         payment = t(f"sub_payment_{sub.payment_term.lower()}", sub.payment_term.lower())
+        pkg_type = sub.package_type.capitalize() if sub.package_type else ""
         rows = [
             (t("sub_package"), sub.package_name),
             (t("sub_status"), status),
+            (t("sub_type"), pkg_type),
             (t("sub_price"), f"{sub.price:.2f} {sub.currency}"),
             (t("sub_payment"), payment),
+            (t("sub_term"), str(sub.term) if sub.term else ""),
+            (t("sub_trial"), str(sub.trial_term) if sub.trial_term else ""),
             (t("sub_auto_renewal"), yes_no),
             (t("sub_period"), f"{sub.start_date} — {sub.end_date}"),
             (t("sub_next_payment"), sub.next_payment_date),
         ]
+        rows = [(lbl, val) for lbl, val in rows if val]
         w = max(len(lbl) for lbl, _ in rows) + 1
         print(f"{t('sub_subscription')} — {label}:")
         for lbl, val in rows:
             print(f"  {lbl + ':':<{w}}  {val}")
+        if sub.services:
+            print(f"\n  {t('sub_services')} ({len(sub.services)}):")
+            for svc in sub.services:
+                print(f"    {svc.code:<40} {svc.description}")
         return 0
 
     vehicle_info, consumption_unit = _get_vehicle_display_context(api, vin, args)

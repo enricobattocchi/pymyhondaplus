@@ -4,14 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## 5.5.0 — 2026-04-11
 
-- Add typed `Vehicle`, `VehicleCapabilities`, `Subscription`, and `EVStatus` dataclasses
-- `get_vehicles()` now returns `list[Vehicle]` with model name, grade, year, images, capabilities, and subscription info
+- Add typed dataclasses: `Vehicle`, `VehicleCapabilities`, `Subscription`, `SubscriptionService`, `UIConfiguration`, `UserProfile`, `EVStatus`
+- `get_vehicles()` now returns `list[Vehicle]` with full vehicle specs: model name, grade, year, fuel type, transmission, doors, weight, registration/production dates, country, images, capabilities, UI config, subscription with services
 - `parse_ev_status()` now returns an `EVStatus` dataclass instead of a plain dict
 - All new types support dict-style access (`v["vin"]`, `v.get("fuel_type")`) for backward compatibility
-- Add `capabilities` CLI command to show which remote features are active per vehicle
-- Add `subscription` CLI command to show package, billing, and renewal info per vehicle
-- Add `--verbose` flag to `list` command for model details and image URLs
+- Add `get_user_profile()` method returning `UserProfile` with name, email, phone, address, language, notification preferences
+- `Subscription` now includes `package_type`, `term`, `trial_term`, and `services` list
+- `Vehicle.ui_config` exposes Honda's UI display hints (hide window/door/temperature status)
+- New CLI commands: `capabilities`, `subscription` (with services list), `profile`, `list --verbose`
+- Translated fuel types (EV/PHEV/Petrol) and transmission (Automatic/Manual) in CLI output
 - Add translations for all new CLI strings across 13 languages
+- Fix Polish `charge_speed_normal` translation
 - `AuthTokens` serialization handles both old 5-field and new Vehicle format
 
 ## 5.4.0 — 2026-04-11

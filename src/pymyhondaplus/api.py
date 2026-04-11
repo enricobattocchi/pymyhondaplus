@@ -219,17 +219,35 @@ class VehicleCapabilities:
 
 
 @dataclass
+class SubscriptionService:
+    """A service included in a subscription package."""
+    code: str = ""
+    description: str = ""
+
+    def to_dict(self) -> dict:
+        return {"code": self.code, "description": self.description}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SubscriptionService":
+        return cls(code=data.get("code", ""), description=data.get("description", ""))
+
+
+@dataclass
 class Subscription:
     """Subscription package info for a vehicle."""
     package_name: str = ""
     status: str = ""
+    package_type: str = ""
     price: float = 0.0
     currency: str = ""
     payment_term: str = ""
+    term: int = 0
+    trial_term: int = 0
     renewal: bool = False
     start_date: str = ""
     end_date: str = ""
     next_payment_date: str = ""
+    services: list[SubscriptionService] = field(default_factory=list)
 
     @classmethod
     def from_api(cls, packages: list) -> "Subscription | None":
@@ -237,36 +255,124 @@ class Subscription:
         if not packages:
             return None
         p = packages[0]
+        services = [
+            SubscriptionService(code=s.get("code", ""), description=s.get("description", ""))
+            for s in p.get("services", [])
+        ]
         return cls(
             package_name=p.get("description", ""),
             status=p.get("billStatus", ""),
+            package_type=p.get("packageType", ""),
             price=float(p.get("price", 0)),
             currency=p.get("currency1", ""),
             payment_term=p.get("paymentTerm", ""),
+            term=int(p.get("term", 0)),
+            trial_term=int(p.get("trialTerm", 0)),
             renewal=p.get("renewal", False),
             start_date=p.get("startDate", "").split("T")[0] if p.get("startDate") else "",
             end_date=p.get("endDate", "").split("T")[0] if p.get("endDate") else "",
             next_payment_date=p.get("nextPaymentDate", "").split("T")[0] if p.get("nextPaymentDate") else "",
+            services=services,
         )
 
     def to_dict(self) -> dict:
-        return {
+        d: dict = {
             "package_name": self.package_name,
             "status": self.status,
+            "package_type": self.package_type,
             "price": self.price,
             "currency": self.currency,
             "payment_term": self.payment_term,
+            "term": self.term,
+            "trial_term": self.trial_term,
             "renewal": self.renewal,
             "start_date": self.start_date,
             "end_date": self.end_date,
             "next_payment_date": self.next_payment_date,
+            "services": [s.to_dict() for s in self.services],
         }
+        return d
 
     @classmethod
     def from_dict(cls, data: dict) -> "Subscription":
         if not data:
             return cls()
+        services = [SubscriptionService.from_dict(s) for s in data.get("services", [])]
+        fields = {k: v for k, v in data.items() if k in cls.__dataclass_fields__ and k != "services"}
+        return cls(**fields, services=services)
+
+
+@dataclass
+class UIConfiguration:
+    """UI display hints from Honda for a vehicle."""
+    hide_window_status: bool = False
+    hide_rear_door_status: bool = False
+    hide_internal_temperature: bool = False
+    hide_climate_settings: bool = False
+    show_plugin_warning_climate_schedule: bool = False
+
+    @classmethod
+    def from_api(cls, cfg: dict) -> "UIConfiguration":
+        return cls(
+            hide_window_status=cfg.get("hideWindowStatus", False),
+            hide_rear_door_status=cfg.get("hideRearDoorStatus", False),
+            hide_internal_temperature=cfg.get("shouldHideInternalTemperature", False),
+            hide_climate_settings=cfg.get("shouldHideClimateSettingsButton", False),
+            show_plugin_warning_climate_schedule=cfg.get("shouldDisplayPluginWarningForClimateSchedule", False),
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "hide_window_status": self.hide_window_status,
+            "hide_rear_door_status": self.hide_rear_door_status,
+            "hide_internal_temperature": self.hide_internal_temperature,
+            "hide_climate_settings": self.hide_climate_settings,
+            "show_plugin_warning_climate_schedule": self.show_plugin_warning_climate_schedule,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "UIConfiguration":
+        if not data:
+            return cls()
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+
+
+@dataclass
+class UserProfile:
+    """User profile from the Honda account."""
+    first_name: str = ""
+    last_name: str = ""
+    title: str = ""
+    email: str = ""
+    phone_number: str = ""
+    city: str = ""
+    state: str = ""
+    postal_code: str = ""
+    postal_address: str = ""
+    country: str = ""
+    pref_language: str = ""
+    pref_notification_setting: str = ""
+    pref_notification_channels: list[str] = field(default_factory=list)
+    subs_expiry: bool = False
+
+    @classmethod
+    def from_api(cls, data: dict) -> "UserProfile":
+        return cls(
+            first_name=data.get("firstName", ""),
+            last_name=data.get("lastName", ""),
+            title=data.get("title", ""),
+            email=data.get("email", ""),
+            phone_number=data.get("phoneNumber", ""),
+            city=data.get("city", ""),
+            state=data.get("state", ""),
+            postal_code=data.get("postalCode", ""),
+            postal_address=data.get("postalAddress", ""),
+            country=data.get("country", ""),
+            pref_language=data.get("prefLanguage", ""),
+            pref_notification_setting=data.get("prefNotificationSetting", ""),
+            pref_notification_channels=data.get("prefNotificationChannel", []),
+            subs_expiry=data.get("subsExpiry", False),
+        )
 
 
 @dataclass
@@ -281,9 +387,16 @@ class Vehicle:
     grade: str = ""
     model_year: str = ""
     category_code: str = ""
+    registration_date: str = ""
+    production_date: str = ""
+    doors: int = 0
+    transmission: str = ""
+    weight: float = 0.0
+    country_code: str = ""
     image_front: str = ""
     image_side: str = ""
     capabilities: VehicleCapabilities = field(default_factory=VehicleCapabilities)
+    ui_config: UIConfiguration = field(default_factory=UIConfiguration)
     subscription: Subscription | None = None
 
     def __getitem__(self, key: str):
@@ -303,6 +416,9 @@ class Vehicle:
         """Build a Vehicle from a vehiclesInfo entry."""
         ui_config = v.get("vehicleUIConfiguration", {})
         cap_map = v.get("vehicleCapability", {})
+        prod = v.get("dateProduction", "")
+        if prod and "T" in prod:
+            prod = prod.split("T")[0]
         return cls(
             vin=v.get("vin", ""),
             name=v.get("vehicleNickName", ""),
@@ -313,9 +429,16 @@ class Vehicle:
             grade=v.get("grade", ""),
             model_year=str(v.get("modelYear", "")),
             category_code=v.get("vehicleCategoryCode", ""),
+            registration_date=v.get("registrationDate", ""),
+            production_date=prod,
+            doors=int(v.get("doors", 0)),
+            transmission=v.get("transmission", ""),
+            weight=float(v.get("weight", 0)),
+            country_code=v.get("countryCode", ""),
             image_front=v.get("vehicleFront34ImageUrl", ""),
             image_side=v.get("vehicleSideImageUrl", ""),
             capabilities=VehicleCapabilities.from_api(cap_map),
+            ui_config=UIConfiguration.from_api(ui_config),
             subscription=Subscription.from_api(v.get("packageInfo", [])),
         )
 
@@ -330,9 +453,16 @@ class Vehicle:
             "grade": self.grade,
             "model_year": self.model_year,
             "category_code": self.category_code,
+            "registration_date": self.registration_date,
+            "production_date": self.production_date,
+            "doors": self.doors,
+            "transmission": self.transmission,
+            "weight": self.weight,
+            "country_code": self.country_code,
             "image_front": self.image_front,
             "image_side": self.image_side,
             "capabilities": self.capabilities.to_dict(),
+            "ui_config": self.ui_config.to_dict(),
         }
         if self.subscription:
             d["subscription"] = self.subscription.to_dict()
@@ -342,6 +472,7 @@ class Vehicle:
     def from_dict(cls, data: dict) -> "Vehicle":
         """Deserialize from storage. Handles both old 5-field and new formats."""
         caps = data.get("capabilities")
+        ui = data.get("ui_config")
         sub = data.get("subscription")
         return cls(
             vin=data.get("vin", ""),
@@ -353,9 +484,16 @@ class Vehicle:
             grade=data.get("grade", ""),
             model_year=data.get("model_year", ""),
             category_code=data.get("category_code", ""),
+            registration_date=data.get("registration_date", ""),
+            production_date=data.get("production_date", ""),
+            doors=int(data.get("doors", 0)),
+            transmission=data.get("transmission", ""),
+            weight=float(data.get("weight", 0)),
+            country_code=data.get("country_code", ""),
             image_front=data.get("image_front", ""),
             image_side=data.get("image_side", ""),
             capabilities=VehicleCapabilities.from_dict(caps) if caps else VehicleCapabilities(),
+            ui_config=UIConfiguration.from_dict(ui) if ui else UIConfiguration(),
             subscription=Subscription.from_dict(sub) if sub else None,
         )
 
@@ -510,6 +648,11 @@ class HondaAPI:
         if resp.status_code != 200:
             raise HondaAPIError(resp.status_code, resp.text)
         return resp.json()
+
+    def get_user_profile(self, **kwargs) -> UserProfile:
+        """Get the user profile (name, email, address, preferences)."""
+        info = self.get_user_info(**kwargs)
+        return UserProfile.from_api(info)
 
     def get_vehicles(self, **kwargs) -> list[Vehicle]:
         """Return list of vehicles with model info, images, and capabilities."""

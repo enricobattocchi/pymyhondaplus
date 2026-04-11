@@ -1,8 +1,10 @@
-"""Tests for Vehicle, VehicleCapabilities, and Subscription dataclasses."""
+"""Tests for Vehicle, VehicleCapabilities, Subscription, UIConfiguration, and UserProfile."""
 
 import time
 
-from pymyhondaplus.api import AuthTokens, Subscription, Vehicle, VehicleCapabilities
+from pymyhondaplus.api import (
+    AuthTokens, Subscription, UserProfile, Vehicle, VehicleCapabilities,
+)
 
 
 # -- Sample API data matching captured response --
@@ -16,10 +18,21 @@ FULL_VEHICLE_API = {
     "grade": "E ADVANCE",
     "modelYear": 2020,
     "vehicleCategoryCode": "2EX",
+    "registrationDate": "2021-03-23",
+    "dateProduction": "2020-11-03T00:00:00.000Z",
+    "doors": 5,
+    "transmission": "A",
+    "weight": 1595.0,
+    "countryCode": "IT",
     "vehicleFront34ImageUrl": "https://example.com/front.png",
     "vehicleSideImageUrl": "https://example.com/side.png",
     "vehicleUIConfiguration": {
         "friendlyModelName": "Honda e",
+        "hideWindowStatus": False,
+        "hideRearDoorStatus": False,
+        "shouldHideInternalTemperature": False,
+        "shouldHideClimateSettingsButton": False,
+        "shouldDisplayPluginWarningForClimateSchedule": False,
     },
     "vehicleCapability": {
         "capabilities": {
@@ -43,13 +56,20 @@ FULL_VEHICLE_API = {
         {
             "description": "My Honda+",
             "billStatus": "ACTIVE",
+            "packageType": "STANDARD",
             "price": 4.99,
             "currency1": "EUR",
             "paymentTerm": "MONTHLY",
+            "term": 1,
+            "trialTerm": 0,
             "renewal": True,
             "startDate": "2026-04-05T00:00:00+00:00",
             "endDate": "2026-05-05T00:00:00+00:00",
             "nextPaymentDate": "2026-04-30T00:00:00+00:00",
+            "services": [
+                {"code": "remote-lock", "description": "Remote lock"},
+                {"code": "ev-remote-charge", "description": "Remote charge"},
+            ],
         }
     ],
 }
@@ -70,8 +90,22 @@ class TestVehicleFromApi:
         assert v.grade == "E ADVANCE"
         assert v.model_year == "2020"
         assert v.category_code == "2EX"
+        assert v.registration_date == "2021-03-23"
+        assert v.production_date == "2020-11-03"
+        assert v.doors == 5
+        assert v.transmission == "A"
+        assert v.weight == 1595.0
+        assert v.country_code == "IT"
         assert v.image_front == "https://example.com/front.png"
         assert v.image_side == "https://example.com/side.png"
+
+    def test_ui_config(self):
+        v = Vehicle.from_api(FULL_VEHICLE_API)
+        assert v.ui_config.hide_window_status is False
+        assert v.ui_config.hide_rear_door_status is False
+        assert v.ui_config.hide_internal_temperature is False
+        assert v.ui_config.hide_climate_settings is False
+        assert v.ui_config.show_plugin_warning_climate_schedule is False
 
     def test_minimal_entry(self):
         v = Vehicle.from_api(MINIMAL_VEHICLE_API)
@@ -219,13 +253,19 @@ class TestSubscription:
         assert sub is not None
         assert sub.package_name == "My Honda+"
         assert sub.status == "ACTIVE"
+        assert sub.package_type == "STANDARD"
         assert sub.price == 4.99
         assert sub.currency == "EUR"
         assert sub.payment_term == "MONTHLY"
+        assert sub.term == 1
+        assert sub.trial_term == 0
         assert sub.renewal is True
         assert sub.start_date == "2026-04-05"
         assert sub.end_date == "2026-05-05"
         assert sub.next_payment_date == "2026-04-30"
+        assert len(sub.services) == 2
+        assert sub.services[0].code == "remote-lock"
+        assert sub.services[1].description == "Remote charge"
 
     def test_from_api_empty(self):
         sub = Subscription.from_api([])
@@ -248,3 +288,64 @@ class TestSubscription:
         v = Vehicle(vin="VIN1")
         d = v.to_dict()
         assert "subscription" not in d
+
+    def test_services_roundtrip(self):
+        v = Vehicle.from_api(FULL_VEHICLE_API)
+        d = v.to_dict()
+        v2 = Vehicle.from_dict(d)
+        assert len(v2.subscription.services) == 2
+        assert v2.subscription.services[0].code == "remote-lock"
+
+
+class TestUIConfiguration:
+
+    def test_from_api(self):
+        v = Vehicle.from_api(FULL_VEHICLE_API)
+        assert v.ui_config.hide_window_status is False
+        assert v.ui_config.hide_climate_settings is False
+
+    def test_roundtrip(self):
+        v = Vehicle.from_api(FULL_VEHICLE_API)
+        d = v.to_dict()
+        v2 = Vehicle.from_dict(d)
+        assert v2.ui_config.hide_window_status is False
+
+    def test_defaults(self):
+        v = Vehicle.from_api(MINIMAL_VEHICLE_API)
+        assert v.ui_config.hide_window_status is False
+        assert v.ui_config.hide_internal_temperature is False
+
+
+class TestUserProfile:
+
+    def test_from_api(self):
+        data = {
+            "firstName": "Enrico",
+            "lastName": "Battocchi",
+            "title": "Signor",
+            "email": "user@example.com",
+            "phoneNumber": "+39123456789",
+            "city": "Livorno",
+            "state": "Livorno",
+            "postalCode": "57124",
+            "postalAddress": "Via Test 1",
+            "country": "IT",
+            "prefLanguage": "it",
+            "prefNotificationSetting": "On",
+            "prefNotificationChannel": ["SmartphonePush"],
+            "subsExpiry": True,
+        }
+        p = UserProfile.from_api(data)
+        assert p.first_name == "Enrico"
+        assert p.last_name == "Battocchi"
+        assert p.email == "user@example.com"
+        assert p.city == "Livorno"
+        assert p.country == "IT"
+        assert p.pref_language == "it"
+        assert p.pref_notification_channels == ["SmartphonePush"]
+        assert p.subs_expiry is True
+
+    def test_from_empty(self):
+        p = UserProfile.from_api({})
+        assert p.first_name == ""
+        assert p.subs_expiry is False

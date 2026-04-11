@@ -26,9 +26,10 @@ pymyhondaplus login --email user@example.com
 
 # Vehicle info
 pymyhondaplus list                      # VIN, model, plate
-pymyhondaplus list -v                   # grade, year, image URLs
+pymyhondaplus list -v                   # full specs: grade, year, fuel, weight, ...
 pymyhondaplus capabilities              # remote features per vehicle
-pymyhondaplus subscription              # package and billing info
+pymyhondaplus subscription              # package, billing, included services
+pymyhondaplus profile                   # account name, email, address
 
 # Vehicle status
 pymyhondaplus status
