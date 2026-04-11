@@ -399,6 +399,10 @@ except HondaAPIError as e:
 
 Transient errors (5xx, connection timeouts) are automatically retried up to 3 times with backoff.
 
+### Thread safety
+
+`HondaAPI` is thread-safe: a single instance can be shared across multiple threads (e.g. Home Assistant's thread pool) without external locking. All HTTP requests and token refresh operations are serialized internally.
+
 ### Breaking changes in 5.0.0
 
 `poll_command()` now returns a `CommandResult` object instead of a raw `dict`. If you were using the old return format (`{"status_code": ..., "data": ...}`), update your code to use `CommandResult` fields instead.

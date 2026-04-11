@@ -66,11 +66,11 @@ class TestRequestAuth:
         resp_ok = _mock_response(200, {"data": "fresh"})
         api.session.request = MagicMock(side_effect=[resp_401, resp_ok])
 
-        # Mock refresh_auth to update the token
+        # Mock _refresh_auth_locked to update the token
         def fake_refresh():
             api.tokens.access_token = "newtok"
             return api.tokens
-        api.refresh_auth = fake_refresh
+        api._refresh_auth_locked = fake_refresh
 
         result = api._request("GET", "/test")
 
@@ -148,7 +148,7 @@ class TestPutMethods:
         def fake_refresh():
             api.tokens.access_token = "refreshed"
             return api.tokens
-        api.refresh_auth = fake_refresh
+        api._refresh_auth_locked = fake_refresh
 
         result = api.set_charge_limit("VIN123", home=80, away=90)
 

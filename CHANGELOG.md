@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.4.0 — 2026-04-11
+
+- Add thread-safety to `HondaAPI` so a single instance can be shared across threads without external locking
+- All `session.request()` calls and token refresh are serialized via an internal lock
+- Concurrent `refresh_auth()` calls are deduplicated (only one thread refreshes, others reuse the result)
+
 ## 5.3.1 — 2026-04-11
 
 - Fix lint errors

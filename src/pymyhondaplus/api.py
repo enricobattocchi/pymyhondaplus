@@ -8,6 +8,7 @@ Tested on Honda e. Should work with other Honda Connect Europe vehicles
 import os
 import time
 import logging
+import threading
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, TYPE_CHECKING
@@ -167,6 +168,7 @@ class HondaAPI:
                  token_file: Optional[Path] = None):
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
+        self._lock = threading.Lock()
         retry = Retry(
             total=3,
             backoff_factor=1,
@@ -200,18 +202,30 @@ class HondaAPI:
                    expires_in: int = 3599, personal_id: str = "",
                    user_id: str = "", vehicles: list[dict] | None = None):
         """Set authentication tokens."""
-        self.tokens = AuthTokens(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            expires_at=time.time() + expires_in,
-            personal_id=personal_id,
-            user_id=user_id,
-            vehicles=vehicles or [],
-        )
-        self._save_tokens()
+        with self._lock:
+            self.tokens = AuthTokens(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_at=time.time() + expires_in,
+                personal_id=personal_id,
+                user_id=user_id,
+                vehicles=vehicles or [],
+            )
+            self._save_tokens()
 
     def refresh_auth(self) -> AuthTokens:
-        """Refresh the access token via Honda's auth API."""
+        """Refresh the access token via Honda's auth API.
+
+        Thread-safe: acquires the lock and skips the refresh if another
+        thread already refreshed since the caller last checked.
+        """
+        with self._lock:
+            if not self.tokens.is_expired:
+                return self.tokens
+            return self._refresh_auth_locked()
+
+    def _refresh_auth_locked(self) -> AuthTokens:
+        """Refresh the access token. Caller must hold self._lock."""
         if not self.tokens.refresh_token:
             raise HondaAuthError(401, "No refresh token")
 
@@ -233,36 +247,39 @@ class HondaAPI:
         return self.tokens
 
     def _ensure_auth(self):
-        """Ensure we have a valid access token."""
+        """Ensure we have a valid access token. Caller must hold self._lock."""
         if not self.tokens.access_token:
             raise HondaAuthError(401, "No tokens configured")
         if self.tokens.is_expired:
-            self.refresh_auth()
+            self._refresh_auth_locked()
 
     def _request(self, method: str, path: str, **kwargs) -> requests.Response:
-        """Make an authenticated API request."""
-        self._ensure_auth()
+        """Make an authenticated API request. Thread-safe."""
+        with self._lock:
+            self._ensure_auth()
 
-        headers = {
-            "authorization": f"Bearer {self.tokens.access_token}",
-        }
-        if self.tokens.personal_id:
-            headers["x-app-personal-id"] = self.tokens.personal_id
+            headers = {
+                "authorization": f"Bearer {self.tokens.access_token}",
+            }
+            if self.tokens.personal_id:
+                headers["x-app-personal-id"] = self.tokens.personal_id
 
-        resp = self.session.request(
-            method, f"{API_BASE}{path}", headers=headers, **kwargs,
-        )
-
-        if resp.status_code == 401:
-            self.refresh_auth()
-            headers["authorization"] = f"Bearer {self.tokens.access_token}"
             resp = self.session.request(
                 method, f"{API_BASE}{path}", headers=headers, **kwargs,
             )
-            if resp.status_code == 401:
-                raise HondaAuthError(401, "Authentication failed after token refresh")
 
-        return resp
+            if resp.status_code == 401:
+                self._refresh_auth_locked()
+                headers["authorization"] = f"Bearer {self.tokens.access_token}"
+                resp = self.session.request(
+                    method, f"{API_BASE}{path}", headers=headers, **kwargs,
+                )
+                if resp.status_code == 401:
+                    raise HondaAuthError(
+                        401, "Authentication failed after token refresh",
+                    )
+
+            return resp
 
     # -- Vehicle data --
 
