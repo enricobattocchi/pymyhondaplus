@@ -1,0 +1,73 @@
+name: Translation
+description: Add a new language or fix an existing translation
+title: "Add or fix translation: [language]"
+labels: ["translation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping translate pymyhondaplus!
+        Translations live in `src/pymyhondaplus/translations.py` inside the
+        `TRANSLATIONS` dictionary. Please fill in the fields below.
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      description: Select the language you are contributing.
+      options:
+        - "Czech (cs)"
+        - "Danish (da)"
+        - "Dutch (nl)"
+        - "English (en)"
+        - "French (fr)"
+        - "German (de)"
+        - "Hungarian (hu)"
+        - "Italian (it)"
+        - "Norwegian (no)"
+        - "Polish (pl)"
+        - "Slovak (sk)"
+        - "Spanish (es)"
+        - "Swedish (sv)"
+        - "Other (specify in notes)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: contribution_type
+    attributes:
+      label: Contribution type
+      options:
+        - "New translation"
+        - "Fix / improve existing translation"
+    validations:
+      required: true
+
+  - type: textarea
+    id: corrections
+    attributes:
+      label: Corrections
+      description: >
+        **For fixes only.** List the keys and their corrected values.
+        Use the Python dictionary key so the change is unambiguous.
+      placeholder: |
+        TRANSLATIONS["de"]["battery_label"]: "Batterie" -> "Akkustand (%)"
+        TRANSLATIONS["de"]["climate_label"]: "old text" -> "corrected text"
+
+  - type: textarea
+    id: translation_full
+    attributes:
+      label: Full translation dictionary
+      description: >
+        **For new translations only.** Copy the `"en"` block from
+        [`translations.py`](https://github.com/enricobattocchi/pymyhondaplus/blob/main/src/pymyhondaplus/translations.py),
+        translate the values (not the keys), and paste the result here.
+      render: python
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: >
+        Any additional context — e.g. regional variants, partial translation,
+        source of the translation strings.

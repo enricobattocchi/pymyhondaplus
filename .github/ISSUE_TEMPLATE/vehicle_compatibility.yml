@@ -1,0 +1,90 @@
+name: Vehicle Compatibility Report
+description: Report how well pymyhondaplus works with your Honda model
+title: "[Compatibility]: "
+labels: ["compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This library is tested primarily on Honda e. If you use a different
+        Honda Connect Europe vehicle, your feedback helps us improve support
+        for all models. Thanks!
+
+  - type: dropdown
+    id: vehicle_model
+    attributes:
+      label: Vehicle model
+      description: Select your Honda model.
+      options:
+        - "Honda e"
+        - "e:Ny1"
+        - "ZR-V"
+        - "CR-V"
+        - "Civic"
+        - "HR-V"
+        - "Jazz"
+        - "Other (specify below)"
+    validations:
+      required: true
+
+  - type: input
+    id: model_year
+    attributes:
+      label: Model year
+      placeholder: "e.g. 2024"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: pymyhondaplus version
+      placeholder: "e.g. 5.3.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: powertrain
+    attributes:
+      label: Powertrain
+      options:
+        - "Full EV"
+        - "Hybrid (e:HEV)"
+        - "Petrol"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: working_features
+    attributes:
+      label: Working features
+      description: Check the features that work correctly on your vehicle.
+      options:
+        - label: "Authentication & login"
+        - label: "Vehicle status (doors, windows, lights)"
+        - label: "Battery / fuel level"
+        - label: "Location"
+        - label: "Remote lock / unlock"
+        - label: "Remote horn / hazards"
+        - label: "Climate control"
+        - label: "Charging status & schedules (EV/PHEV)"
+        - label: "Trip history & statistics"
+
+  - type: textarea
+    id: issues
+    attributes:
+      label: Issues or missing data
+      description: >
+        Describe any commands that fail, fields that return unexpected values,
+        or data that is missing compared to the My Honda+ app.
+      placeholder: |
+        - `status` shows battery level as "N/A"
+        - `trips` returns empty list even though app shows trips
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: >
+        Any other details — firmware version, region, screenshots comparing
+        app vs CLI output, etc.
