@@ -1,0 +1,95 @@
+name: Bug Report
+description: Report a bug or unexpected behaviour
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill in as much detail as you can
+        so we can reproduce and fix the issue.
+
+  - type: input
+    id: version
+    attributes:
+      label: pymyhondaplus version
+      description: >
+        Run `pip show pymyhondaplus` or check `pymyhondaplus --version`.
+      placeholder: "e.g. 5.3.1"
+    validations:
+      required: true
+
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      description: Output of `python --version`.
+      placeholder: "e.g. 3.12.3"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: vehicle_model
+    attributes:
+      label: Vehicle model
+      description: Select your Honda model.
+      options:
+        - "Honda e"
+        - "e:Ny1"
+        - "ZR-V"
+        - "CR-V"
+        - "Civic"
+        - "HR-V"
+        - "Jazz"
+        - "Other (specify below)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: usage
+    attributes:
+      label: How are you using the library?
+      options:
+        - "CLI (command line)"
+        - "Python API (import pymyhondaplus)"
+        - "Both"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear description of the bug.
+      placeholder: What happened? What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >
+        The exact command or code snippet that triggers the bug.
+      placeholder: |
+        1. Run `pymyhondaplus status`
+        2. See error ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output / traceback
+      description: >
+        Paste the full error output. **Remove or redact any personal
+        information** (email, VIN, tokens, coordinates).
+      render: shell
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: >
+        Any other information that might help — OS, network setup, whether
+        the My Honda+ mobile app works at the same time, etc.
