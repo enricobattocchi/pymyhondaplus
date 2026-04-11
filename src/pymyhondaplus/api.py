@@ -1040,7 +1040,10 @@ class HondaAPI:
         resp = self._request("PUT", "/tsp/geo-fence-config", json=body)
         if resp.status_code != 200:
             raise HondaAPIError(resp.status_code, resp.text)
-        return Geofence.from_api(resp.json())
+        gf = Geofence.from_api(resp.json())
+        if gf is None:
+            raise HondaAPIError(200, "Geofence was not activated after set")
+        return gf
 
     def wait_for_geofence(self, vin: str, timeout: int = 120,
                           poll_interval: float = 5.0) -> Geofence | None:

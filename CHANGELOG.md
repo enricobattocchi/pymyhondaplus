@@ -2,22 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
-## 5.5.0 — 2026-04-11
+## 5.6.0 — 2026-04-11
 
-- Add geofence management: `get_geofence`, `set_geofence`, `clear_geofence` API methods with `Geofence` dataclass
+- Add geofence management: `get_geofence`, `set_geofence` (with polling), `clear_geofence` API methods with `Geofence` dataclass
 - New CLI commands: `geofence`, `geofence-set`, `geofence-clear`
 - Coordinates are accepted/returned in degrees; MAS conversion handled internally
-- Add typed dataclasses: `Vehicle`, `VehicleCapabilities`, `Subscription`, `SubscriptionService`, `UIConfiguration`, `UserProfile`, `EVStatus`
-- `get_vehicles()` now returns `list[Vehicle]` with full vehicle specs: model name, grade, year, fuel type, transmission, doors, weight, registration/production dates, country, images, capabilities, UI config, subscription with services
+- Add `Vehicle` fields: registration/production dates, doors, transmission, weight, country
+- Add `UIConfiguration` with Honda's UI display hints (hide window/door/temperature status)
+- Add `Subscription` fields: `package_type`, `term`, `trial_term`, `services` list
+- Add `UserProfile` dataclass and `get_user_profile()` API method
+- New CLI commands: `profile`, `subscription` now shows services list
+- Translated fuel types (EV/PHEV/Petrol) and transmission (Automatic/Manual) in CLI output
+- Fix Polish `charge_speed_normal` translation
+
+## 5.5.0 — 2026-04-11
+
+- Add typed dataclasses: `Vehicle`, `VehicleCapabilities`, `Subscription`, `EVStatus`
+- `get_vehicles()` now returns `list[Vehicle]` with model name, grade, year, images, capabilities, and subscription info
 - `parse_ev_status()` now returns an `EVStatus` dataclass instead of a plain dict
 - All new types support dict-style access (`v["vin"]`, `v.get("fuel_type")`) for backward compatibility
-- Add `get_user_profile()` method returning `UserProfile` with name, email, phone, address, language, notification preferences
-- `Subscription` now includes `package_type`, `term`, `trial_term`, and `services` list
-- `Vehicle.ui_config` exposes Honda's UI display hints (hide window/door/temperature status)
-- New CLI commands: `capabilities`, `subscription` (with services list), `profile`, `list --verbose`
-- Translated fuel types (EV/PHEV/Petrol) and transmission (Automatic/Manual) in CLI output
+- New CLI commands: `capabilities`, `subscription`, `list --verbose`
 - Add translations for all new CLI strings across 13 languages
-- Fix Polish `charge_speed_normal` translation
 - `AuthTokens` serialization handles both old 5-field and new Vehicle format
 
 ## 5.4.0 — 2026-04-11
