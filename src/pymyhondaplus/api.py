@@ -376,6 +376,39 @@ class UserProfile:
 
 
 @dataclass
+class Geofence:
+    """Geofence configuration for a vehicle."""
+    active: bool = False
+    name: str = ""
+    latitude: float = 0.0
+    longitude: float = 0.0
+    radius: float = 0.0
+    schedule_type: str = ""
+    processing: bool = False
+    waiting_activate: bool = False
+    waiting_deactivate: bool = False
+
+    @classmethod
+    def from_api(cls, data: dict) -> "Geofence | None":
+        """Parse geofence config. Returns None if no geofence is set."""
+        if data.get("activationEnable") == "disabled":
+            return None
+        setup = data.get("geoFenceSetup", {})
+        coord = setup.get("gpsDetails", {}).get("coordinate", {})
+        return cls(
+            active=data.get("activationSetup") == "active",
+            name=data.get("nickName", ""),
+            latitude=coord.get("latitude", 0) / 3_600_000,
+            longitude=coord.get("longitude", 0) / 3_600_000,
+            radius=float(setup.get("radius", {}).get("value", 0)),
+            schedule_type=data.get("schedule", {}).get("type", ""),
+            processing=data.get("isCommandProcessing", False),
+            waiting_activate=data.get("isWaitingForActivate", False),
+            waiting_deactivate=data.get("isWaitingForDeactivate", False),
+        )
+
+
+@dataclass
 class Vehicle:
     """A vehicle from the Honda account."""
     vin: str = ""
@@ -965,6 +998,71 @@ class HondaAPI:
             "/tsp/remote-climate-schedule",
             {"vin": vin, "acTimerSettings": settings},
         )
+
+    # -- Geofence --
+
+    def get_geofence(self, vin: str) -> Geofence | None:
+        """Get current geofence config. Returns None if no geofence is set."""
+        resp = self._request("GET", f"/tsp/geo-fence-config?vin={vin}")
+        if resp.status_code != 200:
+            raise HondaAPIError(resp.status_code, resp.text)
+        return Geofence.from_api(resp.json())
+
+    def set_geofence(self, vin: str, latitude: float, longitude: float,
+                     radius: float = 1.0, name: str = "Geofence") -> Geofence:
+        """Create or update the geofence. Returns updated config.
+
+        Args:
+            vin: Vehicle VIN
+            latitude: Center latitude in degrees
+            longitude: Center longitude in degrees
+            radius: Radius in km (default: 1.0)
+            name: Geofence display name (default: "Geofence")
+        """
+        lat_mas = int(latitude * 3_600_000)
+        lon_mas = int(longitude * 3_600_000)
+        body = {
+            "nickName": name,
+            "activationSetup": "active",
+            "geoFenceSetup": {
+                "type": {"type": "circle", "mode": "inclusion"},
+                "radius": {"value": radius, "unit": "km"},
+                "gpsDetails": {
+                    "coordinate": {
+                        "latitude": lat_mas, "longitude": lon_mas,
+                        "datum": "wgs84", "format": "mas",
+                    }
+                },
+            },
+            "schedule": {"type": "always"},
+            "vin": vin,
+        }
+        resp = self._request("PUT", "/tsp/geo-fence-config", json=body)
+        if resp.status_code != 200:
+            raise HondaAPIError(resp.status_code, resp.text)
+        return Geofence.from_api(resp.json())
+
+    def wait_for_geofence(self, vin: str, timeout: int = 120,
+                          poll_interval: float = 5.0) -> Geofence | None:
+        """Poll geofence config until processing completes or timeout."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            gf = self.get_geofence(vin)
+            if gf is None or not gf.processing:
+                return gf
+            time.sleep(poll_interval)
+        return gf
+
+    def clear_geofence(self, vin: str) -> str:
+        """Delete the geofence. Returns async command ID for polling."""
+        resp = self._request("DELETE", f"/tsp/geo-fence-config?vin={vin}")
+        if resp.status_code not in (200, 202):
+            raise HondaAPIError(resp.status_code, resp.text)
+        data = resp.json()
+        uri = data.get("statusQueryGetUri", "")
+        return uri.split("id=")[-1] if "id=" in uri else ""
+
+    # -- Drivers --
 
     def get_drivers(self, vin: str) -> dict:
         """Get drivers associated with the vehicle."""

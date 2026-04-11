@@ -36,6 +36,11 @@ pymyhondaplus status
 pymyhondaplus status --fresh            # wake TCU for fresh data
 pymyhondaplus status --watch 5m         # poll and print changes
 
+# Geofence
+pymyhondaplus geofence                                  # show current
+pymyhondaplus geofence-set --lat 41.890251 --lon 12.492373  # set 1 km radius
+pymyhondaplus geofence-clear                            # delete
+
 # Remote commands
 pymyhondaplus lock
 pymyhondaplus unlock

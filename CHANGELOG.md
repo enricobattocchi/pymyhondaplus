@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## 5.5.0 — 2026-04-11
 
+- Add geofence management: `get_geofence`, `set_geofence`, `clear_geofence` API methods with `Geofence` dataclass
+- New CLI commands: `geofence`, `geofence-set`, `geofence-clear`
+- Coordinates are accepted/returned in degrees; MAS conversion handled internally
 - Add typed dataclasses: `Vehicle`, `VehicleCapabilities`, `Subscription`, `SubscriptionService`, `UIConfiguration`, `UserProfile`, `EVStatus`
 - `get_vehicles()` now returns `list[Vehicle]` with full vehicle specs: model name, grade, year, fuel type, transmission, doors, weight, registration/production dates, country, images, capabilities, UI config, subscription with services
 - `parse_ev_status()` now returns an `EVStatus` dataclass instead of a plain dict

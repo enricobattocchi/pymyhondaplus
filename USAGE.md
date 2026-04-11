@@ -75,6 +75,24 @@ pymyhondaplus profile
 
 Note: `capabilities` and `subscription` use data cached by `list`. Run `list` at least once after login to populate the data.
 
+### Geofence
+
+Manage a circular geofence around a location. You'll get a notification when your car moves outside the radius.
+
+```bash
+# Show current geofence
+pymyhondaplus geofence
+
+# Set a 1 km geofence around coordinates
+pymyhondaplus geofence-set --lat 41.890251 --lon 12.492373 --radius 1
+
+# Set with custom name and larger radius
+pymyhondaplus geofence-set --lat 41.890251 --lon 12.492373 --radius 5 --name "Home"
+
+# Delete the geofence
+pymyhondaplus geofence-clear
+```
+
 ## Vehicle status
 
 ```bash
@@ -411,6 +429,22 @@ profile.email                   # "user@example.com"
 profile.country                 # "IT"
 profile.pref_language           # "it"
 profile.subs_expiry             # True (subscription about to expire)
+
+# Geofence
+gf = api.get_geofence("JHMZC7840LXXXXXX")
+if gf:
+    gf.latitude         # 41.890251
+    gf.longitude        # 12.492373
+    gf.radius           # 5.0 (km)
+    gf.active           # True
+    gf.processing       # False
+
+# Set geofence (coordinates in degrees, radius in km)
+gf = api.set_geofence("JHMZC7840LXXXXXX", latitude=41.890251, longitude=12.492373, radius=1.0)
+
+# Delete geofence (returns async command ID)
+cmd_id = api.clear_geofence("JHMZC7840LXXXXXX")
+result = api.poll_command(cmd_id)
 
 # Backward-compatible dict access still works
 v["vin"]            # "JHMZC7840LXXXXXX"

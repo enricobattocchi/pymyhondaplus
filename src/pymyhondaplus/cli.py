@@ -660,6 +660,7 @@ CONFIRM_COMMANDS = frozenset({
     "climate-schedule-set", "climate-schedule-clear",
     "charge-start", "charge-stop", "charge-limit",
     "charge-schedule-set", "charge-schedule-clear",
+    "geofence-set", "geofence-clear",
 })
 
 
@@ -767,6 +768,7 @@ vehicle selection (only needed with multiple vehicles):
     subparsers.add_parser("capabilities", parents=[_common], help="Show vehicle capabilities")
     subparsers.add_parser("subscription", parents=[_common], help="Show subscription info")
     subparsers.add_parser("profile", parents=[_common], help="Show user profile")
+    subparsers.add_parser("geofence", parents=[_common], help="Show geofence config")
 
     # vehicle commands
     status_parser = subparsers.add_parser("status", parents=[_common], help="Get vehicle status")
@@ -840,6 +842,13 @@ vehicle selection (only needed with multiple vehicles):
                                        help="Which slot to set (1-7, default: 1)")
 
     subparsers.add_parser("climate-schedule-clear", parents=[_common, _yes], help="Clear climate schedule")
+
+    geofence_set = subparsers.add_parser("geofence-set", parents=[_common, _yes], help="Set geofence")
+    geofence_set.add_argument("--lat", type=float, required=True, help="Latitude (degrees)")
+    geofence_set.add_argument("--lon", type=float, required=True, help="Longitude (degrees)")
+    geofence_set.add_argument("--radius", type=float, default=1.0, help="Radius in km (default: 1.0)")
+    geofence_set.add_argument("--name", default="Geofence", help="Geofence name")
+    subparsers.add_parser("geofence-clear", parents=[_common, _yes], help="Delete geofence")
 
     trips = subparsers.add_parser("trips", parents=[_common], help="Get recent trip history")
     trips.add_argument("--month", default="",
@@ -1055,6 +1064,57 @@ def _run_main(args: argparse.Namespace, storage) -> int:
             for svc in sub.services:
                 print(f"    {svc.code:<40} {svc.description}")
         return 0
+
+    if args.command == "geofence":
+        t = get_translator()
+        if args.json:
+            gf = api.get_geofence(vin)
+            import dataclasses as _dc
+            print(json.dumps(_dc.asdict(gf) if gf else {}, indent=2))
+            return 0
+        gf = api.get_geofence(vin)
+        if gf is None:
+            print(t("geofence_none"))
+            return 0
+        active = t("cap_active") if gf.active else t("cap_not_supported")
+        rows = [
+            (t("geofence_name"), gf.name),
+            (t("geofence_status"), active),
+            (t("coordinates_label"), f"{gf.latitude:.6f}, {gf.longitude:.6f}"),
+            (t("geofence_radius"), f"{gf.radius} km"),
+        ]
+        if gf.processing:
+            rows.append((t("geofence_processing"), t("on")))
+        rows = [(lbl, val) for lbl, val in rows if val]
+        vehicle = next((v for v in api.tokens.vehicles if v["vin"] == vin), None)
+        vlabel = vehicle.name if vehicle else vin
+        w = max(len(lbl) for lbl, _ in rows) + 1
+        print(f"{t('geofence_heading')} — {vlabel}:")
+        for lbl, val in rows:
+            print(f"  {lbl + ':':<{w}}  {val}")
+        return 0
+
+    if args.command == "geofence-set":
+        t = get_translator()
+        api.set_geofence(vin, args.lat, args.lon, args.radius, args.name)
+        print(f"{t('geofence_processing')}...", end="", flush=True)
+        gf = api.wait_for_geofence(vin, timeout=args.timeout)
+        print()
+        if gf is None:
+            print(t("geofence_none"))
+            return 1
+        vehicle = next((v for v in api.tokens.vehicles if v["vin"] == vin), None)
+        vlabel = vehicle.name if vehicle else vin
+        active = t("cap_active") if gf.active else t("cap_not_supported")
+        print(f"{t('geofence_heading')} — {vlabel} — {active}")
+        print(f"  {t('geofence_name')}:   {gf.name}")
+        print(f"  {t('coordinates_label')}: {gf.latitude:.6f}, {gf.longitude:.6f}")
+        print(f"  {t('geofence_radius')}:  {gf.radius} km")
+        return 0
+
+    if args.command == "geofence-clear":
+        cmd_id = api.clear_geofence(vin)
+        return _wait_command(api, args.timeout, cmd_id, "Geofence clear")
 
     vehicle_info, consumption_unit = _get_vehicle_display_context(api, vin, args)
 
