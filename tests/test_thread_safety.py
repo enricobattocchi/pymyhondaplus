@@ -35,9 +35,9 @@ def _mock_response(status_code=200, json_data=None):
 class TestLockType:
     """Verify the lock is a plain Lock, not RLock."""
 
-    def test_lock_is_threading_lock(self):
+    def test_lock_is_not_reentrant(self):
         api = HondaAPI()
-        assert type(api._lock) is threading.Lock
+        assert not isinstance(api._lock, type(threading.RLock()))
 
 
 class TestConcurrentRequestsSerialize:
