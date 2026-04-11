@@ -7,6 +7,10 @@ All notable changes to this project will be documented in this file.
 - Add thread-safety to `HondaAPI` so a single instance can be shared across threads without external locking
 - All `session.request()` calls and token refresh are serialized via an internal lock
 - Concurrent `refresh_auth()` calls are deduplicated (only one thread refreshes, others reuse the result)
+- Remove redundant `range` field, use `range_climate_on`/`range_climate_off`
+- Add GitHub issue and PR templates
+- Bump development status from Alpha to Beta
+- Add CHANGELOG.md and CONTRIBUTING.md
 
 ## 5.3.1 — 2026-04-11
 
