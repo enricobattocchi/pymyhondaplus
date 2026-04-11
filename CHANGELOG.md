@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## 5.6.0 — 2026-04-11
+## 5.6.0 — 2026-04-12
 
 - Add geofence management: `get_geofence`, `set_geofence` (with polling), `clear_geofence` API methods with `Geofence` dataclass
 - New CLI commands: `geofence`, `geofence-set`, `geofence-clear`
@@ -15,6 +15,9 @@ All notable changes to this project will be documented in this file.
 - Translated fuel types (EV/PHEV/Petrol) and transmission (Automatic/Manual) in CLI output
 - Capability checks at library level: all command methods raise `ValueError` if the feature is not supported
 - Translated confirmation prompt, abort message, and capability error across 13 languages
+- Add configurable HTTP request timeout (`--http-timeout`, `HONDA_REQUEST_TIMEOUT` env var, `request_timeout` constructor parameter)
+- Default 10-second timeout on all HTTP requests to prevent indefinite hangs
+- Retry only on 5xx status responses; transport errors (timeouts, connection failures) fail fast
 - Fix Polish `charge_speed_normal` translation
 
 ## 5.5.0 — 2026-04-11

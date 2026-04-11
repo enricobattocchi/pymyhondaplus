@@ -317,6 +317,7 @@ These must be placed **before** the subcommand:
 | `--token-file PATH` | Custom token file path (or set `HONDA_TOKEN_FILE`) |
 | `--key-file PATH` | Custom device key file path (or set `HONDA_KEY_FILE`) |
 | `--storage {auto,keyring,encrypted,plain}` | Storage backend for secrets (or set `HONDA_STORAGE`) |
+| `--http-timeout SECONDS` | Timeout for each HTTP request (default: 10, or set `HONDA_REQUEST_TIMEOUT`) |
 | `--user-info` | Show full user info and vehicle details as JSON |
 
 ## Subcommand options
@@ -526,7 +527,16 @@ except ValueError as e:
     print(f"Not supported: {e}")
 ```
 
-Transient errors (5xx, connection timeouts) are automatically retried up to 3 times with backoff.
+All HTTP requests have a 10-second default timeout. You can override it per-instance:
+
+```python
+api = HondaAPI(request_timeout=30)
+auth = HondaAuth(request_timeout=30)
+```
+
+Or globally via the `HONDA_REQUEST_TIMEOUT` environment variable.
+
+Transient 5xx errors are automatically retried up to 3 times with backoff. Transport-level errors (timeouts, connection failures) are not retried.
 
 ### Thread safety
 
