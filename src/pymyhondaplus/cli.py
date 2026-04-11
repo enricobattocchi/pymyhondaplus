@@ -179,7 +179,8 @@ def _confirm_command(args: argparse.Namespace) -> int | None:
     """Prompt for destructive commands, returning 0 if aborted."""
     if args.command in CONFIRM_COMMANDS and not getattr(args, "yes", False) and sys.stdin.isatty():
         if not _confirm(args.command):
-            print("Aborted.")
+            t = get_translator()
+            print(t("aborted"))
             return 0
     return None
 
@@ -666,8 +667,9 @@ CONFIRM_COMMANDS = frozenset({
 
 def _confirm(command: str) -> bool:
     """Prompt for confirmation. Returns True if user confirms."""
+    t = get_translator()
     try:
-        answer = input(f"Execute '{command}'? [y/N] ").strip().lower()
+        answer = input(f"{t('confirm_execute')} '{command}'? [y/N] ").strip().lower()
     except (EOFError, KeyboardInterrupt):
         print()
         return False
@@ -1210,6 +1212,15 @@ def main() -> int:
         if "--debug" in sys.argv:
             raise
         print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        if "does not support" in str(e):
+            t = get_translator()
+            print(t("feature_not_available"), file=sys.stderr)
+        else:
+            if "--debug" in sys.argv:
+                raise
+            print(f"Error: {e}", file=sys.stderr)
         return 1
     except Exception as e:
         if "--debug" in sys.argv:

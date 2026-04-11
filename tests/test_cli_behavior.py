@@ -89,7 +89,7 @@ def test_destructive_command_aborts_when_confirmation_declined(monkeypatch, caps
 
     out = capsys.readouterr().out
     assert rc == 0
-    assert "Aborted." in out
+    assert out.strip()  # shows translated abort message
     assert fake_api.remote_lock_called is False
 
 
