@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.7.0 — 2026-04-13
+
+- Add `activate_status` and `deactivate_status` fields to `Geofence` dataclass (maps `activateAsyncCommandStatus` / `deactivateAsyncCommandStatus` from the API)
+- `wait_for_geofence()` exits early when the server reports the vehicle is unreachable (`"failure"` or `"timeout"` status) instead of polling until deadline
+- Increase default polling timeouts: `wait_for_command` 60→90s, `get_dashboard` 90→120s, `wait_for_geofence` 120→420s (based on observed server-side timeouts)
+- CLI geofence set/clear now show a spinner during polling
+- Translate all CLI command labels and result messages (done/failed/timed out) across 13 languages
+- Downgrade token refresh log messages from INFO to DEBUG
+
+### Migration notes for library consumers
+
+- `wait_for_geofence()` can now return a `Geofence` with `processing=True` when the server reports failure. Check `gf.activate_status` or `gf.deactivate_status` for `"failure"` / `"timeout"` to detect vehicle-unreachable conditions.
+- Default timeouts are longer; pass explicit `timeout=` if you need the old behavior.
+
 ## 5.6.3 — 2026-04-12
 
 - Increase default HTTP timeout for auth endpoints from 10s to 30s (`DEFAULT_AUTH_TIMEOUT`); configurable via `HONDA_AUTH_TIMEOUT` env var

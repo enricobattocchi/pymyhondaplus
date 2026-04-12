@@ -434,18 +434,29 @@ profile.subs_expiry             # True (subscription about to expire)
 # Geofence
 gf = api.get_geofence("JHMZC7840LXXXXXX")
 if gf:
-    gf.latitude         # 41.890251
-    gf.longitude        # 12.492373
-    gf.radius           # 5.0 (km)
-    gf.active           # True
-    gf.processing       # False
+    gf.latitude           # 41.890251
+    gf.longitude          # 12.492373
+    gf.radius             # 5.0 (km)
+    gf.active             # True
+    gf.processing         # False
+    gf.activate_status    # "success", "failure", "timeout", or ""
+    gf.deactivate_status  # "success", "failure", "timeout", or ""
 
 # Set geofence (coordinates in degrees, radius in km)
 gf = api.set_geofence("JHMZC7840LXXXXXX", latitude=41.890251, longitude=12.492373, radius=1.0)
 
+# Wait for geofence to be confirmed by the car (or fail)
+gf = api.wait_for_geofence("JHMZC7840LXXXXXX")
+if gf is None:
+    print("Geofence deleted")
+elif gf.activate_status in ("failure", "timeout"):
+    print("Vehicle unreachable")
+elif not gf.processing:
+    print("Geofence active")
+
 # Delete geofence (returns async command ID)
-cmd_id = api.clear_geofence("JHMZC7840LXXXXXX")
-result = api.poll_command(cmd_id)
+api.clear_geofence("JHMZC7840LXXXXXX")
+gf = api.wait_for_geofence("JHMZC7840LXXXXXX")  # None when deleted
 
 # Backward-compatible dict access still works
 v["vin"]            # "JHMZC7840LXXXXXX"
