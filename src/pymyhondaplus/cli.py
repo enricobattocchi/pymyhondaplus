@@ -158,21 +158,21 @@ def _get_vehicle_display_context(api: HondaAPI, vin: str, args: argparse.Namespa
 
 def _wait_command(api: HondaAPI, timeout: int, cmd_id: str, label: str) -> int:
     """Wait for a remote command and return an exit code."""
+    t = get_translator()
     with _Spinner(label):
         result = api.wait_for_command(cmd_id, timeout=timeout)
     if result.success:
-        print(f"{label}: done!")
+        print(f"{label}: {t('cmd_done')}")
         return 0
     elif not result.complete and result.status == "no_command_id":
-        print(f"{label}: failed (no command ID returned)", file=sys.stderr)
+        print(f"{label}: {t('cmd_failed')}", file=sys.stderr)
         return 1
     elif result.timed_out:
-        reason = result.reason or "car may be unreachable"
-        print(f"{label}: timed out ({reason})", file=sys.stderr)
+        print(f"{label}: {t('cmd_timed_out')}", file=sys.stderr)
         return 1
     else:
         reason = result.reason or result.status
-        print(f"{label}: failed ({reason})", file=sys.stderr)
+        print(f"{label}: {t('cmd_failed')} ({reason})", file=sys.stderr)
         return 1
 
 
@@ -191,7 +191,7 @@ def _get_dashboard(api: HondaAPI, vin: str, fresh: bool, json_mode: bool = False
     if not fresh:
         return api.get_dashboard(vin)
 
-    with _Spinner("Refreshing from car"):
+    with _Spinner(get_translator()("cmd_refreshing")):
         result = api.refresh_dashboard(vin)
     dashboard = api.get_dashboard_cached(vin)
 
@@ -342,7 +342,7 @@ def _handle_climate_settings_set_command(api: HondaAPI, vin: str, args: argparse
         api, args.timeout,
         api.set_climate_settings(vin, temp=args.temp, duration=args.duration,
                               defrost=args.defrost),
-        f"Climate settings ({args.temp}, {args.duration}min, defrost={'on' if args.defrost else 'off'})",
+        f"{get_translator()('cmd_climate_settings')} ({args.temp}, {args.duration}min, defrost={'on' if args.defrost else 'off'})",
     )
 
 
@@ -351,7 +351,7 @@ def _handle_charge_limit_command(api: HondaAPI, vin: str, args: argparse.Namespa
     return _wait_command(
         api, args.timeout,
         api.set_charge_limit(vin, home=args.home, away=args.away),
-        f"Charge limit ({args.home}% home, {args.away}% away)",
+        f"{get_translator()('cmd_charge_limit')} ({args.home}% home, {args.away}% away)",
     )
 
 
@@ -441,7 +441,7 @@ def _handle_charge_schedule_set_command(api: HondaAPI, vin: str, args: argparse.
         return _wait_command(
             api, args.timeout,
             api.set_charge_schedule(vin, rules),
-            f"Charge schedule rule {args.rule}",
+            f"{get_translator()('cmd_charge_schedule')} {args.rule}",
         )
     except HondaAPIError as exc:
         return _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Charge schedule", exc)
@@ -453,7 +453,7 @@ def _handle_charge_schedule_clear_command(api: HondaAPI, vin: str, args: argpars
         return _wait_command(
             api, args.timeout,
             api.set_charge_schedule(vin, []),
-            "Clear charge schedule",
+            get_translator()("cmd_charge_schedule_clear"),
         )
     except HondaAPIError as exc:
         return _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Charge schedule", exc)
@@ -479,7 +479,7 @@ def _handle_climate_schedule_set_command(api: HondaAPI, vin: str, args: argparse
         return _wait_command(
             api, args.timeout,
             api.set_climate_schedule(vin, rules),
-            f"Climate schedule slot {args.slot}",
+            f"{get_translator()('cmd_climate_schedule')} {args.slot}",
         )
     except HondaAPIError as exc:
         return _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Climate schedule", exc)
@@ -491,7 +491,7 @@ def _handle_climate_schedule_clear_command(api: HondaAPI, vin: str, args: argpar
         return _wait_command(
             api, args.timeout,
             api.set_climate_schedule(vin, []),
-            "Clear climate schedule",
+            get_translator()("cmd_climate_schedule_clear"),
         )
     except HondaAPIError as exc:
         return _handle_role_restricted_schedule_error((vehicle_info or {}).get("role", ""), "Climate schedule", exc)
@@ -748,13 +748,13 @@ vehicle selection (only needed with multiple vehicles):
                         choices=["auto", "keyring", "encrypted", "plain"],
                         help="Storage backend for secrets (default: auto; or set HONDA_STORAGE)")
     # Defaults for when no subcommand is given
-    parser.set_defaults(debug=False, timeout=60, yes=False, http_timeout=DEFAULT_REQUEST_TIMEOUT)
+    parser.set_defaults(debug=False, timeout=90, yes=False, http_timeout=DEFAULT_REQUEST_TIMEOUT)
 
     # Shared flags inherited by all subcommands (can appear before or after subcommand)
     _common = argparse.ArgumentParser(add_help=False)
     _common.add_argument("--debug", action="store_true",
                          help="Show full tracebacks on error")
-    _common.add_argument("--timeout", type=int, default=60,
+    _common.add_argument("--timeout", type=int, default=90,
                          help="Timeout in seconds for remote commands (default: 60)")
     _common.add_argument(
         "--http-timeout",
@@ -1106,11 +1106,16 @@ def _run_main(args: argparse.Namespace, storage) -> int:
     if args.command == "geofence-set":
         t = get_translator()
         api.set_geofence(vin, args.lat, args.lon, args.radius, args.name)
-        print(f"{t('geofence_processing')}...", end="", flush=True)
-        gf = api.wait_for_geofence(vin, timeout=args.timeout)
-        print()
+        with _Spinner(t("cmd_geofence_set")):
+            gf = api.wait_for_geofence(vin, timeout=args.timeout)
         if gf is None:
             print(t("geofence_none"))
+            return 1
+        if gf.activate_status in ("failure", "timeout"):
+            print(t("geofence_unreachable"), file=sys.stderr)
+            return 1
+        if gf.processing:
+            print(t("geofence_timed_out"), file=sys.stderr)
             return 1
         vehicle = next((v for v in api.tokens.vehicles if v["vin"] == vin), None)
         vlabel = vehicle.name if vehicle else vin
@@ -1122,14 +1127,28 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         return 0
 
     if args.command == "geofence-clear":
-        cmd_id = api.clear_geofence(vin)
-        return _wait_command(api, args.timeout, cmd_id, "Geofence clear")
+        t = get_translator()
+        api.clear_geofence(vin)
+        with _Spinner(t("cmd_geofence_clear")):
+            gf = api.wait_for_geofence(vin, timeout=args.timeout)
+        if gf is None:
+            print(f"{t('cmd_geofence_clear')}: {t('cmd_done')}")
+            return 0
+        if gf.deactivate_status in ("failure", "timeout"):
+            print(t("geofence_unreachable"), file=sys.stderr)
+            return 1
+        if gf.processing:
+            print(t("geofence_timed_out"), file=sys.stderr)
+            return 1
+        return 0
 
     vehicle_info, consumption_unit = _get_vehicle_display_context(api, vin, args)
 
     confirm_exit = _confirm_command(args)
     if confirm_exit is not None:
         return confirm_exit
+
+    t = get_translator()
 
     if args.command == "status":
         return _handle_status_command(api, vin, args)
@@ -1138,25 +1157,25 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         return _handle_location_command(api, vin, args)
 
     elif args.command == "lock":
-        return _wait_command(api, args.timeout, api.remote_lock(vin), "Lock")
+        return _wait_command(api, args.timeout, api.remote_lock(vin), t("cmd_lock"))
 
     elif args.command == "unlock":
-        return _wait_command(api, args.timeout, api.remote_unlock(vin), "Unlock")
+        return _wait_command(api, args.timeout, api.remote_unlock(vin), t("cmd_unlock"))
 
     elif args.command == "horn":
-        return _wait_command(api, args.timeout, api.remote_horn_lights(vin), "Horn & lights")
+        return _wait_command(api, args.timeout, api.remote_horn_lights(vin), t("cmd_horn"))
 
     elif args.command == "charge-start":
-        return _wait_command(api, args.timeout, api.remote_charge_start(vin), "Charge start")
+        return _wait_command(api, args.timeout, api.remote_charge_start(vin), t("cmd_charge_start"))
 
     elif args.command == "charge-stop":
-        return _wait_command(api, args.timeout, api.remote_charge_stop(vin), "Charge stop")
+        return _wait_command(api, args.timeout, api.remote_charge_stop(vin), t("cmd_charge_stop"))
 
     elif args.command == "climate-start":
-        return _wait_command(api, args.timeout, api.remote_climate_start(vin), "Climate start")
+        return _wait_command(api, args.timeout, api.remote_climate_start(vin), t("cmd_climate_start"))
 
     elif args.command == "climate-stop":
-        return _wait_command(api, args.timeout, api.remote_climate_stop(vin), "Climate stop")
+        return _wait_command(api, args.timeout, api.remote_climate_stop(vin), t("cmd_climate_stop"))
 
     elif args.command == "climate-settings":
         return _handle_climate_settings_command(api, vin, args)

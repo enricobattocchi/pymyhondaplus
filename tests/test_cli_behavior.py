@@ -169,16 +169,17 @@ def test_remote_command_timeout_exits_with_error(monkeypatch, capsys):
         reason = "car may be unreachable"
 
     _patch_common(monkeypatch, fake_api)
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
     monkeypatch.setattr(
         cli.sys, "argv", ["pymyhondaplus", "lock", "--yes"]
     )
-    fake_api.wait_for_command = lambda cmd_id, timeout=60: _TimeoutResult()
+    fake_api.wait_for_command = lambda cmd_id, timeout=90: _TimeoutResult()
 
     rc = cli.main()
 
     out = capsys.readouterr()
     assert rc == 1
-    assert "Lock: timed out (car may be unreachable)" in out.err
+    assert "Lock: timed out" in out.err
 
 
 def test_remote_command_no_command_id_returns_error(monkeypatch, capsys):
@@ -194,14 +195,15 @@ def test_remote_command_no_command_id_returns_error(monkeypatch, capsys):
         reason = None
 
     _patch_common(monkeypatch, fake_api)
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
     monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "lock", "--yes"])
-    fake_api.wait_for_command = lambda cmd_id, timeout=60: _NoCommandResult()
+    fake_api.wait_for_command = lambda cmd_id, timeout=90: _NoCommandResult()
 
     rc = cli.main()
 
     out = capsys.readouterr()
     assert rc == 1
-    assert "Lock: failed (no command ID returned)" in out.err
+    assert "Lock: failed" in out.err
 
 
 def test_role_restricted_schedule_returns_success(monkeypatch, capsys):

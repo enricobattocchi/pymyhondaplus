@@ -388,6 +388,8 @@ class Geofence:
     processing: bool = False
     waiting_activate: bool = False
     waiting_deactivate: bool = False
+    activate_status: str = ""
+    deactivate_status: str = ""
 
     @classmethod
     def from_api(cls, data: dict) -> "Geofence | None":
@@ -406,6 +408,8 @@ class Geofence:
             processing=data.get("isCommandProcessing", False),
             waiting_activate=data.get("isWaitingForActivate", False),
             waiting_deactivate=data.get("isWaitingForDeactivate", False),
+            activate_status=data.get("activateAsyncCommandStatus", ""),
+            deactivate_status=data.get("deactivateAsyncCommandStatus", ""),
         )
 
 
@@ -623,7 +627,7 @@ class HondaAPI:
         if not self.tokens.refresh_token:
             raise HondaAuthError(401, "No refresh token")
 
-        logger.info("Refreshing access token")
+        logger.debug("Refreshing access token")
         resp = self.session.post(
             f"{API_BASE}/auth/isv-prod/refresh",
             json={"refreshToken": self.tokens.refresh_token},
@@ -639,7 +643,7 @@ class HondaAPI:
         self.tokens.refresh_token = data.get("refresh_token", self.tokens.refresh_token)
         self.tokens.expires_at = time.time() + data.get("expires_in", 3599)
         self._save_tokens()
-        logger.info("Token refreshed, expires in %ds", data.get("expires_in", 3599))
+        logger.debug("Token refreshed, expires in %ds", data.get("expires_in", 3599))
         return self.tokens
 
     def _ensure_auth(self):
@@ -750,7 +754,7 @@ class HondaAPI:
         return CommandResult.from_poll(resp.status_code, resp.json())
 
     def wait_for_command(self, command_id: str,
-                         timeout: int = 60,
+                         timeout: int = 90,
                          poll_interval: float = 1.5) -> CommandResult:
         """Poll until a command completes or times out.
 
@@ -773,7 +777,7 @@ class HondaAPI:
         return CommandResult.pending_timeout()
 
     def get_dashboard(self, vin: str, language: str = "it", fresh: bool = False,
-                      timeout: int = 90, poll_interval: float = 1.5) -> dict:
+                      timeout: int = 120, poll_interval: float = 1.5) -> dict:
         """
         Get full dashboard data.
 
@@ -1078,13 +1082,16 @@ class HondaAPI:
             raise HondaAPIError(200, "Geofence was not activated after set")
         return gf
 
-    def wait_for_geofence(self, vin: str, timeout: int = 120,
+    def wait_for_geofence(self, vin: str, timeout: int = 420,
                           poll_interval: float = 5.0) -> Geofence | None:
-        """Poll geofence config until processing completes or timeout."""
+        """Poll geofence config until processing completes, fails, or timeout."""
         deadline = time.time() + timeout
         while time.time() < deadline:
             gf = self.get_geofence(vin)
             if gf is None or not gf.processing:
+                return gf
+            if gf.activate_status in ("failure", "timeout") \
+               or gf.deactivate_status in ("failure", "timeout"):
                 return gf
             time.sleep(poll_interval)
         return gf
