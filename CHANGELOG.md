@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.6.1 — 2026-04-12
+
+- Fix token refresh raising `HondaAuthError` on 5xx server errors (502/503); now correctly raises `HondaAPIError` so callers treat it as a transient failure instead of triggering re-authentication
+
 ## 5.6.0 — 2026-04-12
 
 - Add geofence management: `get_geofence`, `set_geofence` (with polling), `clear_geofence` API methods with `Geofence` dataclass

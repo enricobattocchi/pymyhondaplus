@@ -6,7 +6,7 @@ import time
 import pytest
 import requests
 
-from pymyhondaplus.api import HondaAPI, HondaAPIError, AuthTokens
+from pymyhondaplus.api import HondaAPI, HondaAPIError, HondaAuthError, AuthTokens
 
 
 def _make_api(**token_overrides):
@@ -191,6 +191,42 @@ class TestErrorTypes:
 
         with pytest.raises(HondaAPIError):
             api.set_charge_limit("VIN123", home=80, away=90)
+
+
+class TestRefreshErrorClassification:
+    """Token refresh distinguishes auth errors (4xx) from server errors (5xx)."""
+
+    def test_refresh_4xx_raises_auth_error(self):
+        api = _make_api(expires_at=0)
+        resp = _mock_response(401, text="Invalid refresh token")
+        api.session.post = MagicMock(return_value=resp)
+
+        with pytest.raises(HondaAuthError):
+            api._refresh_auth_locked()
+
+    def test_refresh_5xx_raises_api_error_not_auth_error(self):
+        api = _make_api(expires_at=0)
+        resp = _mock_response(502, text="Bad Gateway")
+        api.session.post = MagicMock(return_value=resp)
+
+        with pytest.raises(HondaAPIError, match="502"):
+            api._refresh_auth_locked()
+        # Must NOT be HondaAuthError
+        try:
+            api._refresh_auth_locked()
+        except HondaAuthError:
+            pytest.fail("5xx during refresh should not raise HondaAuthError")
+        except HondaAPIError:
+            pass  # expected
+
+    def test_refresh_503_raises_api_error(self):
+        api = _make_api(expires_at=0)
+        resp = _mock_response(503, text="Service Unavailable")
+        api.session.post = MagicMock(return_value=resp)
+
+        with pytest.raises(HondaAPIError) as exc_info:
+            api._refresh_auth_locked()
+        assert not isinstance(exc_info.value, HondaAuthError)
 
 
 class TestTimeoutAdapter:

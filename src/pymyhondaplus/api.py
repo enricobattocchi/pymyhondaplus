@@ -630,6 +630,8 @@ class HondaAPI:
         )
 
         if resp.status_code != 200:
+            if resp.status_code >= 500:
+                raise HondaAPIError(resp.status_code, resp.text)
             raise HondaAuthError(resp.status_code, resp.text)
 
         data = resp.json()
