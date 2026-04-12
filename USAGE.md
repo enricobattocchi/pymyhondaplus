@@ -527,14 +527,14 @@ except ValueError as e:
     print(f"Not supported: {e}")
 ```
 
-All HTTP requests have a 10-second default timeout. You can override it per-instance:
+API requests have a 10-second default timeout; auth requests (login, device registration) default to 30 seconds. You can override per-instance:
 
 ```python
-api = HondaAPI(request_timeout=30)
-auth = HondaAuth(request_timeout=30)
+api = HondaAPI(request_timeout=15)
+auth = HondaAuth(request_timeout=45)
 ```
 
-Or globally via the `HONDA_REQUEST_TIMEOUT` environment variable.
+Or via environment variables: `HONDA_REQUEST_TIMEOUT` (API) and `HONDA_AUTH_TIMEOUT` (auth).
 
 Transient 5xx errors are automatically retried up to 3 times with backoff. Transport-level errors (timeouts, connection failures) are not retried.
 

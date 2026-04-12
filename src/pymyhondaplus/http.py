@@ -5,6 +5,7 @@ import os
 from requests.adapters import HTTPAdapter
 
 DEFAULT_REQUEST_TIMEOUT = float(os.environ.get("HONDA_REQUEST_TIMEOUT", "10"))
+DEFAULT_AUTH_TIMEOUT = float(os.environ.get("HONDA_AUTH_TIMEOUT", "30"))
 
 
 class TimeoutAdapter(HTTPAdapter):

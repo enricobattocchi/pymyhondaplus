@@ -15,7 +15,7 @@ from typing import Optional
 import requests
 
 from .api import HondaAuthError
-from .http import DEFAULT_REQUEST_TIMEOUT, TimeoutAdapter
+from .http import DEFAULT_AUTH_TIMEOUT, TimeoutAdapter
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -198,7 +198,7 @@ class HondaAuth:
     """Handles the full Honda Connect Europe authentication flow."""
 
     def __init__(self, device_key: Optional[DeviceKey] = None,
-                 request_timeout: float = DEFAULT_REQUEST_TIMEOUT):
+                 request_timeout: float = DEFAULT_AUTH_TIMEOUT):
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
         self.request_timeout = request_timeout

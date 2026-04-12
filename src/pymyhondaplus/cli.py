@@ -890,7 +890,7 @@ def _run_main(args: argparse.Namespace, storage) -> int:
     """Run the CLI command flow and return an exit code."""
     if args.command == "login":
         device_key = DeviceKey(storage=storage)
-        auth = HondaAuth(device_key=device_key, request_timeout=args.http_timeout)
+        auth = HondaAuth(device_key=device_key)
         password = args.password or getpass.getpass("Password: ")
         try:
             result = auth.full_login(args.email, password, locale=args.locale)

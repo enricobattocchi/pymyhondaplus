@@ -6,6 +6,7 @@ import pytest
 
 from pymyhondaplus import cli
 from pymyhondaplus.api import HondaAPIError, HondaAuthError
+from pymyhondaplus.http import DEFAULT_AUTH_TIMEOUT
 
 
 class _FakeTokens:
@@ -243,7 +244,7 @@ def test_http_timeout_is_forwarded_to_clients(monkeypatch, capsys):
     recorded = {}
 
     class _FakeAuth:
-        def __init__(self, device_key=None, request_timeout=None):
+        def __init__(self, device_key=None, request_timeout=DEFAULT_AUTH_TIMEOUT):
             recorded["auth_timeout"] = request_timeout
 
         def full_login(self, email: str, password: str, locale: str = "it"):
@@ -291,7 +292,7 @@ def test_http_timeout_is_forwarded_to_clients(monkeypatch, capsys):
     rc = cli.main()
 
     assert rc == 0
-    assert recorded["auth_timeout"] == 4.5
+    assert recorded["auth_timeout"] == DEFAULT_AUTH_TIMEOUT
     assert recorded["api_timeouts"] == [4.5]
 
 

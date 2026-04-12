@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.6.3 — 2026-04-12
+
+- Increase default HTTP timeout for auth endpoints from 10s to 30s (`DEFAULT_AUTH_TIMEOUT`); configurable via `HONDA_AUTH_TIMEOUT` env var
+- `--http-timeout` CLI flag now only applies to API calls, not auth operations
+
 ## 5.6.2 — 2026-04-12
 
 - Fix crash when running CLI with no subcommand (`'Namespace' object has no attribute 'http_timeout'`)
