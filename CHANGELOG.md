@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.6.2 — 2026-04-12
+
+- Fix crash when running CLI with no subcommand (`'Namespace' object has no attribute 'http_timeout'`)
+
 ## 5.6.1 — 2026-04-12
 
 - Fix token refresh raising `HondaAuthError` on 5xx server errors (502/503); now correctly raises `HondaAPIError` so callers treat it as a transient failure instead of triggering re-authentication

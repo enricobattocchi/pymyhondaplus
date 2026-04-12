@@ -748,7 +748,7 @@ vehicle selection (only needed with multiple vehicles):
                         choices=["auto", "keyring", "encrypted", "plain"],
                         help="Storage backend for secrets (default: auto; or set HONDA_STORAGE)")
     # Defaults for when no subcommand is given
-    parser.set_defaults(debug=False, timeout=60, yes=False)
+    parser.set_defaults(debug=False, timeout=60, yes=False, http_timeout=DEFAULT_REQUEST_TIMEOUT)
 
     # Shared flags inherited by all subcommands (can appear before or after subcommand)
     _common = argparse.ArgumentParser(add_help=False)
