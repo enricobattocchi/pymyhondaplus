@@ -28,8 +28,8 @@ def test_temperature(dashboard_ev):
 
 def test_gps(dashboard_ev):
     ev = parse_ev_status(dashboard_ev)
-    assert ev["latitude"] == "41.890251"
-    assert ev["longitude"] == "12.492373"
+    assert abs(ev["latitude"] - 41.890251) < 0.000001
+    assert abs(ev["longitude"] - 12.492373) < 0.000001
     assert ev["speed"] == 0.0
     assert ev["speed_unit"] == "km/h"
     assert ev["distance_unit"] == "km"
@@ -136,6 +136,33 @@ def test_empty_dashboard():
     assert ev["doors_locked"] is True  # all() on empty is True
     assert ev["lights_on"] is False
     assert ev["warning_lamps"] == []
+
+
+def test_home_away_normalization(dashboard_ev):
+    dashboard_ev["evStatus"]["homeAway"] = "Home"
+    assert parse_ev_status(dashboard_ev)["home_away"] == "home"
+
+    dashboard_ev["evStatus"]["homeAway"] = "Away"
+    assert parse_ev_status(dashboard_ev)["home_away"] == "away"
+
+    dashboard_ev["evStatus"]["homeAway"] = "home is unregistered"
+    assert parse_ev_status(dashboard_ev)["home_away"] == "unknown"
+
+    dashboard_ev["evStatus"]["homeAway"] = "something unexpected"
+    assert parse_ev_status(dashboard_ev)["home_away"] == "unknown"
+
+
+def test_climate_temp_numeric_passes_through(dashboard_ev):
+    dashboard_ev["evStatus"]["acTempVal"] = "17"
+    assert parse_ev_status(dashboard_ev)["climate_temp"] == "17"
+
+    dashboard_ev["evStatus"]["acTempVal"] = "25.5"
+    assert parse_ev_status(dashboard_ev)["climate_temp"] == "25.5"
+
+
+def test_climate_temp_garbage_normalized_to_unknown(dashboard_ev):
+    dashboard_ev["evStatus"]["acTempVal"] = "not a temp"
+    assert parse_ev_status(dashboard_ev)["climate_temp"] == "unknown"
 
 
 def test_malformed_numeric_fields_do_not_crash(dashboard_ev):
