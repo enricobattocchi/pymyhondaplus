@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.7.1b1 — 2026-04-14
+
+- Normalize EVStatus fields and add missing vehicle capabilities
+
 ## 5.7.0 — 2026-04-13
 
 - Add `activate_status` and `deactivate_status` fields to `Geofence` dataclass (maps `activateAsyncCommandStatus` / `deactivateAsyncCommandStatus` from the API)
