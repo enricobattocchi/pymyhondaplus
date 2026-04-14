@@ -27,7 +27,7 @@ class _FakeAPI:
     def get_dashboard(self, vin: str, fresh: bool = False):
         return {
             "gpsData": {
-                "coordinate": {"latitude": "41.890251", "longitude": "12.492373"},
+                "coordinate": {"latitude": "41,53,24.904", "longitude": "12,29,32.543"},
                 "dtTime": "2026-03-24T22:53:01+00:00",
                 "velocity": {"value": "0.0", "unit": "km/h"},
             }
@@ -106,7 +106,7 @@ def test_location_json_outputs_raw_gps_payload(monkeypatch, capsys):
     out = capsys.readouterr()
     assert rc == 0
     assert '"coordinate": {' in out.out
-    assert '"latitude": "41.890251"' in out.out
+    assert '"latitude": "41,53,24.904"' in out.out
     assert '"dtTime": "2026-03-24T22:53:01+00:00"' in out.out
 
 
@@ -125,7 +125,7 @@ def test_status_json_outputs_raw_dashboard(monkeypatch, capsys):
     assert rc == 0
     assert '"gpsData": {' in out.out
     assert '"coordinate": {' in out.out
-    assert '"latitude": "41.890251"' in out.out
+    assert '"latitude": "41,53,24.904"' in out.out
 
 
 def test_climate_settings_json_outputs_parsed_fields(monkeypatch, capsys):

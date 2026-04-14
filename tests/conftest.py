@@ -18,8 +18,8 @@ def dashboard_ev():
         "timestamp": "2026-03-24T22:53:01+00:00",
         "gpsData": {
             "coordinate": {
-                "latitude": "41.890251",
-                "longitude": "12.492373",
+                "latitude": "41,53,24.904",
+                "longitude": "12,29,32.543",
             },
             "dtTime": "2026-03-24T22:53:01+00:00",
             "velocity": {"value": "0.0", "unit": "km/h"},
