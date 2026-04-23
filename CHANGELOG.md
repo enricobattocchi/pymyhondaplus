@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.7.1b2 — 2026-04-24
+
+- Normalize `EVStatus.charge_status` to a canonical enum (`charging`, `stopped`, `unknown`). The raw API returns values like `running` / `unavailable` which previously leaked through and broke downstream consumers declaring strict enum sensors (e.g. the Home Assistant integration).
+- Mapping: `running` → `charging`, `stopped` → `stopped`, `unavailable` / missing / unexpected values → `unknown` (with a DEBUG log for unexpected values).
+- CLI `CHARGE_STATUS_MAP` (in `translations.py`) is now keyed by the normalized values rather than raw API values.
+
+### Migration notes for library consumers
+
+- `EVStatus.charge_status` will no longer emit `"running"` or `"unavailable"`. Consumers that branched on these raw values should switch to `"charging"` / `"unknown"`.
+
 ## 5.7.1b1 — 2026-04-14
 
 - Normalize EVStatus fields and add missing vehicle capabilities

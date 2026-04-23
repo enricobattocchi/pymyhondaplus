@@ -110,6 +110,55 @@ def test_climate_temp_mapping(dashboard_ev):
     assert parse_ev_status(dashboard_ev)["climate_temp"] == "normal"
 
 
+def test_charge_status_running_normalized_to_charging(dashboard_ev):
+    dashboard_ev["evStatus"]["chargeStatus"] = "running"
+    assert parse_ev_status(dashboard_ev)["charge_status"] == "charging"
+
+
+def test_charge_status_stopped_passes_through(dashboard_ev):
+    dashboard_ev["evStatus"]["chargeStatus"] = "stopped"
+    assert parse_ev_status(dashboard_ev)["charge_status"] == "stopped"
+
+
+def test_charge_status_unavailable_normalized_to_unknown(dashboard_ev):
+    dashboard_ev["evStatus"]["chargeStatus"] = "unavailable"
+    assert parse_ev_status(dashboard_ev)["charge_status"] == "unknown"
+
+
+def test_charge_status_unknown_passes_through(dashboard_ev):
+    dashboard_ev["evStatus"]["chargeStatus"] = "unknown"
+    assert parse_ev_status(dashboard_ev)["charge_status"] == "unknown"
+
+
+def test_charge_status_case_insensitive(dashboard_ev):
+    dashboard_ev["evStatus"]["chargeStatus"] = "RUNNING"
+    assert parse_ev_status(dashboard_ev)["charge_status"] == "charging"
+
+    dashboard_ev["evStatus"]["chargeStatus"] = "Stopped"
+    assert parse_ev_status(dashboard_ev)["charge_status"] == "stopped"
+
+
+def test_charge_status_missing_is_unknown(dashboard_ev):
+    dashboard_ev["evStatus"].pop("chargeStatus", None)
+    assert parse_ev_status(dashboard_ev)["charge_status"] == "unknown"
+
+
+def test_charge_status_unexpected_value_is_unknown(dashboard_ev, caplog):
+    import logging
+    dashboard_ev["evStatus"]["chargeStatus"] = "weird-new-state"
+    with caplog.at_level(logging.DEBUG, logger="pymyhondaplus.api"):
+        assert parse_ev_status(dashboard_ev)["charge_status"] == "unknown"
+    assert any("weird-new-state" in rec.message for rec in caplog.records)
+
+
+def test_charge_status_non_string_is_unknown(dashboard_ev):
+    dashboard_ev["evStatus"]["chargeStatus"] = 42
+    assert parse_ev_status(dashboard_ev)["charge_status"] == "unknown"
+
+    dashboard_ev["evStatus"]["chargeStatus"] = None
+    assert parse_ev_status(dashboard_ev)["charge_status"] == "unknown"
+
+
 def test_climate_defrost_off(dashboard_ev):
     dashboard_ev["evStatus"]["acDefAutoSetting"] = "def auto off"
     ev = parse_ev_status(dashboard_ev)

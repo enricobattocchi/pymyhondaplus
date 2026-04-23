@@ -96,6 +96,34 @@ def _normalize_climate_temp(raw: str) -> str:
         return "unknown"
 
 
+# Raw API chargeStatus values -> canonical enum values exposed on EVStatus.
+# Downstream consumers (e.g. the Home Assistant integration) declare ENUM
+# sensors against the canonical set, so unexpected raw values collapse to
+# "unknown" rather than leaking through.
+_CHARGE_STATUS_MAP = {
+    "running": "charging",
+    "stopped": "stopped",
+    "unavailable": "unknown",
+    "unknown": "unknown",
+}
+
+
+def _normalize_charge_status(raw) -> str:
+    """Normalize a raw chargeStatus API value to a canonical enum value."""
+    if not isinstance(raw, str):
+        if raw is not None:
+            logger.debug(
+                "Unexpected chargeStatus type %s (%r); treating as unknown",
+                type(raw).__name__, raw,
+            )
+        return "unknown"
+    key = raw.strip().lower()
+    if key in _CHARGE_STATUS_MAP:
+        return _CHARGE_STATUS_MAP[key]
+    logger.debug("Unexpected chargeStatus value %r; treating as unknown", raw)
+    return "unknown"
+
+
 @dataclass
 class AuthTokens:
     access_token: str = ""
@@ -1375,7 +1403,7 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
         distance_unit=distance_unit,
         speed_unit=speed_unit,
         temp_unit=temp_unit,
-        charge_status=ev.get("chargeStatus", "unknown"),
+        charge_status=_normalize_charge_status(ev.get("chargeStatus")),
         plug_status=ev.get("plugStatus", "unknown"),
         home_away=ev.get("homeAway", "unknown").lower()
             if ev.get("homeAway", "unknown").lower() in ("home", "away")

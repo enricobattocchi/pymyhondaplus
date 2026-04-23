@@ -1788,12 +1788,12 @@ CHARGE_MODE_MAP = {
     "fast charging": "charge_speed_fast",
 }
 
-# Map raw API chargeStatus values to translation keys.
-# Possible values (from enums): unknown, stopped, running, unavailable.
+# Map normalized charge_status values (as exposed on EVStatus) to CLI
+# translation keys. parse_ev_status normalizes the raw API chargeStatus
+# (running/stopped/unavailable/unknown) to the canonical enum used here.
 CHARGE_STATUS_MAP = {
-    "running": "charging",
+    "charging": "charging",
     "stopped": "not_charging",
-    "unavailable": "unavailable",
     "unknown": "unknown",
 }
 
