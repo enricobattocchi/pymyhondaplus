@@ -17,7 +17,7 @@ from pathlib import Path
 try:
     import argcomplete
 except ImportError:
-    argcomplete = None
+    argcomplete = None  # type: ignore[assignment]
 
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, HondaAuthError, compute_trip_stats, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
