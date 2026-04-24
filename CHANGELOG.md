@@ -2,14 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## 5.7.1b2 — 2026-04-24
+## 5.8.0 — 2026-04-24
 
+- Convert DMS-with-commas GPS coordinates to decimal degrees in `parse_ev_status` (`EVStatus.latitude` and `EVStatus.longitude` changed from `str` to `float`).
+- Refactor the CLI `location` command to use `EVStatus` instead of raw API data.
+- Normalize `EVStatus.home_away` to `home` / `away` / `unknown` (fixes "home is unregistered").
+- Normalize `EVStatus.climate_temp`: map known labels, pass through numeric values from specific-temperature vehicles, fall back to `"unknown"`.
+- Add 17 newly discovered vehicle capabilities to `VehicleCapabilities`.
 - Normalize `EVStatus.charge_status` to a canonical enum (`charging`, `stopped`, `unknown`). The raw API returns values like `running` / `unavailable` which previously leaked through and broke downstream consumers declaring strict enum sensors (e.g. the Home Assistant integration).
 - Mapping: `running` → `charging`, `stopped` → `stopped`, `unavailable` / missing / unexpected values → `unknown` (with a DEBUG log for unexpected values).
 - CLI `CHARGE_STATUS_MAP` (in `translations.py`) is now keyed by the normalized values rather than raw API values.
 
 ### Migration notes for library consumers
 
+- `EVStatus.latitude` / `EVStatus.longitude` are now `float`. Consumers doing string comparisons or concatenation must update.
 - `EVStatus.charge_status` will no longer emit `"running"` or `"unavailable"`. Consumers that branched on these raw values should switch to `"charging"` / `"unknown"`.
 
 ## 5.7.1b1 — 2026-04-14
