@@ -1017,10 +1017,7 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         caps = vehicle.capabilities
         label = vehicle.name or vin
         print(f"{t('capabilities_for')} {label}:")
-        actives = sorted(
-            api_key for api_key, entry in caps.raw.items()
-            if isinstance(entry, dict) and entry.get("featureStatus") == "active"
-        )
+        actives = caps.active_api_keys()
         if not actives:
             print(f"  {t('no_active_capabilities')}")
             return 0

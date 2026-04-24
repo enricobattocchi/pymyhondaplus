@@ -323,6 +323,7 @@ class VehicleCapabilities:
             "digital_key_leave_notifications": self.digital_key_leave_notifications,
             "suppress_lid_open_warning": self.suppress_lid_open_warning,
             "hide_open_charge_lid_button": self.hide_open_charge_lid_button,
+            "raw": self.raw,
         }
 
     @classmethod
@@ -330,6 +331,62 @@ class VehicleCapabilities:
         if not data:
             return cls()
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+
+    def active_api_keys(self) -> list[str]:
+        """Return sorted Honda API keys for capabilities reported as active.
+
+        Prefers self.raw (preserves keys this library doesn't yet know —
+        e.g. features Honda adds after this release). Falls back to the
+        known dataclass booleans when raw is empty: tokens saved by
+        pymyhondaplus <= 5.8.0 omit raw from the serialized form, so
+        re-running `pymyhondaplus list` refreshes tokens with a populated
+        raw.
+        """
+        if self.raw:
+            return sorted(
+                api_key for api_key, entry in self.raw.items()
+                if isinstance(entry, dict) and entry.get("featureStatus") == "active"
+            )
+        return sorted(
+            api_key for field, api_key in _CAPABILITY_FIELD_TO_API_KEY.items()
+            if getattr(self, field, False)
+        )
+
+
+# Reverse of the mapping used in VehicleCapabilities.from_api. Lets
+# active_api_keys() reconstruct API keys from dataclass booleans when raw
+# is not persisted (old token files from pymyhondaplus <= 5.8.0).
+_CAPABILITY_FIELD_TO_API_KEY = {
+    "remote_lock": "telematicsRemoteLockUnlock",
+    "remote_climate": "telematicsRemoteClimate",
+    "remote_charge": "telematicsRemoteCharge",
+    "remote_horn": "telematicsRemoteHorn",
+    "digital_key": "digitalKey",
+    "charge_schedule": "telematicsRemoteChargeSchedule",
+    "climate_schedule": "telematicsRemoteClimateSchedule",
+    "max_charge": "telematicsMaxChargeSettings",
+    "car_finder": "telematicsRemoteCarFinder",
+    "journey_history": "telematicsJourneyHistory",
+    "send_poi": "telematicsSendPoi",
+    "geo_fence": "telematicsGeoFence",
+    "specific_temperature": "useSpecificTemperatureControl",
+    "climate_adjusted_range": "useClimateAdjustedRange",
+    "display_phev_range": "displayPhevRange",
+    "smart_charge": "smartCharge",
+    "remote_engine": "telematicsUseRemoteEngineApi",
+    "care_assistance": "telematicsCareAssistance",
+    "digital_key_lock_unlock": "digitalKeyLockUnlock",
+    "digital_key_open_charge_lid": "digitalKeyOpenChargeLid",
+    "digital_key_close_power_windows": "digitalKeyClosePowerWindows",
+    "digital_key_open_power_windows": "digitalKeyOpenPowerWindows",
+    "digital_key_stop_power_windows": "digitalKeyStopPowerWindows",
+    "digital_key_power_on_guidance": "digitalKeyPowerOnGuidance",
+    "digital_key_power_on_guidance_manual": "digitalKeyPowerOnGuidanceManual",
+    "digital_key_start_authentication": "digitalKeyStartAuthentication",
+    "digital_key_leave_notifications": "digitalKeyLeaveNotifications",
+    "suppress_lid_open_warning": "suppressLidOpenWarning",
+    "hide_open_charge_lid_button": "hideOpenChargeLidButton",
+}
 
 
 @dataclass

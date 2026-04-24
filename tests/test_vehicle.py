@@ -145,6 +145,50 @@ class TestVehicleCapabilitiesFromApi:
         assert caps.digital_key is False
         assert caps.raw == {}
 
+    def test_active_api_keys_from_raw(self):
+        caps = VehicleCapabilities(raw={
+            "telematicsRemoteLockUnlock": {"featureStatus": "active"},
+            "telematicsRemoteHorn": {"featureStatus": "notSupported"},
+            "useSpecificTemperatureControl": {"featureStatus": "active"},
+            "someFutureFlag": {"featureStatus": "active"},
+        })
+        assert caps.active_api_keys() == [
+            "someFutureFlag",
+            "telematicsRemoteLockUnlock",
+            "useSpecificTemperatureControl",
+        ]
+
+    def test_active_api_keys_fallback_from_dataclass_fields(self):
+        """Tokens saved by pymyhondaplus <= 5.8.0 omit `raw`; fall back to booleans."""
+        caps = VehicleCapabilities(
+            remote_lock=True,
+            remote_climate=True,
+            digital_key=True,
+            specific_temperature=True,
+            raw={},
+        )
+        assert caps.active_api_keys() == [
+            "digitalKey",
+            "telematicsRemoteClimate",
+            "telematicsRemoteLockUnlock",
+            "useSpecificTemperatureControl",
+        ]
+
+    def test_active_api_keys_no_data(self):
+        assert VehicleCapabilities().active_api_keys() == []
+
+    def test_to_dict_roundtrip_preserves_raw(self):
+        """raw must be in to_dict() so serialized tokens keep unknown-future keys."""
+        caps = VehicleCapabilities.from_api({
+            "capabilities": {
+                "telematicsRemoteLockUnlock": {"featureStatus": "active"},
+                "someUnknownFuture": {"featureStatus": "active"},
+            }
+        })
+        restored = VehicleCapabilities.from_dict(caps.to_dict())
+        assert restored.raw == caps.raw
+        assert "someUnknownFuture" in restored.active_api_keys()
+
 
 class TestVehicleDictAccess:
 
