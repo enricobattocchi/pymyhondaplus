@@ -2,6 +2,7 @@
 
 import time
 
+import pytest
 from pymyhondaplus.api import (
     AuthTokens, Subscription, UserProfile, Vehicle, VehicleCapabilities,
 )
@@ -144,6 +145,80 @@ class TestVehicleCapabilitiesFromApi:
         assert caps.remote_lock is False
         assert caps.digital_key is False
         assert caps.raw == {}
+
+    def test_active_api_keys_from_raw(self):
+        caps = VehicleCapabilities(raw={
+            "telematicsRemoteLockUnlock": {"featureStatus": "active"},
+            "telematicsRemoteHorn": {"featureStatus": "notSupported"},
+            "useSpecificTemperatureControl": {"featureStatus": "active"},
+            "someFutureFlag": {"featureStatus": "active"},
+        })
+        assert caps.active_api_keys() == [
+            "someFutureFlag",
+            "telematicsRemoteLockUnlock",
+            "useSpecificTemperatureControl",
+        ]
+
+    def test_from_dict_synthesizes_raw_from_old_booleans(self):
+        """Tokens saved by pymyhondaplus <= 5.8.0 had per-field booleans but no raw."""
+        old_format = {
+            "remote_lock": True,
+            "remote_climate": True,
+            "digital_key": True,
+            "specific_temperature": True,
+            "remote_horn": False,
+        }
+        caps = VehicleCapabilities.from_dict(old_format)
+        assert caps.active_api_keys() == [
+            "digitalKey",
+            "telematicsRemoteClimate",
+            "telematicsRemoteLockUnlock",
+            "useSpecificTemperatureControl",
+        ]
+        assert caps.remote_lock is True
+        assert caps.remote_horn is False
+
+    def test_kwargs_constructor_builds_raw(self):
+        """VehicleCapabilities(remote_lock=True, ...) is a valid construction form."""
+        caps = VehicleCapabilities(remote_lock=True, digital_key=True, remote_horn=False)
+        assert caps.active_api_keys() == ["digitalKey", "telematicsRemoteLockUnlock"]
+        assert caps.not_supported_api_keys() == ["telematicsRemoteHorn"]
+        assert caps.remote_lock is True
+        assert caps.remote_horn is False
+        assert caps.digital_key is True
+
+    def test_not_supported_api_keys(self):
+        caps = VehicleCapabilities(raw={
+            "telematicsRemoteLockUnlock": {"featureStatus": "active"},
+            "displayPhevRange": {"featureStatus": "notSupported"},
+            "hpa": {"featureStatus": "notSupported"},
+        })
+        assert caps.active_api_keys() == ["telematicsRemoteLockUnlock"]
+        assert caps.not_supported_api_keys() == ["displayPhevRange", "hpa"]
+
+    def test_unknown_attribute_raises(self):
+        caps = VehicleCapabilities()
+        with pytest.raises(AttributeError):
+            _ = caps.not_a_real_capability
+
+    def test_unknown_kwarg_raises(self):
+        with pytest.raises(TypeError):
+            VehicleCapabilities(totally_fake_cap=True)
+
+    def test_active_api_keys_no_data(self):
+        assert VehicleCapabilities().active_api_keys() == []
+
+    def test_to_dict_roundtrip_preserves_raw(self):
+        """raw must be in to_dict() so serialized tokens keep unknown-future keys."""
+        caps = VehicleCapabilities.from_api({
+            "capabilities": {
+                "telematicsRemoteLockUnlock": {"featureStatus": "active"},
+                "someUnknownFuture": {"featureStatus": "active"},
+            }
+        })
+        restored = VehicleCapabilities.from_dict(caps.to_dict())
+        assert restored.raw == caps.raw
+        assert "someUnknownFuture" in restored.active_api_keys()
 
 
 class TestVehicleDictAccess:

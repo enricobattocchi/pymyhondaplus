@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.8.1 — 2026-04-24
+
+- CLI `capabilities` command now lists every active capability the API reports, rendered by their raw Honda API key (e.g. `telematicsRemoteLockUnlock`, `useSpecificTemperatureControl`, `smartCharge`). Previously only 12 hardcoded capabilities were shown with translated labels; that list silently omitted the 17 fields added in 5.8.0 and the translations themselves were partly invented rather than sourced from Honda. Raw API keys are honest, identical in every locale, and forward-compatible with flags Honda adds that this library version doesn't yet know about.
+- CLI `capabilities` no longer prints inactive capabilities. Use `vehicle.capabilities.<field>` programmatically to check whether a specific flag is supported.
+- Remove the 12 `cap_*` translation keys (`cap_lock_unlock`, `cap_climate`, `cap_charging`, `cap_horn`, `cap_digital_key`, `cap_charge_schedule`, `cap_climate_schedule`, `cap_max_charge`, `cap_car_finder`, `cap_journeys`, `cap_send_nav`, `cap_geo_fence`) across all 13 locales. Downstream consumers (e.g. `myhondaplus-desktop`) that referenced these keys must render capabilities as raw API keys too.
+- Public API: expose `get_translator` and `TRANSLATIONS` at the top level so consumers can share the library's non-capability translations.
+- Add `no_active_capabilities` translation key in all 13 locales (header fallback message when a vehicle reports no actives).
+
 ## 5.8.0 — 2026-04-24
 
 - Convert DMS-with-commas GPS coordinates to decimal degrees in `parse_ev_status` (`EVStatus.latitude` and `EVStatus.longitude` changed from `str` to `float`).

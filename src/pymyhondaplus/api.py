@@ -217,119 +217,147 @@ class CommandResult:
         return self.complete and self.status == "success" and not self.timed_out
 
 
-@dataclass
 class VehicleCapabilities:
-    """Feature capabilities reported by the Honda API for a vehicle."""
-    remote_lock: bool = False
-    remote_climate: bool = False
-    remote_charge: bool = False
-    remote_horn: bool = False
-    digital_key: bool = False
-    charge_schedule: bool = False
-    climate_schedule: bool = False
-    max_charge: bool = False
-    car_finder: bool = False
-    journey_history: bool = False
-    send_poi: bool = False
-    geo_fence: bool = False
-    specific_temperature: bool = False
-    climate_adjusted_range: bool = False
-    display_phev_range: bool = False
-    smart_charge: bool = False
-    remote_engine: bool = False
-    care_assistance: bool = False
-    digital_key_lock_unlock: bool = False
-    digital_key_open_charge_lid: bool = False
-    digital_key_close_power_windows: bool = False
-    digital_key_open_power_windows: bool = False
-    digital_key_stop_power_windows: bool = False
-    digital_key_power_on_guidance: bool = False
-    digital_key_power_on_guidance_manual: bool = False
-    digital_key_start_authentication: bool = False
-    digital_key_leave_notifications: bool = False
-    suppress_lid_open_warning: bool = False
-    hide_open_charge_lid_button: bool = False
-    raw: dict = field(default_factory=dict, repr=False)
+    """Feature capabilities reported by the Honda API for a vehicle.
+
+    Every capability Honda returns (active or not) is preserved in ``raw``.
+    Known capabilities are also exposed as boolean attributes for ergonomic
+    access — ``caps.remote_lock`` is equivalent to checking
+    ``caps.raw["telematicsRemoteLockUnlock"]["featureStatus"] == "active"``.
+    Future flags Honda adds stay accessible via ``caps.raw`` without a
+    library update; add an entry to ``_CAPABILITY_FIELD_TO_API_KEY`` when
+    a new Python attribute name is desired for a known API key.
+
+    Construction forms:
+    - ``VehicleCapabilities(raw=cap_map)`` — pass the API dict directly.
+    - ``VehicleCapabilities(remote_lock=True, digital_key=True)`` — set
+      individual flags by Python attribute name (useful in tests).
+    - Both combined.
+    """
+
+    __slots__ = ("raw",)
+
+    def __init__(self, raw: dict | None = None, **flags: bool) -> None:
+        self.raw = {} if raw is None else dict(raw)
+        for field_name, value in flags.items():
+            api_key = _CAPABILITY_FIELD_TO_API_KEY.get(field_name)
+            if api_key is None:
+                raise TypeError(
+                    f"VehicleCapabilities got an unknown capability flag: "
+                    f"{field_name!r}"
+                )
+            self.raw[api_key] = {
+                "featureStatus": "active" if value else "notSupported"
+            }
+
+    def __repr__(self) -> str:
+        return f"VehicleCapabilities({len(self.raw)} flags)"
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, VehicleCapabilities):
+            return NotImplemented
+        return self.raw == other.raw
+
+    def __getattr__(self, name: str) -> bool:
+        # __getattr__ is only called after normal attribute lookup fails,
+        # so ``raw`` (a real attribute) never routes here. Known field
+        # names resolve to a boolean derived from ``raw``; unknown names
+        # raise AttributeError so ``hasattr`` / ``getattr(..., default)``
+        # behave predictably for callers.
+        if name.startswith("_"):
+            raise AttributeError(name)
+        api_key = _CAPABILITY_FIELD_TO_API_KEY.get(name)
+        if api_key is None:
+            raise AttributeError(
+                f"{type(self).__name__!r} object has no attribute {name!r}"
+            )
+        entry = self.raw.get(api_key, {})
+        return isinstance(entry, dict) and entry.get("featureStatus") == "active"
 
     @classmethod
     def from_api(cls, cap_map: dict) -> "VehicleCapabilities":
         """Parse the vehicleCapability map from the API."""
-        caps = cap_map.get("capabilities", {})
-
-        def _active(key: str) -> bool:
-            return caps.get(key, {}).get("featureStatus") == "active"
-
-        return cls(
-            remote_lock=_active("telematicsRemoteLockUnlock"),
-            remote_climate=_active("telematicsRemoteClimate"),
-            remote_charge=_active("telematicsRemoteCharge"),
-            remote_horn=_active("telematicsRemoteHorn"),
-            digital_key=_active("digitalKey"),
-            charge_schedule=_active("telematicsRemoteChargeSchedule"),
-            climate_schedule=_active("telematicsRemoteClimateSchedule"),
-            max_charge=_active("telematicsMaxChargeSettings"),
-            car_finder=_active("telematicsRemoteCarFinder"),
-            journey_history=_active("telematicsJourneyHistory"),
-            send_poi=_active("telematicsSendPoi"),
-            geo_fence=_active("telematicsGeoFence"),
-            specific_temperature=_active("useSpecificTemperatureControl"),
-            climate_adjusted_range=_active("useClimateAdjustedRange"),
-            display_phev_range=_active("displayPhevRange"),
-            smart_charge=_active("smartCharge"),
-            remote_engine=_active("telematicsUseRemoteEngineApi"),
-            care_assistance=_active("telematicsCareAssistance"),
-            digital_key_lock_unlock=_active("digitalKeyLockUnlock"),
-            digital_key_open_charge_lid=_active("digitalKeyOpenChargeLid"),
-            digital_key_close_power_windows=_active("digitalKeyClosePowerWindows"),
-            digital_key_open_power_windows=_active("digitalKeyOpenPowerWindows"),
-            digital_key_stop_power_windows=_active("digitalKeyStopPowerWindows"),
-            digital_key_power_on_guidance=_active("digitalKeyPowerOnGuidance"),
-            digital_key_power_on_guidance_manual=_active("digitalKeyPowerOnGuidanceManual"),
-            digital_key_start_authentication=_active("digitalKeyStartAuthentication"),
-            digital_key_leave_notifications=_active("digitalKeyLeaveNotifications"),
-            suppress_lid_open_warning=_active("suppressLidOpenWarning"),
-            hide_open_charge_lid_button=_active("hideOpenChargeLidButton"),
-            raw=caps,
-        )
+        return cls(raw=cap_map.get("capabilities", {}))
 
     def to_dict(self) -> dict:
-        return {
-            "remote_lock": self.remote_lock,
-            "remote_climate": self.remote_climate,
-            "remote_charge": self.remote_charge,
-            "remote_horn": self.remote_horn,
-            "digital_key": self.digital_key,
-            "charge_schedule": self.charge_schedule,
-            "climate_schedule": self.climate_schedule,
-            "max_charge": self.max_charge,
-            "car_finder": self.car_finder,
-            "journey_history": self.journey_history,
-            "send_poi": self.send_poi,
-            "geo_fence": self.geo_fence,
-            "specific_temperature": self.specific_temperature,
-            "climate_adjusted_range": self.climate_adjusted_range,
-            "display_phev_range": self.display_phev_range,
-            "smart_charge": self.smart_charge,
-            "remote_engine": self.remote_engine,
-            "care_assistance": self.care_assistance,
-            "digital_key_lock_unlock": self.digital_key_lock_unlock,
-            "digital_key_open_charge_lid": self.digital_key_open_charge_lid,
-            "digital_key_close_power_windows": self.digital_key_close_power_windows,
-            "digital_key_open_power_windows": self.digital_key_open_power_windows,
-            "digital_key_stop_power_windows": self.digital_key_stop_power_windows,
-            "digital_key_power_on_guidance": self.digital_key_power_on_guidance,
-            "digital_key_power_on_guidance_manual": self.digital_key_power_on_guidance_manual,
-            "digital_key_start_authentication": self.digital_key_start_authentication,
-            "digital_key_leave_notifications": self.digital_key_leave_notifications,
-            "suppress_lid_open_warning": self.suppress_lid_open_warning,
-            "hide_open_charge_lid_button": self.hide_open_charge_lid_button,
-        }
+        # Keep per-field booleans alongside ``raw`` for forward/backward
+        # compatibility with token caches read by other library versions.
+        data: dict = {"raw": self.raw}
+        for field_name in _CAPABILITY_FIELD_TO_API_KEY:
+            data[field_name] = getattr(self, field_name)
+        return data
 
     @classmethod
     def from_dict(cls, data: dict) -> "VehicleCapabilities":
         if not data:
             return cls()
-        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+        raw = data.get("raw")
+        if raw:
+            return cls(raw=raw)
+        # Tokens serialized by pymyhondaplus <= 5.8.0 shipped per-field
+        # booleans without raw. Synthesize a minimal raw dict so known
+        # active capabilities survive the upgrade; a subsequent
+        # ``pymyhondaplus list`` call refreshes the cache with a full raw.
+        synthesized = {
+            api_key: {"featureStatus": "active"}
+            for field_name, api_key in _CAPABILITY_FIELD_TO_API_KEY.items()
+            if data.get(field_name)
+        }
+        return cls(raw=synthesized)
+
+    def active_api_keys(self) -> list[str]:
+        """Return sorted Honda API keys for capabilities reported as active."""
+        return sorted(
+            api_key for api_key, entry in self.raw.items()
+            if isinstance(entry, dict) and entry.get("featureStatus") == "active"
+        )
+
+    def not_supported_api_keys(self) -> list[str]:
+        """Return sorted Honda API keys for capabilities reported as notSupported."""
+        return sorted(
+            api_key for api_key, entry in self.raw.items()
+            if isinstance(entry, dict) and entry.get("featureStatus") == "notSupported"
+        )
+
+
+# Registry of Python attribute names → Honda camelCase API keys for known
+# capabilities. Not authoritative over what Honda returns — ``raw`` is the
+# single source of truth for that. This map exists so ``caps.remote_lock``
+# is a valid attribute access and so tokens serialized by versions that
+# didn't persist ``raw`` can still be deserialized into a usable form.
+_CAPABILITY_FIELD_TO_API_KEY = {
+    "remote_lock": "telematicsRemoteLockUnlock",
+    "remote_climate": "telematicsRemoteClimate",
+    "remote_charge": "telematicsRemoteCharge",
+    "remote_horn": "telematicsRemoteHorn",
+    "digital_key": "digitalKey",
+    "charge_schedule": "telematicsRemoteChargeSchedule",
+    "climate_schedule": "telematicsRemoteClimateSchedule",
+    "max_charge": "telematicsMaxChargeSettings",
+    "car_finder": "telematicsRemoteCarFinder",
+    "journey_history": "telematicsJourneyHistory",
+    "send_poi": "telematicsSendPoi",
+    "geo_fence": "telematicsGeoFence",
+    "specific_temperature": "useSpecificTemperatureControl",
+    "climate_adjusted_range": "useClimateAdjustedRange",
+    "display_phev_range": "displayPhevRange",
+    "smart_charge": "smartCharge",
+    "remote_engine": "telematicsUseRemoteEngineApi",
+    "care_assistance": "telematicsCareAssistance",
+    "digital_key_lock_unlock": "digitalKeyLockUnlock",
+    "digital_key_open_charge_lid": "digitalKeyOpenChargeLid",
+    "digital_key_close_power_windows": "digitalKeyClosePowerWindows",
+    "digital_key_open_power_windows": "digitalKeyOpenPowerWindows",
+    "digital_key_stop_power_windows": "digitalKeyStopPowerWindows",
+    "digital_key_power_on_guidance": "digitalKeyPowerOnGuidance",
+    "digital_key_power_on_guidance_manual": "digitalKeyPowerOnGuidanceManual",
+    "digital_key_start_authentication": "digitalKeyStartAuthentication",
+    "digital_key_leave_notifications": "digitalKeyLeaveNotifications",
+    "suppress_lid_open_warning": "suppressLidOpenWarning",
+    "hide_open_charge_lid_button": "hideOpenChargeLidButton",
+    "telematics": "telematics",
+    "hpa": "hpa",
+}
 
 
 @dataclass

@@ -1015,27 +1015,21 @@ def _run_main(args: argparse.Namespace, storage) -> int:
             print(t("no_capability_data"))
             return 1
         caps = vehicle.capabilities
-        cap_fields = {
-            "remote_lock": "cap_lock_unlock",
-            "remote_climate": "cap_climate",
-            "remote_charge": "cap_charging",
-            "remote_horn": "cap_horn",
-            "digital_key": "cap_digital_key",
-            "charge_schedule": "cap_charge_schedule",
-            "climate_schedule": "cap_climate_schedule",
-            "max_charge": "cap_max_charge",
-            "car_finder": "cap_car_finder",
-            "journey_history": "cap_journeys",
-            "send_poi": "cap_send_nav",
-            "geo_fence": "cap_geo_fence",
-        }
         label = vehicle.name or vin
         print(f"{t('capabilities_for')} {label}:")
-        translated = [(t(t_key), getattr(caps, fn, False)) for fn, t_key in cap_fields.items()]
-        w = max(len(name) for name, _ in translated) + 2
-        for name, active in translated:
-            status = t("cap_active") if active else t("cap_not_supported")
-            print(f"  {name:<{w}} {status}")
+        actives = caps.active_api_keys()
+        unsupported = caps.not_supported_api_keys()
+        if not actives and not unsupported:
+            print(f"  {t('no_active_capabilities')}")
+            return 0
+        if actives:
+            print(f"  {t('cap_active')}:")
+            for api_key in actives:
+                print(f"    {api_key}")
+        if unsupported:
+            print(f"  {t('cap_not_supported')}:")
+            for api_key in unsupported:
+                print(f"    {api_key}")
         return 0
 
     if args.command == "subscription":
