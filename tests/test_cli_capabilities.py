@@ -59,13 +59,14 @@ def test_all_active_capabilities_shown_with_raw_api_keys(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "Capabilities for Honda e:" in out
+    assert "Active:" in out
     assert "telematicsRemoteLockUnlock" in out
     assert "telematicsRemoteClimate" in out
     assert "telematicsGeoFence" in out
     assert "digitalKey" in out
 
 
-def test_only_active_capabilities_are_listed(monkeypatch, capsys):
+def test_active_and_not_supported_are_both_listed(monkeypatch, capsys):
     cap_raw = {
         "telematicsRemoteLockUnlock": {"featureStatus": "active"},
         "telematicsRemoteHorn": {"featureStatus": "notSupported"},
@@ -76,10 +77,16 @@ def test_only_active_capabilities_are_listed(monkeypatch, capsys):
     rc = _run(monkeypatch, fake, "VIN123")
     out = capsys.readouterr().out
     assert rc == 0
+    assert "Active:" in out
+    assert "Not supported:" in out
     assert "telematicsRemoteLockUnlock" in out
     assert "telematicsRemoteClimate" in out
-    assert "telematicsRemoteHorn" not in out
-    assert "telematicsGeoFence" not in out
+    assert "telematicsRemoteHorn" in out
+    assert "telematicsGeoFence" in out
+    # Ordering: Active block appears before Not supported block
+    assert out.index("Active:") < out.index("Not supported:")
+    assert out.index("telematicsRemoteClimate") < out.index("Not supported:")
+    assert out.index("telematicsRemoteHorn") > out.index("Not supported:")
 
 
 def test_unknown_future_api_key_renders_same_as_known(monkeypatch, capsys):
@@ -92,18 +99,28 @@ def test_unknown_future_api_key_renders_same_as_known(monkeypatch, capsys):
     rc = _run(monkeypatch, fake, "VIN123")
     out = capsys.readouterr().out
     assert rc == 0
-    # All three render identically as the raw Honda API key.
     assert "telematicsRemoteLockUnlock" in out
     assert "telematicsFuturePhonyFeature" in out
     assert "useSpecificTemperatureControl" in out
 
 
-def test_no_active_capabilities_prints_message(monkeypatch, capsys):
+def test_all_notsupported_shows_not_supported_block_only(monkeypatch, capsys):
     cap_raw = {
         "telematicsRemoteLockUnlock": {"featureStatus": "notSupported"},
         "telematicsRemoteHorn": {"featureStatus": "notSupported"},
     }
     fake = _FakeAPI([_make_vehicle(cap_raw)], default_vin="VIN123")
+    rc = _run(monkeypatch, fake, "VIN123")
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Active:" not in out
+    assert "Not supported:" in out
+    assert "telematicsRemoteLockUnlock" in out
+    assert "telematicsRemoteHorn" in out
+
+
+def test_empty_raw_prints_fallback_message(monkeypatch, capsys):
+    fake = _FakeAPI([_make_vehicle({})], default_vin="VIN123")
     rc = _run(monkeypatch, fake, "VIN123")
     out = capsys.readouterr().out
     assert rc == 0
@@ -138,9 +155,9 @@ def test_entries_are_alphabetized_by_api_key(monkeypatch, capsys):
     rc = _run(monkeypatch, fake, "VIN123")
     out = capsys.readouterr().out
     assert rc == 0
-    lines = [ln.strip() for ln in out.splitlines() if ln.startswith("  ")]
-    assert lines[0] == "aaaFirstFuture"
-    assert lines[-1] == "zzzTrailingFuture"
+    active_rows = [ln.strip() for ln in out.splitlines() if ln.startswith("    ")]
+    assert active_rows[0] == "aaaFirstFuture"
+    assert active_rows[-1] == "zzzTrailingFuture"
 
 
 def test_non_dict_entries_are_ignored(monkeypatch, capsys):

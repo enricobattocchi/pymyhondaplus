@@ -1018,11 +1018,18 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         label = vehicle.name or vin
         print(f"{t('capabilities_for')} {label}:")
         actives = caps.active_api_keys()
-        if not actives:
+        unsupported = caps.not_supported_api_keys()
+        if not actives and not unsupported:
             print(f"  {t('no_active_capabilities')}")
             return 0
-        for api_key in actives:
-            print(f"  {api_key}")
+        if actives:
+            print(f"  {t('cap_active')}:")
+            for api_key in actives:
+                print(f"    {api_key}")
+        if unsupported:
+            print(f"  {t('cap_not_supported')}:")
+            for api_key in unsupported:
+                print(f"    {api_key}")
         return 0
 
     if args.command == "subscription":
