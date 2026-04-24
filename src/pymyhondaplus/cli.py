@@ -1078,15 +1078,37 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         if gf is None:
             print(t("geofence_none"))
             return 0
-        active = t("cap_active") if gf.active else t("cap_not_supported")
+        # State label: derived from waiting flags + active. Mirrors Honda's
+        # own app — Activating / De-Activating / Active / Not Active.
+        if gf.waiting_activate:
+            state_label = t("geofence_state_activating")
+        elif gf.waiting_deactivate:
+            state_label = t("geofence_state_deactivating")
+        elif gf.active:
+            state_label = t("geofence_state_active")
+        else:
+            state_label = t("geofence_state_inactive")
+        # Error line: surface the most recent terminal failure separately.
+        # Suppressed while a new activate/deactivate is in flight — the
+        # status shown there is from the *previous* command and would
+        # mislead the user about the current attempt. Timeout takes
+        # precedence (Honda's app uses one generic timeout message
+        # regardless of direction); otherwise activate failure outweighs
+        # deactivate failure.
+        error_line = None
+        if not gf.waiting_activate and not gf.waiting_deactivate:
+            if gf.activate_status == "timeout" or gf.deactivate_status == "timeout":
+                error_line = t("geofence_timeout_error")
+            elif gf.activate_status == "failure":
+                error_line = t("geofence_activate_error")
+            elif gf.deactivate_status == "failure":
+                error_line = t("geofence_deactivate_error")
         rows = [
             (t("geofence_name"), gf.name),
-            (t("geofence_status"), active),
+            (t("geofence_status"), state_label),
             (t("coordinates_label"), f"{gf.latitude:.6f}, {gf.longitude:.6f}"),
             (t("geofence_radius"), f"{gf.radius} km"),
         ]
-        if gf.processing:
-            rows.append((t("geofence_processing"), t("on")))
         rows = [(lbl, val) for lbl, val in rows if val]
         vehicle = next((v for v in api.tokens.vehicles if v["vin"] == vin), None)
         vlabel = vehicle.name if vehicle else vin
@@ -1094,13 +1116,21 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         print(f"{t('geofence_heading')} — {vlabel}:")
         for lbl, val in rows:
             print(f"  {lbl + ':':<{w}}  {val}")
+        if error_line:
+            print(f"  {error_line}")
         return 0
 
     if args.command == "geofence-set":
         t = get_translator()
+        # Geofence async commands can take several minutes server-side; the
+        # global --timeout default (90s, sized for remote lock/climate/charge)
+        # is too short and reports premature timeout before Honda has really
+        # given up. Match Honda's own app: wait up to 420s unless the user
+        # explicitly overrides --timeout.
+        geofence_timeout = 420 if args.timeout == 90 else args.timeout
         api.set_geofence(vin, args.lat, args.lon, args.radius, args.name)
         with _Spinner(t("cmd_geofence_set")):
-            gf = api.wait_for_geofence(vin, timeout=args.timeout)
+            gf = api.wait_for_geofence(vin, timeout=geofence_timeout)
         if gf is None:
             print(t("geofence_none"))
             return 1
@@ -1121,9 +1151,12 @@ def _run_main(args: argparse.Namespace, storage) -> int:
 
     if args.command == "geofence-clear":
         t = get_translator()
+        # Same 420s override as geofence-set: the 90s global default is too
+        # short for Honda's async command completion.
+        geofence_timeout = 420 if args.timeout == 90 else args.timeout
         api.clear_geofence(vin)
         with _Spinner(t("cmd_geofence_clear")):
-            gf = api.wait_for_geofence(vin, timeout=args.timeout)
+            gf = api.wait_for_geofence(vin, timeout=geofence_timeout)
         if gf is None:
             print(f"{t('cmd_geofence_clear')}: {t('cmd_done')}")
             return 0

@@ -1225,14 +1225,29 @@ class HondaAPI:
 
     def wait_for_geofence(self, vin: str, timeout: int = 420,
                           poll_interval: float = 5.0) -> Geofence | None:
-        """Poll geofence config until processing completes, fails, or timeout."""
+        """Poll geofence config until no async command is in flight, or until
+        ``timeout`` seconds elapse.
+
+        Honda's own app uses ``isWaitingForActivate`` / ``isWaitingForDeactivate``
+        as the authoritative "command in flight" flags: while either is true
+        the server is still awaiting a response from the car's TCU. The older
+        ``isCommandProcessing`` flag flips off as soon as the server's state
+        machine is idle, which can happen before the car has answered —
+        reading it reports premature success/failure when the vehicle is in
+        energy-saving mode. And ``activateAsyncCommandStatus`` /
+        ``deactivateAsyncCommandStatus`` are **not reset** when a new command
+        is submitted; they still carry the previous command's terminal value
+        until the new one resolves, so reading them right after a submission
+        shows stale data. The waiting flags are the only signal whose
+        semantics match "there's a command happening right now".
+        """
         deadline = time.time() + timeout
+        gf: Geofence | None = None
         while time.time() < deadline:
             gf = self.get_geofence(vin)
-            if gf is None or not gf.processing:
+            if gf is None:
                 return gf
-            if gf.activate_status in ("failure", "timeout") \
-               or gf.deactivate_status in ("failure", "timeout"):
+            if not gf.waiting_activate and not gf.waiting_deactivate:
                 return gf
             time.sleep(poll_interval)
         return gf
