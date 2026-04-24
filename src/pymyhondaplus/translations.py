@@ -76,6 +76,7 @@ TRANSLATIONS = {
         "image_side": "Boční pohled",
         "capabilities_for": "Funkce pro",
         "no_capability_data": "Žádná data o funkcích. Spusťte nejprve 'pymyhondaplus list'.",
+        "no_active_capabilities": "Nejsou hlášeny žádné aktivní funkce.",
         "cap_lock_unlock": "Zamknout/Odemknout",
         "cap_climate": "Automatická klimatizace",
         "cap_charging": "Nabíjení",
@@ -211,6 +212,7 @@ TRANSLATIONS = {
         "image_side": "Sidebillede",
         "capabilities_for": "Funktioner for",
         "no_capability_data": "Ingen funktionsdata. Kør 'pymyhondaplus list' først.",
+        "no_active_capabilities": "Ingen aktive funktioner rapporteret.",
         "cap_lock_unlock": "Lås/Lås op",
         "cap_climate": "Klimaanlæg",
         "cap_charging": "Opladning",
@@ -346,6 +348,7 @@ TRANSLATIONS = {
         "image_side": "Seitenansicht",
         "capabilities_for": "Funktionen für",
         "no_capability_data": "Keine Funktionsdaten. Führen Sie zuerst 'pymyhondaplus list' aus.",
+        "no_active_capabilities": "Keine aktiven Funktionen gemeldet.",
         "cap_lock_unlock": "Verriegeln/Entriegeln",
         "cap_climate": "Klimasteuerung",
         "cap_charging": "Laden",
@@ -481,6 +484,7 @@ TRANSLATIONS = {
         "image_side": "Side",
         "capabilities_for": "Capabilities for",
         "no_capability_data": "No capability data stored. Run 'pymyhondaplus list' first.",
+        "no_active_capabilities": "No active capabilities reported.",
         "cap_lock_unlock": "Lock/Unlock",
         "cap_climate": "Climate control",
         "cap_charging": "Charging",
@@ -616,6 +620,7 @@ TRANSLATIONS = {
         "image_side": "Vista lateral",
         "capabilities_for": "Funciones de",
         "no_capability_data": "Sin datos de funciones. Ejecute primero 'pymyhondaplus list'.",
+        "no_active_capabilities": "Sin funciones activas reportadas.",
         "cap_lock_unlock": "Bloquear/Desbloquear",
         "cap_climate": "Control de climatización",
         "cap_charging": "Carga",
@@ -751,6 +756,7 @@ TRANSLATIONS = {
         "image_side": "Vue latérale",
         "capabilities_for": "Fonctionnalités de",
         "no_capability_data": "Aucune donnée de fonctionnalité. Exécutez d'abord 'pymyhondaplus list'.",
+        "no_active_capabilities": "Aucune fonctionnalité active signalée.",
         "cap_lock_unlock": "Verrouiller/Déverrouiller",
         "cap_climate": "Contrôle de la climatisation",
         "cap_charging": "Charge",
@@ -886,6 +892,7 @@ TRANSLATIONS = {
         "image_side": "Oldalnézet",
         "capabilities_for": "Funkciók:",
         "no_capability_data": "Nincs funkcióadat. Futtassa először a 'pymyhondaplus list' parancsot.",
+        "no_active_capabilities": "Nincs aktív funkció.",
         "cap_lock_unlock": "Zárás/Nyitás",
         "cap_climate": "Klímaszabályozás",
         "cap_charging": "Töltés",
@@ -1021,6 +1028,7 @@ TRANSLATIONS = {
         "image_side": "Vista laterale",
         "capabilities_for": "Funzionalità di",
         "no_capability_data": "Nessun dato sulle funzionalità. Esegui prima 'pymyhondaplus list'.",
+        "no_active_capabilities": "Nessuna funzionalità attiva segnalata.",
         "cap_lock_unlock": "Blocca/Sblocca",
         "cap_climate": "Controllo del clima",
         "cap_charging": "Ricarica",
@@ -1156,6 +1164,7 @@ TRANSLATIONS = {
         "image_side": "Zijaanzicht",
         "capabilities_for": "Functies van",
         "no_capability_data": "Geen functiegegevens. Voer eerst 'pymyhondaplus list' uit.",
+        "no_active_capabilities": "Geen actieve functies gemeld.",
         "cap_lock_unlock": "Vergrendelen/Ontgrendelen",
         "cap_climate": "Klimaatregeling",
         "cap_charging": "Opladen",
@@ -1291,6 +1300,7 @@ TRANSLATIONS = {
         "image_side": "Sidebilde",
         "capabilities_for": "Funksjoner for",
         "no_capability_data": "Ingen funksjonsdata. Kjør 'pymyhondaplus list' først.",
+        "no_active_capabilities": "Ingen aktive funksjoner rapportert.",
         "cap_lock_unlock": "Lås/Lås opp",
         "cap_climate": "Klimakontroll",
         "cap_charging": "Lading",
@@ -1426,6 +1436,7 @@ TRANSLATIONS = {
         "image_side": "Widok z boku",
         "capabilities_for": "Funkcje dla",
         "no_capability_data": "Brak danych o funkcjach. Uruchom najpierw 'pymyhondaplus list'.",
+        "no_active_capabilities": "Brak aktywnych funkcji.",
         "cap_lock_unlock": "Zablokuj/Odblokuj",
         "cap_climate": "Sterowanie klimatyzacją",
         "cap_charging": "Ładowanie",
@@ -1561,6 +1572,7 @@ TRANSLATIONS = {
         "image_side": "Bočný pohľad",
         "capabilities_for": "Funkcie pre",
         "no_capability_data": "Žiadne údaje o funkciách. Najskôr spustite 'pymyhondaplus list'.",
+        "no_active_capabilities": "Žiadne aktívne funkcie neboli nahlásené.",
         "cap_lock_unlock": "Zamknúť/Odomknúť",
         "cap_climate": "Ovládanie klimatizácie",
         "cap_charging": "Nabíjanie",
@@ -1696,6 +1708,7 @@ TRANSLATIONS = {
         "image_side": "Sida",
         "capabilities_for": "Funktioner för",
         "no_capability_data": "Ingen funktionsdata. Kör 'pymyhondaplus list' först.",
+        "no_active_capabilities": "Inga aktiva funktioner rapporterade.",
         "cap_lock_unlock": "Lås/Lås upp",
         "cap_climate": "Klimatanläggning",
         "cap_charging": "Laddning",
@@ -1824,6 +1837,26 @@ IG_STATUS_MAP = {
 TEMP_UNIT_MAP = {
     "c": "°C",
     "f": "°F",
+}
+
+# Map raw Honda API vehicleCapability keys (as used in VehicleCapabilities.from_api)
+# to translation keys in this module. Consumers that display capability labels
+# (pymyhondaplus CLI, myhondaplus-desktop) iterate VehicleCapabilities.raw and
+# look up labels here; unknown future Honda keys render as the raw API key so
+# new capabilities are never silently hidden.
+CAPABILITY_API_KEY_TO_TRANSLATION_KEY = {
+    "telematicsRemoteLockUnlock": "cap_lock_unlock",
+    "telematicsRemoteClimate": "cap_climate",
+    "telematicsRemoteCharge": "cap_charging",
+    "telematicsRemoteHorn": "cap_horn",
+    "digitalKey": "cap_digital_key",
+    "telematicsRemoteChargeSchedule": "cap_charge_schedule",
+    "telematicsRemoteClimateSchedule": "cap_climate_schedule",
+    "telematicsMaxChargeSettings": "cap_max_charge",
+    "telematicsRemoteCarFinder": "cap_car_finder",
+    "telematicsJourneyHistory": "cap_journeys",
+    "telematicsSendPoi": "cap_send_nav",
+    "telematicsGeoFence": "cap_geo_fence",
 }
 
 

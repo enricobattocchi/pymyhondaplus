@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.8.1 — 2026-04-24
+
+- CLI `capabilities` command now lists every active capability the API reports, including feature flags added by Honda that this library version doesn't yet know about (rendered by their raw API key — e.g. `useSpecificTemperatureControl` — when no translated label exists). Previously only 12 hardcoded capabilities were shown.
+- CLI `capabilities` no longer prints inactive capabilities. Use `vehicle.capabilities.<field>` programmatically to check whether a specific flag is supported.
+- Public API: expose `get_translator`, `TRANSLATIONS`, and the new `CAPABILITY_API_KEY_TO_TRANSLATION_KEY` mapping at the top level so consumers can share the library's translations for capability labels (`from pymyhondaplus import get_translator, CAPABILITY_API_KEY_TO_TRANSLATION_KEY`).
+- Add `no_active_capabilities` translation key in all 13 locales.
+
 ## 5.8.0 — 2026-04-24
 
 - Convert DMS-with-commas GPS coordinates to decimal degrees in `parse_ev_status` (`EVStatus.latitude` and `EVStatus.longitude` changed from `str` to `float`).
