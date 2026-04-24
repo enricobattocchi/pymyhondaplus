@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.8.2 — 2026-04-25
+
+- `wait_for_geofence` now polls on `isWaitingForActivate` / `isWaitingForDeactivate` (matching Honda's own app) instead of `isCommandProcessing`. The previous logic exited as soon as the server's state machine went idle, which is well before the async command to the car has actually completed — when the TCU was unreachable (energy-saving mode), the wait reported a result based on stale `activateAsyncCommandStatus` from the *previous* command, often as immediate "failure" or "timeout". The fix tracks the actual in-flight flag, ignoring stale status until the new command resolves.
+- CLI `geofence-set` / `geofence-clear` default `--timeout` raised from 90s to 420s (matches Honda's own server-side wait policy of "up to 7 minutes"). Explicit `--timeout N` still wins. Other remote commands keep their 90s default.
+- CLI `geofence` query now distinguishes four states (Active / Not Active / Activating / De-Activating) using Honda's own status labels, and surfaces a separate error line for the most recent terminal failure (timeout / activate / deactivate). The error line is suppressed while a new command is in flight so it doesn't leak the previous attempt's outcome onto the live status.
+- Add 7 new translation keys (`geofence_state_active`, `geofence_state_inactive`, `geofence_state_activating`, `geofence_state_deactivating`, `geofence_activate_error`, `geofence_deactivate_error`, `geofence_timeout_error`) sourced verbatim from the Honda app, across all 13 locales. Honda's app ships sk/sv error strings swapped — fixed here so each locale gets its own language. Italian active/inactive labels capitalized for consistency with the other 12 locales.
+
 ## 5.8.1 — 2026-04-24
 
 - CLI `capabilities` command now lists every active capability the API reports, rendered by their raw Honda API key (e.g. `telematicsRemoteLockUnlock`, `useSpecificTemperatureControl`, `smartCharge`). Previously only 12 hardcoded capabilities were shown with translated labels; that list silently omitted the 17 fields added in 5.8.0 and the translations themselves were partly invented rather than sourced from Honda. Raw API keys are honest, identical in every locale, and forward-compatible with flags Honda adds that this library version doesn't yet know about.
