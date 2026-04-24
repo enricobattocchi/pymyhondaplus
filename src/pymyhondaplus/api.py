@@ -1225,14 +1225,26 @@ class HondaAPI:
 
     def wait_for_geofence(self, vin: str, timeout: int = 420,
                           poll_interval: float = 5.0) -> Geofence | None:
-        """Poll geofence config until processing completes, fails, or timeout."""
+        """Poll geofence config until the activate/deactivate async command
+        reaches a terminal status ("success" / "failure" / "timeout"), or
+        until the overall ``timeout`` is reached.
+
+        Honda reports the truthful outcome of a geofence save/clear in
+        ``activateAsyncCommandStatus`` / ``deactivateAsyncCommandStatus``.
+        The ``isCommandProcessing`` flag flips off as soon as the server
+        state machine is idle, even if the async command to the car is
+        still pending — relying on it reports success prematurely when
+        the TCU is unreachable (energy-saving mode) and the phone app
+        subsequently surfaces a failure we never saw.
+        """
         deadline = time.time() + timeout
+        terminal = {"", "success", "failure", "timeout"}
+        gf: Geofence | None = None
         while time.time() < deadline:
             gf = self.get_geofence(vin)
-            if gf is None or not gf.processing:
+            if gf is None:
                 return gf
-            if gf.activate_status in ("failure", "timeout") \
-               or gf.deactivate_status in ("failure", "timeout"):
+            if gf.activate_status in terminal and gf.deactivate_status in terminal:
                 return gf
             time.sleep(poll_interval)
         return gf

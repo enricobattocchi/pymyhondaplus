@@ -94,3 +94,115 @@ class TestCoordinateConversion:
         gf = Geofence.from_api(data)
         assert gf.latitude == 0.0
         assert gf.longitude == 0.0
+
+
+
+class TestWaitForGeofence:
+    """Ensure wait_for_geofence polls until activate/deactivate status is terminal."""
+
+    def _build_api(self, responses):
+        """Return a HondaAPI whose get_geofence emits the given sequence of Geofence objects."""
+        import time as _time
+
+        from pymyhondaplus.api import HondaAPI
+
+        api = HondaAPI.__new__(HondaAPI)  # skip __init__ (no auth needed)
+        it = iter(responses)
+
+        def _get_geofence(_vin):
+            return next(it)
+
+        api.get_geofence = _get_geofence  # type: ignore[method-assign]
+
+        # Avoid real sleeping between polls.
+        self._sleeps = []
+
+        def _fake_sleep(seconds):
+            self._sleeps.append(seconds)
+
+        self._real_sleep = _time.sleep
+        _time.sleep = _fake_sleep  # monkey-patch module-level
+        self._time_module = _time
+        return api
+
+    def teardown_method(self):
+        # Restore real sleep.
+        if hasattr(self, "_real_sleep") and self._real_sleep is not None:
+            self._time_module.sleep = self._real_sleep
+            self._real_sleep = None
+
+    def test_returns_immediately_on_terminal_success(self):
+        gf_success = Geofence.from_api({**ACTIVE_GEOFENCE_API, "activateAsyncCommandStatus": "success"})
+        api = self._build_api([gf_success])
+        result = api.wait_for_geofence("VIN", timeout=60, poll_interval=1.0)
+        assert result is gf_success
+        assert self._sleeps == []  # no polling needed
+
+    def test_returns_immediately_on_terminal_failure(self):
+        gf_failure = Geofence.from_api({**ACTIVE_GEOFENCE_API, "activateAsyncCommandStatus": "failure"})
+        api = self._build_api([gf_failure])
+        result = api.wait_for_geofence("VIN", timeout=60, poll_interval=1.0)
+        assert result is gf_failure
+
+    def test_returns_immediately_on_terminal_timeout(self):
+        gf_timeout = Geofence.from_api({**ACTIVE_GEOFENCE_API, "activateAsyncCommandStatus": "timeout"})
+        api = self._build_api([gf_timeout])
+        result = api.wait_for_geofence("VIN", timeout=60, poll_interval=1.0)
+        assert result is gf_timeout
+
+    def test_polls_past_is_command_processing_until_activate_status_terminal(self):
+        """Regression: isCommandProcessing=False alone is not enough to exit."""
+        raw_processing = {
+            **ACTIVE_GEOFENCE_API,
+            "isCommandProcessing": False,  # server state machine idle
+            "activateAsyncCommandStatus": "",  # but async command still pending (empty != terminal for "processing")
+        }
+        # Empty string IS in the terminal set — simulate "still pending" via a non-empty non-terminal value.
+        raw_processing["activateAsyncCommandStatus"] = "processing"
+        gf_pending = Geofence.from_api(raw_processing)
+        gf_success = Geofence.from_api({**ACTIVE_GEOFENCE_API, "activateAsyncCommandStatus": "success"})
+        api = self._build_api([gf_pending, gf_pending, gf_success])
+        result = api.wait_for_geofence("VIN", timeout=60, poll_interval=2.0)
+        assert result is gf_success
+        assert self._sleeps == [2.0, 2.0]  # slept twice between polls
+
+    def test_times_out_without_terminal_status(self, monkeypatch):
+        """If deadline hits while async status still pending, return last observed state."""
+        import time as _time
+
+        raw_pending = {**ACTIVE_GEOFENCE_API, "activateAsyncCommandStatus": "processing"}
+        gf_pending = Geofence.from_api(raw_pending)
+
+        # Simulate clock advancing past the deadline after a few polls.
+        fake_now = [1000.0]
+        monkeypatch.setattr(_time, "time", lambda: fake_now[0])
+        monkeypatch.setattr(_time, "sleep", lambda s: fake_now.__setitem__(0, fake_now[0] + s))
+
+        from pymyhondaplus.api import HondaAPI
+        api = HondaAPI.__new__(HondaAPI)
+        api.get_geofence = lambda _vin: gf_pending  # type: ignore[method-assign]
+
+        try:
+            result = api.wait_for_geofence("VIN", timeout=3, poll_interval=1.0)
+        finally:
+            # pytest monkeypatch auto-restores at teardown
+            pass
+        assert result is gf_pending
+        assert result.activate_status == "processing"
+
+    def test_returns_none_when_geofence_cleared(self):
+        api = self._build_api([None])
+        result = api.wait_for_geofence("VIN", timeout=60, poll_interval=1.0)
+        assert result is None
+
+    def test_empty_async_status_is_terminal(self):
+        """An empty string means the command is not pending; do not keep polling."""
+        gf_empty = Geofence.from_api({
+            **ACTIVE_GEOFENCE_API,
+            "activateAsyncCommandStatus": "",
+            "deactivateAsyncCommandStatus": "",
+        })
+        api = self._build_api([gf_empty])
+        result = api.wait_for_geofence("VIN", timeout=60, poll_interval=1.0)
+        assert result is gf_empty
+        assert self._sleeps == []

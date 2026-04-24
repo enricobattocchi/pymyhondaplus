@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.8.2 — 2026-04-24
+
+- Fix `wait_for_geofence` reporting premature success when the vehicle's TCU is unreachable (energy-saving mode). `isCommandProcessing` flips off as soon as the server state machine is idle, but the async command to the car can still be pending with `activateAsyncCommandStatus` / `deactivateAsyncCommandStatus` in a non-terminal state. The wait loop now polls until both async-status fields reach a terminal value (`"success"`, `"failure"`, `"timeout"`, or the unset empty string) — matching the behaviour Honda's own app relies on.
+
 ## 5.8.1 — 2026-04-24
 
 - CLI `capabilities` command now lists every active capability the API reports, rendered by their raw Honda API key (e.g. `telematicsRemoteLockUnlock`, `useSpecificTemperatureControl`, `smartCharge`). Previously only 12 hardcoded capabilities were shown with translated labels; that list silently omitted the 17 fields added in 5.8.0 and the translations themselves were partly invented rather than sourced from Honda. Raw API keys are honest, identical in every locale, and forward-compatible with flags Honda adds that this library version doesn't yet know about.
