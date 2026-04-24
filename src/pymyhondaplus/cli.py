@@ -24,7 +24,6 @@ from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .http import DEFAULT_REQUEST_TIMEOUT
 from .storage import get_storage
 from .translations import (
-    CAPABILITY_API_KEY_TO_TRANSLATION_KEY,
     CHARGE_MODE_FALLBACK_MAP, CHARGE_MODE_MAP, CHARGE_STATUS_MAP,
     IG_STATUS_MAP, PLUG_STATUS_MAP, TEMP_UNIT_MAP, get_translator,
 )
@@ -1018,17 +1017,15 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         caps = vehicle.capabilities
         label = vehicle.name or vin
         print(f"{t('capabilities_for')} {label}:")
-        actives = [
-            (api_key, entry) for api_key, entry in caps.raw.items()
+        actives = sorted(
+            api_key for api_key, entry in caps.raw.items()
             if isinstance(entry, dict) and entry.get("featureStatus") == "active"
-        ]
+        )
         if not actives:
             print(f"  {t('no_active_capabilities')}")
             return 0
-        for api_key, _entry in sorted(actives):
-            tkey = CAPABILITY_API_KEY_TO_TRANSLATION_KEY.get(api_key)
-            name = t(tkey) if tkey else api_key
-            print(f"  {name}")
+        for api_key in actives:
+            print(f"  {api_key}")
         return 0
 
     if args.command == "subscription":

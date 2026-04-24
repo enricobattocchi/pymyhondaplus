@@ -47,21 +47,22 @@ def _run(monkeypatch, fake_api, vin):
     return cli.main()
 
 
-def test_all_known_active_capabilities_shown_with_translated_labels(monkeypatch, capsys):
+def test_all_active_capabilities_shown_with_raw_api_keys(monkeypatch, capsys):
     cap_raw = {
-        key: {"featureStatus": "active"}
-        for key in cli.CAPABILITY_API_KEY_TO_TRANSLATION_KEY
+        "telematicsRemoteLockUnlock": {"featureStatus": "active"},
+        "telematicsRemoteClimate": {"featureStatus": "active"},
+        "telematicsGeoFence": {"featureStatus": "active"},
+        "digitalKey": {"featureStatus": "active"},
     }
     fake = _FakeAPI([_make_vehicle(cap_raw)], default_vin="VIN123")
     rc = _run(monkeypatch, fake, "VIN123")
     out = capsys.readouterr().out
     assert rc == 0
     assert "Capabilities for Honda e:" in out
-    assert "Lock/Unlock" in out
-    assert "Charging" in out
-    assert "Climate control" in out
-    assert "Geo-fence" in out
-    assert "Digital Key" in out
+    assert "telematicsRemoteLockUnlock" in out
+    assert "telematicsRemoteClimate" in out
+    assert "telematicsGeoFence" in out
+    assert "digitalKey" in out
 
 
 def test_only_active_capabilities_are_listed(monkeypatch, capsys):
@@ -75,13 +76,13 @@ def test_only_active_capabilities_are_listed(monkeypatch, capsys):
     rc = _run(monkeypatch, fake, "VIN123")
     out = capsys.readouterr().out
     assert rc == 0
-    assert "Lock/Unlock" in out
-    assert "Climate control" in out
-    assert "Horn" not in out
-    assert "Geo-fence" not in out
+    assert "telematicsRemoteLockUnlock" in out
+    assert "telematicsRemoteClimate" in out
+    assert "telematicsRemoteHorn" not in out
+    assert "telematicsGeoFence" not in out
 
 
-def test_unknown_future_api_key_renders_raw(monkeypatch, capsys):
+def test_unknown_future_api_key_renders_same_as_known(monkeypatch, capsys):
     cap_raw = {
         "telematicsRemoteLockUnlock": {"featureStatus": "active"},
         "telematicsFuturePhonyFeature": {"featureStatus": "active"},
@@ -91,7 +92,8 @@ def test_unknown_future_api_key_renders_raw(monkeypatch, capsys):
     rc = _run(monkeypatch, fake, "VIN123")
     out = capsys.readouterr().out
     assert rc == 0
-    assert "Lock/Unlock" in out
+    # All three render identically as the raw Honda API key.
+    assert "telematicsRemoteLockUnlock" in out
     assert "telematicsFuturePhonyFeature" in out
     assert "useSpecificTemperatureControl" in out
 
@@ -136,7 +138,6 @@ def test_entries_are_alphabetized_by_api_key(monkeypatch, capsys):
     rc = _run(monkeypatch, fake, "VIN123")
     out = capsys.readouterr().out
     assert rc == 0
-    # First active bullet should be "aaaFirstFuture" (alphabetical)
     lines = [ln.strip() for ln in out.splitlines() if ln.startswith("  ")]
     assert lines[0] == "aaaFirstFuture"
     assert lines[-1] == "zzzTrailingFuture"
@@ -152,6 +153,6 @@ def test_non_dict_entries_are_ignored(monkeypatch, capsys):
     rc = _run(monkeypatch, fake, "VIN123")
     out = capsys.readouterr().out
     assert rc == 0
-    assert "Lock/Unlock" in out
+    assert "telematicsRemoteLockUnlock" in out
     assert "bogusTopLevelString" not in out
     assert "anotherWeirdOne" not in out

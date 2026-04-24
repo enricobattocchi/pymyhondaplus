@@ -3,11 +3,10 @@
 from .api import AuthTokens, CommandResult, EVStatus, Geofence, HondaAPI, HondaAPIError, HondaAuthError, SubscriptionService, Subscription, UIConfiguration, UserProfile, Vehicle, VehicleCapabilities, compute_trip_stats, parse_charge_schedule, parse_climate_schedule, parse_ev_status
 from .auth import DeviceKey, HondaAuth, encrypt_request
 from .storage import SecretStorage, get_storage
-from .translations import CAPABILITY_API_KEY_TO_TRANSLATION_KEY, TRANSLATIONS, get_translator
+from .translations import TRANSLATIONS, get_translator
 
 __all__ = [
     "AuthTokens",
-    "CAPABILITY_API_KEY_TO_TRANSLATION_KEY",
     "CommandResult",
     "EVStatus",
     "Geofence",
