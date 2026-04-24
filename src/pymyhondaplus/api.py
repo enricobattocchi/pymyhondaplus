@@ -62,6 +62,68 @@ def _format_hhmm(raw: str) -> str:
     return f"{digits[:2]}:{digits[2:4]}"
 
 
+def _dms_to_decimal(dms: str) -> float:
+    """Convert a DMS-with-commas string (e.g. '43,33,11.902') to decimal degrees."""
+    if not dms:
+        return 0.0
+    try:
+        parts = dms.split(",")
+        if len(parts) != 3:
+            return float(dms)
+        deg, minutes, seconds = parts
+        sign = -1 if deg.startswith("-") else 1
+        return sign * (abs(float(deg)) + float(minutes) / 60 + float(seconds) / 3600)
+    except (ValueError, IndexError):
+        return 0.0
+
+
+_CLIMATE_TEMP_MAP = {
+    "05": "cooler", "04": "normal", "03": "hotter",
+    "cool": "cooler", "normal": "normal", "warm": "hotter",
+    "cooler": "cooler", "hotter": "hotter",
+}
+
+
+def _normalize_climate_temp(raw: str) -> str:
+    """Normalize acTempVal: map known labels, pass through numeric values."""
+    label = _CLIMATE_TEMP_MAP.get(raw)
+    if label:
+        return label
+    try:
+        float(raw)
+        return raw
+    except (ValueError, TypeError):
+        return "unknown"
+
+
+# Raw API chargeStatus values -> canonical enum values exposed on EVStatus.
+# Downstream consumers (e.g. the Home Assistant integration) declare ENUM
+# sensors against the canonical set, so unexpected raw values collapse to
+# "unknown" rather than leaking through.
+_CHARGE_STATUS_MAP = {
+    "running": "charging",
+    "stopped": "stopped",
+    "unavailable": "unknown",
+    "unknown": "unknown",
+}
+
+
+def _normalize_charge_status(raw) -> str:
+    """Normalize a raw chargeStatus API value to a canonical enum value."""
+    if not isinstance(raw, str):
+        if raw is not None:
+            logger.debug(
+                "Unexpected chargeStatus type %s (%r); treating as unknown",
+                type(raw).__name__, raw,
+            )
+        return "unknown"
+    key = raw.strip().lower()
+    if key in _CHARGE_STATUS_MAP:
+        return _CHARGE_STATUS_MAP[key]
+    logger.debug("Unexpected chargeStatus value %r; treating as unknown", raw)
+    return "unknown"
+
+
 @dataclass
 class AuthTokens:
     access_token: str = ""
@@ -170,6 +232,23 @@ class VehicleCapabilities:
     journey_history: bool = False
     send_poi: bool = False
     geo_fence: bool = False
+    specific_temperature: bool = False
+    climate_adjusted_range: bool = False
+    display_phev_range: bool = False
+    smart_charge: bool = False
+    remote_engine: bool = False
+    care_assistance: bool = False
+    digital_key_lock_unlock: bool = False
+    digital_key_open_charge_lid: bool = False
+    digital_key_close_power_windows: bool = False
+    digital_key_open_power_windows: bool = False
+    digital_key_stop_power_windows: bool = False
+    digital_key_power_on_guidance: bool = False
+    digital_key_power_on_guidance_manual: bool = False
+    digital_key_start_authentication: bool = False
+    digital_key_leave_notifications: bool = False
+    suppress_lid_open_warning: bool = False
+    hide_open_charge_lid_button: bool = False
     raw: dict = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -193,6 +272,23 @@ class VehicleCapabilities:
             journey_history=_active("telematicsJourneyHistory"),
             send_poi=_active("telematicsSendPoi"),
             geo_fence=_active("telematicsGeoFence"),
+            specific_temperature=_active("useSpecificTemperatureControl"),
+            climate_adjusted_range=_active("useClimateAdjustedRange"),
+            display_phev_range=_active("displayPhevRange"),
+            smart_charge=_active("smartCharge"),
+            remote_engine=_active("telematicsUseRemoteEngineApi"),
+            care_assistance=_active("telematicsCareAssistance"),
+            digital_key_lock_unlock=_active("digitalKeyLockUnlock"),
+            digital_key_open_charge_lid=_active("digitalKeyOpenChargeLid"),
+            digital_key_close_power_windows=_active("digitalKeyClosePowerWindows"),
+            digital_key_open_power_windows=_active("digitalKeyOpenPowerWindows"),
+            digital_key_stop_power_windows=_active("digitalKeyStopPowerWindows"),
+            digital_key_power_on_guidance=_active("digitalKeyPowerOnGuidance"),
+            digital_key_power_on_guidance_manual=_active("digitalKeyPowerOnGuidanceManual"),
+            digital_key_start_authentication=_active("digitalKeyStartAuthentication"),
+            digital_key_leave_notifications=_active("digitalKeyLeaveNotifications"),
+            suppress_lid_open_warning=_active("suppressLidOpenWarning"),
+            hide_open_charge_lid_button=_active("hideOpenChargeLidButton"),
             raw=caps,
         )
 
@@ -210,6 +306,23 @@ class VehicleCapabilities:
             "journey_history": self.journey_history,
             "send_poi": self.send_poi,
             "geo_fence": self.geo_fence,
+            "specific_temperature": self.specific_temperature,
+            "climate_adjusted_range": self.climate_adjusted_range,
+            "display_phev_range": self.display_phev_range,
+            "smart_charge": self.smart_charge,
+            "remote_engine": self.remote_engine,
+            "care_assistance": self.care_assistance,
+            "digital_key_lock_unlock": self.digital_key_lock_unlock,
+            "digital_key_open_charge_lid": self.digital_key_open_charge_lid,
+            "digital_key_close_power_windows": self.digital_key_close_power_windows,
+            "digital_key_open_power_windows": self.digital_key_open_power_windows,
+            "digital_key_stop_power_windows": self.digital_key_stop_power_windows,
+            "digital_key_power_on_guidance": self.digital_key_power_on_guidance,
+            "digital_key_power_on_guidance_manual": self.digital_key_power_on_guidance_manual,
+            "digital_key_start_authentication": self.digital_key_start_authentication,
+            "digital_key_leave_notifications": self.digital_key_leave_notifications,
+            "suppress_lid_open_warning": self.suppress_lid_open_warning,
+            "hide_open_charge_lid_button": self.hide_open_charge_lid_button,
         }
 
     @classmethod
@@ -1240,8 +1353,8 @@ class EVStatus:
     cabin_temp: int = 0
     interior_temp: int = 0
     odometer: int = 0
-    latitude: str = ""
-    longitude: str = ""
+    latitude: float = 0.0
+    longitude: float = 0.0
     timestamp: str = ""
     doors_locked: bool = True
     all_doors_closed: bool = True
@@ -1290,17 +1403,19 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
         distance_unit=distance_unit,
         speed_unit=speed_unit,
         temp_unit=temp_unit,
-        charge_status=ev.get("chargeStatus", "unknown"),
+        charge_status=_normalize_charge_status(ev.get("chargeStatus")),
         plug_status=ev.get("plugStatus", "unknown"),
-        home_away=ev.get("homeAway", "unknown").lower(),
+        home_away=ev.get("homeAway", "unknown").lower()
+            if ev.get("homeAway", "unknown").lower() in ("home", "away")
+            else "unknown",
         charge_limit_home=_safe_int(ev.get("chargeLimitHome", 0)),
         charge_limit_away=_safe_int(ev.get("chargeLimitAway", 0)),
         climate_active=dashboard.get("climateControl", {}).get("status", {}).get("isActive", False),
         cabin_temp=_safe_int(dashboard.get("temperature", {}).get("cabin", {}).get("value", 0)),
         interior_temp=_safe_int(ev.get("intTemp", 0)),
         odometer=_safe_int(dashboard.get("odometer", {}).get("value", 0)),
-        latitude=coord.get("latitude", ""),
-        longitude=coord.get("longitude", ""),
+        latitude=_dms_to_decimal(coord.get("latitude", "")),
+        longitude=_dms_to_decimal(coord.get("longitude", "")),
         timestamp=dashboard.get("timestamp", ""),
         doors_locked=all(
             door.get("lockState") == "lock"
@@ -1335,9 +1450,7 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
             if msg.get("condition") == "ON"
         ],
         speed=_safe_float(gps.get("velocity", {}).get("value", 0)),
-        climate_temp={"05": "cooler", "04": "normal", "03": "hotter",
-                      "cool": "cooler", "warm": "hotter"}.get(
-            ev.get("acTempVal", "normal"), ev.get("acTempVal", "unknown")),
+        climate_temp=_normalize_climate_temp(ev.get("acTempVal", "normal")),
         climate_duration=_safe_int(ev.get("acDurationSetting", 0)),
         climate_defrost=ev.get("acDefAutoSetting", "").lower().startswith("def auto on"),
     )

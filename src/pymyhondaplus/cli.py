@@ -17,7 +17,7 @@ from pathlib import Path
 try:
     import argcomplete
 except ImportError:
-    argcomplete = None
+    argcomplete = None  # type: ignore[assignment]
 
 from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, HondaAuthError, compute_trip_stats, parse_ev_status
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
@@ -260,7 +260,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
         rows.append((t("time_remaining_label"), f"{ev['time_to_charge']} {t('mins')}"))
     rows += [
         (t("location_label"), t("home") if ev['home_away'] == "home" else t("away_location", raw=ev['home_away'])),
-        (t("coordinates_label"), f"{ev['latitude']}, {ev['longitude']}"),
+        (t("coordinates_label"), f"{ev['latitude']:.6f}, {ev['longitude']:.6f}"),
         (t("charge_limit_label"), f"{ev['charge_limit_home']}% ({home}) / {ev['charge_limit_away']}% ({away})"),
         (t("climate_label"), _translate_field('climate_active', ev['climate_active'], t)),
         (t("cabin_temp_label"), f"{ev['cabin_temp']} {tu}"),
@@ -295,12 +295,11 @@ def _handle_location_command(api: HondaAPI, vin: str, args: argparse.Namespace) 
         print(json.dumps(gps, indent=2))
         return 0
 
-    coord = gps.get("coordinate", {})
-    print(f"Latitude:  {coord.get('latitude', 'N/A')}")
-    print(f"Longitude: {coord.get('longitude', 'N/A')}")
-    speed_unit = gps.get('velocity', {}).get('unit', 'km/h')
-    print(f"Speed:     {gps.get('velocity', {}).get('value', 'N/A')} {speed_unit}")
-    print(f"Timestamp: {gps.get('dtTime', 'N/A')}")
+    ev = parse_ev_status(dashboard)
+    print(f"Latitude:  {ev['latitude']:.6f}")
+    print(f"Longitude: {ev['longitude']:.6f}")
+    print(f"Speed:     {ev['speed']} {ev['speed_unit']}")
+    print(f"Timestamp: {gps.get('dtTime', ev['timestamp'])}")
     return 0
 
 

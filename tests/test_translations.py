@@ -97,13 +97,13 @@ def test_c_locale_falls_back_to_english(monkeypatch):
 
 def test_charge_status_map():
     t = get_translator("en")
-    assert t(CHARGE_STATUS_MAP["running"]) == "Charging"
+    assert t(CHARGE_STATUS_MAP["charging"]) == "Charging"
     assert t(CHARGE_STATUS_MAP["stopped"]) == "Not charging"
 
 
 def test_charge_status_map_german():
     t = get_translator("de")
-    assert t(CHARGE_STATUS_MAP["running"]) == "Wird geladen"
+    assert t(CHARGE_STATUS_MAP["charging"]) == "Wird geladen"
     assert t(CHARGE_STATUS_MAP["stopped"]) == "Wird nicht geladen"
 
 
@@ -121,11 +121,10 @@ def test_plug_status_mapped():
 
 
 def test_charge_status_all_mapped():
-    """All known charge status values should be mapped."""
+    """All normalized charge status values should be mapped."""
     t = get_translator("en")
-    assert t(CHARGE_STATUS_MAP["running"]) == "Charging"
+    assert t(CHARGE_STATUS_MAP["charging"]) == "Charging"
     assert t(CHARGE_STATUS_MAP["stopped"]) == "Not charging"
-    assert t(CHARGE_STATUS_MAP["unavailable"]) == "Unavailable"
     assert t(CHARGE_STATUS_MAP["unknown"]) == "Unknown"
 
 
