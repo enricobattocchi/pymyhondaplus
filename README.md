@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/pymyhondaplus)](https://pypi.org/project/pymyhondaplus/)
 [![Python](https://img.shields.io/pypi/pyversions/pymyhondaplus)](https://pypi.org/project/pymyhondaplus/)
-[![Downloads](https://img.shields.io/pypi/dm/pymyhondaplus)](https://pypi.org/project/pymyhondaplus/)
+[![Downloads](https://static.pepy.tech/badge/pymyhondaplus/month)](https://pepy.tech/project/pymyhondaplus)
 [![License](https://img.shields.io/pypi/l/pymyhondaplus)](https://pypi.org/project/pymyhondaplus/)
 
 Unofficial Python client for the Honda Connect Europe (My Honda+) API.
