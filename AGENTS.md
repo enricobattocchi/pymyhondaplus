@@ -14,7 +14,7 @@ Refer to the upstream service as "the My Honda+ API" or "the Honda Connect Europ
 
 ## 3. The three-repo ecosystem
 
-`pymyhondaplus` (Python library + CLI) is consumed by:
+[`pymyhondaplus`](https://github.com/enricobattocchi/pymyhondaplus) (Python library + CLI) is consumed by:
 
 - [`myhondaplus-homeassistant`](https://github.com/enricobattocchi/myhondaplus-homeassistant) — Home Assistant integration, pinned `==X.Y.Z` (HA convention).
 - [`myhondaplus-desktop`](https://github.com/enricobattocchi/myhondaplus-desktop) — PyQt6 desktop app, pinned `>=X.Y.Z`.
@@ -47,16 +47,23 @@ If a task feels like it crosses boundaries, default to "the library owns the API
 - **Release order is library first, then consumers.** Bump `pymyhondaplus`, tag, GitHub-release; then update HA `manifest.json` `requirements` (`==X.Y.Z`) and/or desktop `pyproject.toml` + `README.md` (`>=X.Y.Z`), then release each consumer.
 - **Pin update rule**: HA pins exact (Home Assistant convention); desktop pins minimum.
 - **Translation-drift PRs** may span library + HA. When a string converges in wording, move the pair from `_KNOWN_DRIFT` to `ENFORCED_OVERLAPS` in the same PR (HA test: `tests/test_translation_drift.py`).
+- **Cross-repo change checklist**: land library-owned API/parsing/auth/translation behavior in `pymyhondaplus` first; update HA's exact pin and desktop's minimum pin only after a library release; keep consumer enum options, entity descriptors, and UI copy aligned with canonical library behavior.
 
 ## 6. Common pitfalls
 
 - Parsing is defensive by design — numeric fields can arrive as strings, GPS coordinates can be DMS or decimal. Use the existing `_safe_int` / `_safe_float` / coord helpers; don't `int()` directly.
 - Enum normalization is canonical. Don't add raw upstream values like `"running"` or `"unavailable"` to public exports — consumers depend on the canonical set.
 - Token refresh is thread-safe via `HondaAPI._lock`; don't add code paths that bypass it.
+- Preserve storage-backed token persistence when changing auth flows. `HondaAPI(storage=...)`, refresh, and token saves must stay on the same path so consumers don't lose refreshed tokens.
 
-## 7. Gates
+## 7. Gates and local commands
 
-`pytest` (Python 3.11/3.12/3.13 matrix), `ruff check`, `mypy`. Tag is the bare version (e.g. `5.8.2`, not `v5.8.2`). `CHANGELOG.md` is updated in the same PR as the version bump.
+- Setup: `pip install -e ".[dev]"`
+- Tests: `pytest`
+- Lint: `ruff check src/ tests/`
+- Types: `mypy src/`
+
+CI runs `pytest` on Python 3.11/3.12/3.13 plus `ruff check` and `mypy`. Tag is the bare version (e.g. `5.8.2`, not `v5.8.2`). `CHANGELOG.md` is updated in the same PR as the version bump.
 
 ## 8. Full reference
 
