@@ -11,7 +11,7 @@ import os
 import sys
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 try:
@@ -106,6 +106,33 @@ def _to_camel_case(name: str) -> str:
     if "_" not in name:
         return name
     return "".join(p.title() for p in name.split("_"))
+
+
+def _format_ts(s, local: bool) -> str:
+    """Render an ISO-8601 UTC timestamp in local time when local=True; else pass through.
+
+    Date-only or non-ISO strings are returned unchanged. The output shape matches the
+    default UTC form (`YYYY-MM-DDTHH:MM:SS±HH:MM`) so it round-trips through `_to_utc_iso`.
+    """
+    if not local or not s or "T" not in str(s):
+        return s
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return s
+    return dt.astimezone().isoformat(timespec="seconds")
+
+
+def _to_utc_iso(s: str) -> str:
+    """Normalize an ISO-8601 timestamp to UTC ('+00:00') for Honda's API.
+
+    Accepts already-UTC strings or any other offset (e.g. local-tz output from `trips --local-tz`).
+    Returns the input unchanged if it can't be parsed; the API will then surface its own error.
+    """
+    try:
+        return datetime.fromisoformat(s).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+    except (ValueError, TypeError):
+        return s
 
 
 def _month_starts_for_period(start_date: date, end_date: date) -> list[str]:
@@ -273,7 +300,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     ]
     if ev['warning_lamps']:
         rows.append((t("warnings_label"), ", ".join(ev['warning_lamps'])))
-    rows.append((t("timestamp_label"), ev['timestamp']))
+    rows.append((t("timestamp_label"), _format_ts(ev['timestamp'], args.local_tz)))
 
     # Separate labeled rows from standalone flags
     labeled = [(lbl, val) for lbl, val in rows if val is not None]
@@ -299,7 +326,7 @@ def _handle_location_command(api: HondaAPI, vin: str, args: argparse.Namespace) 
     print(f"Latitude:  {ev['latitude']:.6f}")
     print(f"Longitude: {ev['longitude']:.6f}")
     print(f"Speed:     {ev['speed']} {ev['speed_unit']}")
-    print(f"Timestamp: {gps.get('dtTime', ev['timestamp'])}")
+    print(f"Timestamp: {_format_ts(gps.get('dtTime', ev['timestamp']), args.local_tz)}")
     return 0
 
 
@@ -356,8 +383,12 @@ def _handle_charge_limit_command(api: HondaAPI, vin: str, args: argparse.Namespa
 
 def _handle_trip_detail_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the trip-detail command, preserving current CLI behavior."""
+    # Normalize positional args to UTC so users can paste either UTC or local-tz strings
+    # (the latter come from `trips --local-tz` output). Honda's endpoint expects UTC.
+    start = _to_utc_iso(args.start_time)
+    end = _to_utc_iso(args.end_time)
     try:
-        locs = api.get_trip_locations(vin, args.start_time, args.end_time)
+        locs = api.get_trip_locations(vin, start, end)
     except HondaAPIError as e:
         print(f"Failed to fetch trip detail: {e}", file=sys.stderr)
         return 1
@@ -365,10 +396,10 @@ def _handle_trip_detail_command(api: HondaAPI, vin: str, args: argparse.Namespac
         print(json.dumps(locs, indent=2))
         return 0
     print("Start:")
-    print(f"  Time:      {locs.get('start_time', 'N/A')}")
+    print(f"  Time:      {_format_ts(locs.get('start_time', 'N/A'), args.local_tz)}")
     print(f"  Location:  {locs.get('start_lat', 'N/A')}, {locs.get('start_lon', 'N/A')}")
     print("End:")
-    print(f"  Time:      {locs.get('end_time', 'N/A')}")
+    print(f"  Time:      {_format_ts(locs.get('end_time', 'N/A'), args.local_tz)}")
     print(f"  Location:  {locs.get('end_lat', 'N/A')}, {locs.get('end_lon', 'N/A')}")
     return 0
 
@@ -553,7 +584,9 @@ def _handle_trips_command(
         writer.writerows(camel_rows)
     else:
         for row in rows:
-            line = (f"  {row.get('OneTripDate', '?')}  {row.get('StartTime', '?')} -> {row.get('EndTime', '?')}  "
+            start = _format_ts(row.get('StartTime', '?'), args.local_tz)
+            end = _format_ts(row.get('EndTime', '?'), args.local_tz)
+            line = (f"  {row.get('OneTripDate', '?')}  {start} -> {end}  "
                     f"{row.get('Mileage', '?')}  {row.get('DriveTime', '?')} min  "
                     f"avg {row.get('AveSpeed', '?')}  max {row.get('MaxSpeed', '?')}  "
                     f"{row.get('AveFuelEconomy', '?')} {consumption_unit}")
@@ -737,6 +770,8 @@ vehicle selection (only needed with multiple vehicles):
     parser.add_argument("--fresh", action="store_true",
                         help="Request fresh data from car")
     parser.add_argument("--json", action="store_true", help="Output raw JSON")
+    parser.add_argument("--local-tz", action="store_true",
+                        help="Display timestamps in local timezone instead of UTC (text output only)")
     parser.add_argument("--user-info", action="store_true",
                         help="Show user info and vehicle list")
     parser.add_argument("--token-file", type=Path, default=DEFAULT_TOKEN_FILE,

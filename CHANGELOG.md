@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.9.0 — 2026-05-22
+
+- New global flag `--local-tz` renders timestamps in human-readable CLI output (`status`, `location`, `trips`, `trip-detail`) in the system's local timezone instead of UTC. Default behavior is unchanged — UTC with `+00:00` suffix — so existing scripts and consumers are not affected. JSON and CSV output are also unchanged (raw API passthrough).
+- `trip-detail` now accepts either UTC or local-tz ISO 8601 strings for its `start_time` / `end_time` arguments and normalizes them to UTC before calling Honda's endpoint, so timestamps copied from `trips --local-tz` round-trip cleanly.
+
 ## 5.8.2 — 2026-04-25
 
 - `wait_for_geofence` now polls on `isWaitingForActivate` / `isWaitingForDeactivate` (matching Honda's own app) instead of `isCommandProcessing`. The previous logic exited as soon as the server's state machine went idle, which is well before the async command to the car has actually completed — when the TCU was unreachable (energy-saving mode), the wait reported a result based on stale `activateAsyncCommandStatus` from the *previous* command, often as immediate "failure" or "timeout". The fix tracks the actual in-flight flag, ignoring stale status until the new command resolves.

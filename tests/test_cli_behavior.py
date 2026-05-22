@@ -305,3 +305,84 @@ def test__main_exits_130_on_keyboard_interrupt(monkeypatch):
         cli._main()
 
     assert exc.value.code == 130
+
+
+@pytest.mark.parametrize("value", [None, "", "2026-03-21", "not-a-timestamp"])
+def test_format_ts_passes_through_non_iso_or_empty(value):
+    assert cli._format_ts(value, True) == value
+
+
+def test_format_ts_returns_input_when_local_disabled():
+    assert cli._format_ts("2026-03-21T14:12:41+00:00", False) == "2026-03-21T14:12:41+00:00"
+
+
+def test_format_ts_converts_utc_to_local_when_enabled(monkeypatch):
+    import time as _time
+    if not hasattr(_time, "tzset"):
+        pytest.skip("time.tzset not available on this platform")
+    monkeypatch.setenv("TZ", "Europe/Rome")
+    _time.tzset()
+    # 14:12:41 UTC on 2026-03-21 is 15:12:41 CET (winter, UTC+1).
+    assert cli._format_ts("2026-03-21T14:12:41+00:00", True) == "2026-03-21T15:12:41+01:00"
+
+
+def test_format_ts_output_roundtrips_through_to_utc_iso(monkeypatch):
+    """Local-tz output must parse cleanly back into UTC via _to_utc_iso."""
+    import time as _time
+    if not hasattr(_time, "tzset"):
+        pytest.skip("time.tzset not available on this platform")
+    monkeypatch.setenv("TZ", "Europe/Rome")
+    _time.tzset()
+    src = "2026-03-21T14:12:41+00:00"
+    local = cli._format_ts(src, True)
+    assert cli._to_utc_iso(local) == src
+
+
+@pytest.mark.parametrize("inp, expected", [
+    ("2026-03-21T14:12:41+00:00", "2026-03-21T14:12:41+00:00"),
+    ("2026-03-21T15:12:41+01:00", "2026-03-21T14:12:41+00:00"),
+    ("2026-03-21T11:12:41-03:00", "2026-03-21T14:12:41+00:00"),
+])
+def test_to_utc_iso_normalizes_any_offset_to_utc(inp, expected):
+    assert cli._to_utc_iso(inp) == expected
+
+
+@pytest.mark.parametrize("garbage", ["", "garbage", None])
+def test_to_utc_iso_returns_input_on_unparseable(garbage):
+    assert cli._to_utc_iso(garbage) == garbage
+
+
+def test_trip_detail_normalizes_local_tz_input_to_utc(monkeypatch, capsys):
+    """trips --local-tz prints offsets like +01:00; pasting those back into trip-detail
+    must still hit Honda's endpoint with UTC strings."""
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Honda e", "plate": "", "fuel_type": "E"},
+    ], default_vin="VIN123")
+    captured = {}
+
+    def fake_get_trip_locations(vin, start_time, end_time):
+        captured["vin"] = vin
+        captured["start"] = start_time
+        captured["end"] = end_time
+        return {
+            "start_time": "2026-03-21T14:12:41+00:00",
+            "end_time": "2026-03-21T14:49:55+00:00",
+            "start_lat": 41.0, "start_lon": 12.0,
+            "end_lat": 42.0, "end_lon": 13.0,
+        }
+
+    fake_api.get_trip_locations = fake_get_trip_locations
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", [
+        "pymyhondaplus", "trip-detail",
+        "2026-03-21T15:12:41+01:00", "2026-03-21T15:49:55+01:00",
+    ])
+
+    rc = cli.main()
+
+    assert rc == 0
+    assert captured["start"] == "2026-03-21T14:12:41+00:00"
+    assert captured["end"] == "2026-03-21T14:49:55+00:00"
+    # Output (text mode) should still show UTC by default
+    out = capsys.readouterr().out
+    assert "2026-03-21T14:12:41+00:00" in out
