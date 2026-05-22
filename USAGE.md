@@ -267,6 +267,8 @@ pymyhondaplus trip-detail "2026-03-19T16:23:13+00:00" "2026-03-19T17:05:56+00:00
 pymyhondaplus --json trip-detail "2026-03-19T16:23:13+00:00" "2026-03-19T17:05:56+00:00"
 ```
 
+Either UTC or local-tz ISO 8601 strings are accepted — timestamps copied from `trips --local-tz` are normalized to UTC before reaching Honda's endpoint.
+
 ### Trip statistics
 
 Aggregated statistics over a period:
@@ -313,6 +315,7 @@ These must be placed **before** the subcommand:
 |--------|-------------|
 | `--vin`, `-v` | Vehicle VIN, nickname, or plate |
 | `--json` | Output raw JSON |
+| `--local-tz` | Render timestamps in local timezone instead of UTC (text output only; JSON / CSV stay UTC) |
 | `--fresh` | Request fresh data from car (wakes TCU) |
 | `--token-file PATH` | Custom token file path (or set `HONDA_TOKEN_FILE`) |
 | `--key-file PATH` | Custom device key file path (or set `HONDA_KEY_FILE`) |
