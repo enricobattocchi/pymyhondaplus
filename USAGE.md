@@ -100,7 +100,7 @@ pymyhondaplus geofence-clear
 pymyhondaplus status
 
 # Request fresh data from car (wakes the TCU)
-pymyhondaplus status --fresh
+pymyhondaplus --fresh status
 
 # Output as JSON
 pymyhondaplus --json status
@@ -139,15 +139,29 @@ Press Ctrl+C to stop.
 ## Location
 
 ```bash
-# Get last known location
+# Get last known location (dashboard-cached)
 pymyhondaplus location
 
-# Request fresh location from car (wakes TCU)
-pymyhondaplus location --fresh
+# Refresh the dashboard first (matches `--fresh status`)
+pymyhondaplus --fresh location
 
 # Output as JSON
 pymyhondaplus --json location
 ```
+
+`location` reads the dashboard's `gpsData`. Coordinates are server-side cached and typically spatially accurate, but the `dtTime` field is the server response time, not when the TCU actually got the fix. For the truthful fix-time from the TCU itself, use `find-car`.
+
+## Find car
+
+```bash
+# Wake the TCU and request a fresh GPS fix (Car Finder)
+pymyhondaplus find-car
+
+# Output as JSON
+pymyhondaplus --json find-car
+```
+
+Calls Honda's `/tsp/car-location` endpoint — the same one the official app's Car Finder uses. Returns coordinates, speed, heading, ignition state, and the **actual** moment the TCU acquired the fix. Slower than `location` (~30–90s, wakes a sleeping car, costs one command-quota slot), and the reported position can drift from the parked-spot reality when GPS reception is poor. The fix-time, however, is truthful — unlike the dashboard's `dtTime`, which is regenerated on every poll.
 
 ## Remote commands
 

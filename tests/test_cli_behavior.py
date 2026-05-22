@@ -23,8 +23,10 @@ class _FakeAPI:
     def __init__(self, vehicles, default_vin=""):
         self.tokens = _FakeTokens(vehicles, default_vin=default_vin)
         self.remote_lock_called = False
+        self.refresh_location_called = False
+        self.refresh_dashboard_called = False
 
-    def get_dashboard(self, vin: str, fresh: bool = False):
+    def _dashboard_payload(self):
         return {
             "gpsData": {
                 "coordinate": {"latitude": "41,53,24.904", "longitude": "12,29,32.543"},
@@ -32,6 +34,20 @@ class _FakeAPI:
                 "velocity": {"value": "0.0", "unit": "km/h"},
             }
         }
+
+    def get_dashboard(self, vin: str, fresh: bool = False):
+        return self._dashboard_payload()
+
+    def get_dashboard_cached(self, vin: str, language: str = "it"):
+        return self._dashboard_payload()
+
+    def refresh_location(self, vin: str):
+        self.refresh_location_called = True
+        return "loc-cmd-1"
+
+    def refresh_dashboard(self, vin: str):
+        self.refresh_dashboard_called = True
+        return "dash-cmd-1"
 
     def remote_lock(self, vin: str):
         self.remote_lock_called = True
@@ -44,12 +60,32 @@ class _FakeAPI:
         return "cmd-2"
 
     def wait_for_command(self, cmd_id: str, timeout: int = 60):
+        import json as _json
+
         class _Result:
             success = True
             complete = True
             status = "success"
             timed_out = False
             reason = None
+            raw = {
+                "output": {
+                    "RequestStatus": "success",
+                    "Content": _json.dumps({
+                        "gpsData": {
+                            "dtTime": "2026-04-26T18:18:01+00:00",
+                            "coordinate": {
+                                "datum": "wgs84", "format": "mas",
+                                "latitude": 156791051,
+                                "longitude": 37196051,
+                            },
+                            "courseHeading": 293.9,
+                            "velocity": {"unit": "kph", "value": 0},
+                        },
+                        "ignition": "ignitionOff",
+                    }),
+                },
+            }
 
         return _Result()
 
@@ -108,6 +144,64 @@ def test_location_json_outputs_raw_gps_payload(monkeypatch, capsys):
     assert '"coordinate": {' in out.out
     assert '"latitude": "41,53,24.904"' in out.out
     assert '"dtTime": "2026-03-24T22:53:01+00:00"' in out.out
+
+
+def test_location_fresh_uses_dashboard_refresh(monkeypatch, capsys):
+    """`location --fresh` is a dashboard refresh now; car-location is `find-car`."""
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Honda e", "plate": "", "fuel_type": "E"},
+    ], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "--fresh", "location"])
+
+    rc = cli.main()
+
+    assert rc == 0
+    assert fake_api.refresh_dashboard_called is True
+    assert fake_api.refresh_location_called is False
+
+
+def test_find_car_calls_car_location_endpoint(monkeypatch, capsys):
+    """`find-car` is the dedicated Car Finder command; hits /tsp/car-location."""
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Honda e", "plate": "", "fuel_type": "E"},
+    ], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "find-car"])
+
+    rc = cli.main()
+
+    out = capsys.readouterr()
+    assert rc == 0
+    assert fake_api.refresh_location_called is True
+    assert fake_api.refresh_dashboard_called is False
+    assert "Latitude:" in out.out
+    assert "Timestamp:" in out.out
+    # Default: UTC suffix preserved
+    assert "2026-04-26T18:18:01+00:00" in out.out
+
+
+def test_find_car_local_tz_shifts_timestamp(monkeypatch, capsys):
+    """`--local-tz find-car` renders the TCU fix time in local timezone."""
+    import time as _time
+    if not hasattr(_time, "tzset"):
+        pytest.skip("time.tzset not available on this platform")
+    monkeypatch.setenv("TZ", "Europe/Rome")
+    _time.tzset()
+
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Honda e", "plate": "", "fuel_type": "E"},
+    ], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "--local-tz", "find-car"])
+
+    rc = cli.main()
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    # 2026-04-26 is past DST switch → Europe/Rome is UTC+2 (CEST).
+    assert "2026-04-26T20:18:01+02:00" in out
+    assert "+00:00" not in out  # raw UTC must not leak through
 
 
 def test_status_json_outputs_raw_dashboard(monkeypatch, capsys):

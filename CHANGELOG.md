@@ -4,8 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## 5.9.0 — 2026-05-22
 
-- New global flag `--local-tz` renders timestamps in human-readable CLI output (`status`, `location`, `trips`, `trip-detail`) in the system's local timezone instead of UTC. Default behavior is unchanged — UTC with `+00:00` suffix — so existing scripts and consumers are not affected. JSON and CSV output are also unchanged (raw API passthrough).
+### Breaking changes
+
+- `request_dashboard_refresh(vin)` is renamed to `refresh_dashboard(vin)`. Same return type (`command_id: str`), same semantics — only the name changed.
+- `refresh_dashboard(vin, timeout, poll_interval) -> CommandResult` (the high-level convenience that fired the command and waited) is **removed**. Callers should pair the new low-level `refresh_dashboard(vin)` with `wait_for_command(command_id, ...)` to get the previous behavior.
+- `request_car_location(vin)` is renamed to `refresh_location(vin)`.
+
+### New
+
+- `CarLocation` dataclass + `CarLocation.from_command_result(result)` for extracting GPS data from a `refresh_location` command result. Honda's `/tsp/car-location` endpoint returns the location inside the async-command-status response (in `output.Content` as a JSON-encoded payload with coordinates in milliarcseconds and the *actual* GPS fix time), not by updating `/tsp/dashboard-latest`. This parser handles the unwrapping, MAS→decimal conversion, and the `kph`→`km/h` unit normalization. The fix time it reports is truthful — when the TCU actually acquired the GPS — whereas the dashboard's `gpsData.dtTime` is stamped with the server's response time on every refresh and doesn't represent when the car was actually located.
+- New CLI command `find-car`: the dedicated Car Finder query. Calls `/tsp/car-location` and prints the TCU's last GPS fix with its truthful fix-time, course heading, and ignition state. The reported coordinates may differ from `location` (which is dashboard-derived) — TCU-side GPS may be drifted at parking, while dashboard refresh tends to surface a more spatially accurate position. The two are different concepts and we expose them as different commands.
+- `location --fresh` now refreshes the dashboard (consistent with `status --fresh`); previously it routed to `/tsp/car-location`. For Car Finder behaviour, use `find-car`.
+- Global flag `--local-tz` renders timestamps in human-readable CLI output (`status`, `location`, `trips`, `trip-detail`, `find-car`) in the system's local timezone instead of UTC. Default behavior is unchanged — UTC with `+00:00` suffix — so existing scripts and consumers are not affected. JSON and CSV output are also unchanged (raw API passthrough).
 - `trip-detail` now accepts either UTC or local-tz ISO 8601 strings for its `start_time` / `end_time` arguments and normalizes them to UTC before calling Honda's endpoint, so timestamps copied from `trips --local-tz` round-trip cleanly.
+
+Migration:
+
+```python
+# Before
+result = api.refresh_dashboard(vin, timeout=90)
+# After
+command_id = api.refresh_dashboard(vin)
+result = api.wait_for_command(command_id, timeout=90)
+
+# Before
+command_id = api.request_car_location(vin)
+# After
+command_id = api.refresh_location(vin)
+```
+
+The single-tier API matches how every other action method (`remote_lock`, `set_climate_settings`, etc.) already behaves: send the command, get a `command_id`, optionally wait via `wait_for_command`.
 
 ## 5.8.2 — 2026-04-25
 
