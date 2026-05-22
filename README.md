@@ -33,7 +33,7 @@ pymyhondaplus profile                   # account name, email, address
 
 # Vehicle status
 pymyhondaplus status
-pymyhondaplus status --fresh            # wake TCU for fresh data
+pymyhondaplus --fresh status            # wake TCU for fresh data
 pymyhondaplus status --watch 5m         # poll and print changes
 
 # Geofence

@@ -19,7 +19,15 @@ try:
 except ImportError:
     argcomplete = None  # type: ignore[assignment]
 
-from .api import DEFAULT_TOKEN_FILE, HondaAPI, HondaAPIError, HondaAuthError, compute_trip_stats, parse_ev_status
+from .api import (
+    DEFAULT_TOKEN_FILE,
+    CarLocation,
+    HondaAPI,
+    HondaAPIError,
+    HondaAuthError,
+    compute_trip_stats,
+    parse_ev_status,
+)
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .http import DEFAULT_REQUEST_TIMEOUT
 from .storage import get_storage
@@ -219,21 +227,27 @@ def _get_dashboard(api: HondaAPI, vin: str, fresh: bool, json_mode: bool = False
         return api.get_dashboard(vin)
 
     with _Spinner(get_translator()("cmd_refreshing")):
-        result = api.refresh_dashboard(vin)
+        command_id = api.refresh_dashboard(vin)
+        result = api.wait_for_command(command_id, timeout=90)
     dashboard = api.get_dashboard_cached(vin)
 
     if not result.success and not json_mode:
-        ts = dashboard.get("timestamp", "unknown")
-        if result.timed_out:
-            print(f"Refresh failed: car did not respond. Showing cached data from {ts}.",
-                  file=sys.stderr)
-        else:
-            reason = result.reason or result.status
-            print(f"Refresh failed ({reason}). Showing cached data from {ts}.",
-                  file=sys.stderr)
-        print(file=sys.stderr)
+        _print_refresh_failed(dashboard, result)
 
     return dashboard
+
+
+def _print_refresh_failed(dashboard: dict, result) -> None:
+    """Print a user-facing message when a fresh-data refresh did not succeed."""
+    ts = dashboard.get("timestamp", "unknown")
+    if result.timed_out:
+        print(f"Refresh failed: car did not respond. Showing cached data from {ts}.",
+              file=sys.stderr)
+    else:
+        reason = result.reason or result.status
+        print(f"Refresh failed ({reason}). Showing cached data from {ts}.",
+              file=sys.stderr)
+    print(file=sys.stderr)
 
 
 def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
@@ -315,7 +329,13 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
 
 
 def _handle_location_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
-    """Handle the location command, preserving current CLI behavior."""
+    """Handle the location command.
+
+    Reads the dashboard's ``gpsData`` (cached, or freshly refreshed via
+    ``--fresh``). For the official-app's Car Finder behaviour (last GPS
+    fix the TCU recorded, with truthful fix-time), use the ``find-car``
+    command instead.
+    """
     dashboard = _get_dashboard(api, vin, fresh=args.fresh, json_mode=args.json)
     gps = dashboard.get("gpsData", {})
     if args.json:
@@ -327,6 +347,52 @@ def _handle_location_command(api: HondaAPI, vin: str, args: argparse.Namespace) 
     print(f"Longitude: {ev['longitude']:.6f}")
     print(f"Speed:     {ev['speed']} {ev['speed_unit']}")
     print(f"Timestamp: {_format_ts(gps.get('dtTime', ev['timestamp']), args.local_tz)}")
+    return 0
+
+
+def _handle_find_car_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
+    """Handle the find-car command.
+
+    Calls Honda's ``/tsp/car-location`` endpoint (the same one the official
+    app's Car Finder uses) and reports the TCU's last GPS fix with its
+    actual fix-time. The position can differ from the dashboard's
+    location: car-location is the last fix the TCU itself recorded, which
+    may be tens of metres from the parked-spot reality (degraded GPS at
+    parking, indoor reception, etc.). The fix-time, however, is truthful.
+    """
+    with _Spinner(get_translator()("cmd_refreshing")):
+        command_id = api.refresh_location(vin)
+        result = api.wait_for_command(command_id, timeout=90)
+    if not result.success:
+        if result.timed_out:
+            print("Car Finder: car did not respond.", file=sys.stderr)
+        else:
+            print(
+                f"Car Finder failed: {result.reason or result.status}",
+                file=sys.stderr,
+            )
+        return 1
+    loc = CarLocation.from_command_result(result)
+    if loc is None:
+        print("Car Finder: no GPS payload in response.", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps({
+            "latitude": loc.latitude,
+            "longitude": loc.longitude,
+            "dtTime": loc.timestamp,
+            "speed": loc.speed,
+            "speed_unit": loc.speed_unit,
+            "courseHeading": loc.course_heading,
+            "ignition": loc.ignition,
+        }, indent=2))
+        return 0
+    print(f"Latitude:  {loc.latitude:.6f}")
+    print(f"Longitude: {loc.longitude:.6f}")
+    print(f"Speed:     {loc.speed} {loc.speed_unit}")
+    print(f"Heading:   {loc.course_heading}")
+    print(f"Ignition:  {loc.ignition}")
+    print(f"Timestamp: {_format_ts(loc.timestamp, args.local_tz)}")
     return 0
 
 
@@ -817,7 +883,9 @@ vehicle selection (only needed with multiple vehicles):
     status_parser = subparsers.add_parser("status", parents=[_common], help="Get vehicle status")
     status_parser.add_argument("--watch", metavar="INTERVAL",
                                 help="Poll at interval (e.g. 5m, 30s, 120). Prints only changes.")
-    subparsers.add_parser("location", parents=[_common], help="Get car GPS location")
+    subparsers.add_parser("location", parents=[_common], help="Get car GPS location (from dashboard data)")
+    subparsers.add_parser("find-car", parents=[_common],
+                          help="Get car finder location (last GPS fix recorded by the TCU, with fix-time)")
 
     _yes = argparse.ArgumentParser(add_help=False)
     _yes.add_argument("--yes", "-y", action="store_true", help="Skip confirmation prompt")
@@ -1216,6 +1284,8 @@ def _run_main(args: argparse.Namespace, storage) -> int:
 
     elif args.command == "location":
         return _handle_location_command(api, vin, args)
+    elif args.command == "find-car":
+        return _handle_find_car_command(api, vin, args)
 
     elif args.command == "lock":
         return _wait_command(api, args.timeout, api.remote_lock(vin), t("cmd_lock"))

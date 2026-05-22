@@ -5,6 +5,7 @@ Tested on Honda e. Should work with other Honda Connect Europe vehicles
 (e:Ny1, ZR-V, CR-V, Civic, HR-V, Jazz 2020+) but these are untested.
 """
 
+import json
 import os
 import time
 import logging
@@ -215,6 +216,62 @@ class CommandResult:
     @property
     def success(self) -> bool:
         return self.complete and self.status == "success" and not self.timed_out
+
+
+@dataclass
+class CarLocation:
+    """Fresh car location from a ``/tsp/car-location`` command result.
+
+    The endpoint wakes the TCU and returns the location *only* via the
+    async-command-status response — it does not update
+    ``/tsp/dashboard-latest``. Use :meth:`from_command_result` to extract
+    typed location data from a :meth:`HondaAPI.wait_for_command` result.
+    """
+    latitude: float = 0.0
+    longitude: float = 0.0
+    timestamp: str = ""
+    speed: float = 0.0
+    speed_unit: str = "km/h"
+    course_heading: float = 0.0
+    ignition: str = ""
+
+    @classmethod
+    def from_command_result(cls, result: CommandResult) -> "CarLocation | None":
+        output = (result.raw or {}).get("output") or {}
+        content = output.get("Content")
+        if content is None:
+            return None
+        try:
+            data = json.loads(content) if isinstance(content, str) else content
+        except (json.JSONDecodeError, TypeError):
+            return None
+        gps = (data or {}).get("gpsData") or {}
+        coord = gps.get("coordinate") or {}
+        velocity = gps.get("velocity") or {}
+        # Coordinates from this endpoint come as integer milliarcseconds.
+        unit_raw = velocity.get("unit", "kph")
+        # Normalize ignition: API returns "ignitionOn" / "ignitionOff" here,
+        # but the dashboard's igStatus field uses "ON" / "OFF". Collapse to a
+        # canonical lowercase "on" / "off" so downstream display logic can
+        # translate via existing keys.
+        ignition_raw = str(data.get("ignition", "")).lower()
+        if ignition_raw.endswith("on"):
+            ignition = "on"
+        elif ignition_raw.endswith("off"):
+            ignition = "off"
+        elif ignition_raw:
+            ignition = ignition_raw
+        else:
+            ignition = "unknown"
+        return cls(
+            latitude=float(coord.get("latitude", 0)) / 3_600_000,
+            longitude=float(coord.get("longitude", 0)) / 3_600_000,
+            timestamp=gps.get("dtTime", ""),
+            speed=float(velocity.get("value", 0)),
+            speed_unit="km/h" if unit_raw == "kph" else unit_raw,
+            course_heading=float(gps.get("courseHeading", 0)),
+            ignition=ignition,
+        )
 
 
 class VehicleCapabilities:
@@ -874,10 +931,12 @@ class HondaAPI:
             raise HondaAPIError(resp.status_code, resp.text)
         return resp.json()
 
-    def request_dashboard_refresh(self, vin: str) -> str:
-        """
-        Request fresh data from the car (wakes up the TCU).
-        Returns the async command ID to poll with poll_command().
+    def refresh_dashboard(self, vin: str) -> str:
+        """Request fresh dashboard data from the car (wakes the TCU).
+
+        Returns the async command ID. Pair with ``wait_for_command(id)`` to
+        block until the TCU responds. ``/tsp/dashboard`` refreshes EV/charge/
+        climate but **not** GPS — for fresh GPS use :meth:`refresh_location`.
         """
         resp = self._request("POST", f"/tsp/dashboard?vin={vin}")
         if resp.status_code not in (200, 202):
@@ -932,29 +991,23 @@ class HondaAPI:
         if not fresh:
             return self.get_dashboard_cached(vin, language)
 
-        result = self.refresh_dashboard(vin, timeout, poll_interval)
+        command_id = self.refresh_dashboard(vin)
+        result = self.wait_for_command(command_id, timeout, poll_interval)
         if not result.success:
             logger.debug("Dashboard refresh did not succeed (status=%s), using cached data",
                          result.status)
 
         return self.get_dashboard_cached(vin, language)
 
-    def refresh_dashboard(self, vin: str, timeout: int = 90,
-                          poll_interval: float = 1.5) -> CommandResult:
-        """Request fresh data from car and wait for completion.
-
-        Returns the CommandResult (check .success to see if the car responded).
-        """
-        command_id = self.request_dashboard_refresh(vin)
-        if not command_id:
-            logger.warning("No command ID returned")
-            return CommandResult(complete=False, status="no_command_id")
-        return self.wait_for_command(command_id, timeout, poll_interval)
-
     # -- Location --
 
-    def request_car_location(self, vin: str) -> str:
-        """Request fresh car location (async, wakes TCU). Returns command ID."""
+    def refresh_location(self, vin: str) -> str:
+        """Request fresh GPS from the car (wakes the TCU).
+
+        Returns the async command ID. Pair with ``wait_for_command(id)`` to
+        block until the TCU responds. ``/tsp/car-location`` is the only path
+        Honda exposes that refreshes GPS — ``/tsp/dashboard`` does not.
+        """
         return self._remote_command("car-location", vin)
 
     # -- Remote commands --
