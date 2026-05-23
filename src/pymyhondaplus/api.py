@@ -113,7 +113,7 @@ def _normalize_charge_status(raw) -> str:
     """Normalize a raw chargeStatus API value to a canonical enum value."""
     if not isinstance(raw, str):
         if raw is not None:
-            logger.debug(
+            logger.warning(
                 "Unexpected chargeStatus type %s (%r); treating as unknown",
                 type(raw).__name__, raw,
             )
@@ -121,7 +121,7 @@ def _normalize_charge_status(raw) -> str:
     key = raw.strip().lower()
     if key in _CHARGE_STATUS_MAP:
         return _CHARGE_STATUS_MAP[key]
-    logger.debug("Unexpected chargeStatus value %r; treating as unknown", raw)
+    logger.warning("Unexpected chargeStatus value %r; treating as unknown", raw)
     return "unknown"
 
 
@@ -994,7 +994,7 @@ class HondaAPI:
         command_id = self.refresh_dashboard(vin)
         result = self.wait_for_command(command_id, timeout, poll_interval)
         if not result.success:
-            logger.debug("Dashboard refresh did not succeed (status=%s), using cached data",
+            logger.warning("Dashboard refresh did not succeed (status=%s), using cached data",
                          result.status)
 
         return self.get_dashboard_cached(vin, language)
