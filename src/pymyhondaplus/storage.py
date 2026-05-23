@@ -139,7 +139,7 @@ class _FernetStorage(SecretStorage):
 
         # Plain-text token format — migrate
         if "access_token" in data:
-            logger.debug("Migrating %s to encrypted storage", path)
+            logger.info("Migrating %s to encrypted storage", path)
             plaintext = json.dumps(data).encode()
             self._save_encrypted_file(path, plaintext)
             return plaintext
