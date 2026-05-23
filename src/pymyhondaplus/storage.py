@@ -139,7 +139,7 @@ class _FernetStorage(SecretStorage):
 
         # Plain-text token format — migrate
         if "access_token" in data:
-            logger.debug("Migrating %s to encrypted storage", path)
+            logger.info("Migrating %s to encrypted storage", path)
             plaintext = json.dumps(data).encode()
             self._save_encrypted_file(path, plaintext)
             return plaintext
@@ -220,7 +220,7 @@ class KeyringStorage(_FernetStorage):
         if key is None:
             key = Fernet.generate_key().decode()
             self._backend.set_password(KEYRING_SERVICE, KEYRING_KEY_NAME, key)
-            logger.debug("Generated new Fernet key in OS keyring")
+            logger.info("Generated new Fernet key in OS keyring")
         return key.encode()
 
     def _clear_fernet_key(self) -> None:
@@ -259,7 +259,7 @@ def _find_keyring_backend():
         try:
             backend = cls()
             backend.get_password(KEYRING_SERVICE, "__probe__")
-            logger.debug("Using keyring backend: %s", type(backend).__name__)
+            logger.info("Using keyring backend: %s", type(backend).__name__)
             return backend
         except Exception:
             continue
@@ -291,5 +291,5 @@ def get_storage(token_file: Path, key_file: Path,
     if kb is not None:
         return KeyringStorage(token_file, key_file, keyring_backend=kb)
 
-    logger.debug("Using encrypted file storage (no keyring available)")
+    logger.info("Using encrypted file storage (no keyring available)")
     return EncryptedFileStorage(token_file, key_file)
