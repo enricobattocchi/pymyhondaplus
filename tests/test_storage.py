@@ -121,10 +121,11 @@ class TestEncryptedFileStorage:
         raw = json.loads(encrypted_storage.token_file.read_text())
         assert raw["v"] == 2
 
-    def test_wrong_key_removes_file(self, tmp_path):
-        """If encryption key changes, stale file is removed."""
+    def test_wrong_key_moves_file_aside(self, tmp_path):
+        """If the encryption key changes, the file is renamed instead of deleted."""
         s1 = EncryptedFileStorage(tmp_path / "tokens.json", tmp_path / "key.pem")
         s1.save_tokens(SAMPLE_TOKENS)
+        original_ciphertext = s1.token_file.read_text()
 
         # Change the salt to simulate a different machine
         s1._salt_file.write_bytes(b"x" * 32)
@@ -132,6 +133,31 @@ class TestEncryptedFileStorage:
         loaded = s1.load_tokens()
         assert loaded is None
         assert not s1.token_file.exists()
+        broken = list(tmp_path.glob("tokens.json.broken-*"))
+        assert len(broken) == 1
+        assert broken[0].read_text() == original_ciphertext
+
+    def test_wrong_key_collision_within_same_second(self, tmp_path):
+        """Two corrupted decrypts within the same second don't clobber each other."""
+        from unittest.mock import patch
+
+        s1 = EncryptedFileStorage(tmp_path / "tokens.json", tmp_path / "key.pem")
+        s1.save_tokens(SAMPLE_TOKENS)
+        s1._salt_file.write_bytes(b"x" * 32)
+
+        with patch("pymyhondaplus.storage.time.time", return_value=1700000000):
+            s1.load_tokens()
+            # Second corruption with a fresh ciphertext under the same fake clock
+            s1._salt_file.write_bytes(b"y" * 32)
+            s1.save_tokens(SAMPLE_TOKENS)
+            s1._salt_file.write_bytes(b"z" * 32)
+            s1.load_tokens()
+
+        broken = sorted(p.name for p in tmp_path.glob("tokens.json.broken-*"))
+        assert broken == [
+            "tokens.json.broken-1700000000",
+            "tokens.json.broken-1700000000-1",
+        ]
 
 
 class TestGetStorage:
