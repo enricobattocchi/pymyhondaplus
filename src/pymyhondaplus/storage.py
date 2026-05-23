@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import platform
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -30,6 +31,24 @@ def _write_secure(path: Path, data: bytes | str):
 
 def _is_encrypted_format(data: dict) -> bool:
     return data.get("v") == ENCRYPTED_FORMAT_VERSION and "enc" in data
+
+
+def _move_aside_as_broken(path: Path) -> Path:
+    """Rename `path` to `<name>.broken-<unix-ts>` and return the new path.
+
+    Used when an encrypted file cannot be decrypted: we keep the ciphertext
+    instead of deleting it so the user (or a support session) can still
+    recover it if the original key is found later. Collisions in the same
+    second get a numeric suffix.
+    """
+    ts = int(time.time())
+    candidate = path.with_name(path.name + f".broken-{ts}")
+    counter = 0
+    while candidate.exists():
+        counter += 1
+        candidate = path.with_name(path.name + f".broken-{ts}-{counter}")
+    path.rename(candidate)
+    return candidate
 
 
 class SecretStorage(ABC):
@@ -130,11 +149,13 @@ class _FernetStorage(SecretStorage):
             try:
                 return self._decrypt(data["data"].encode())
             except InvalidToken:
+                broken = _move_aside_as_broken(path)
                 logger.warning(
                     "Cannot decrypt %s (encryption key changed). "
-                    "Removing stale file — please login again.", path
+                    "Moved aside as %s so the ciphertext is preserved; "
+                    "please login again.",
+                    path, broken.name,
                 )
-                path.unlink()
                 return None
 
         # Plain-text token format — migrate
