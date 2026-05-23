@@ -22,6 +22,15 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 logger = logging.getLogger(__name__)
 
+def _redact_email(email: str) -> str:
+    """Mask an email for logging: "alice@example.com" -> "a***@example.com"."""
+    if not email or "@" not in email:
+        return "<unknown>"
+    local, _, domain = email.partition("@")
+    return f"{local[:1]}***@{domain}"
+
+
+
 API_BASE = "https://mobile-api.connected.honda-eu.com"
 
 # Server RSA public key (hardcoded in the app)
@@ -330,7 +339,7 @@ class HondaAuth:
         Complete login flow. If device is not registered, handles registration
         and email verification interactively (CLI only).
         """
-        logger.info("Starting login for %s", email)
+        logger.info("Starting login for %s", _redact_email(email))
 
         try:
             result = self.initiate_login(email, password, locale=locale)
@@ -361,7 +370,8 @@ class HondaAuth:
         try:
             reset_result = self.reset_device_authenticator(
                 email, password)
-            logger.info("reset-device-authenticator response: %s", reset_result)
+            logger.info("reset-device-authenticator: verification email requested")
+            logger.debug("reset-device-authenticator response payload: %r", reset_result)
             print("Verification email sent!")
         except HondaAuthError as e:
             if "currently blocked" in str(e):
@@ -383,7 +393,8 @@ class HondaAuth:
             raise HondaAuthError(0, f"Could not extract key from link: {link}")
 
         result = self.verify_magic_link(key, link_type)
-        logger.info("Magic link verification result: %s", result)
+        logger.info("Magic link verified")
+        logger.debug("Magic link verification result payload: %r", result)
 
         result = self.initiate_login(email, password, locale=locale)
         transaction_id = result["transactionId"]
