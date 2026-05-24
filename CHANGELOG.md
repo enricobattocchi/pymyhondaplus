@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.9.1 — 2026-05-24
+
+### Fixed
+
+- Encrypted storage no longer deletes token / device-key files it cannot decrypt (for example after the encryption key changes). The file is renamed aside as `<name>.broken-<timestamp>`, so the ciphertext is preserved and the next login can recover instead of starting from a silent data loss.
+- Authentication no longer logs the account email or Honda response payloads at INFO level, so credentials and personal data no longer leak into logs.
+
+### Changed
+
+- Log levels tidied up: anomalies are raised from DEBUG to WARNING, and storage backend selection plus the plaintext-to-encrypted migration are surfaced at INFO.
+
 ## 5.9.0 — 2026-05-22
 
 ### Breaking changes
