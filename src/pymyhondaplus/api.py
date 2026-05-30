@@ -109,6 +109,41 @@ _CHARGE_STATUS_MAP = {
 }
 
 
+_DISTANCE_UNIT_MAP = {
+    "km": "km",
+    "kms": "km",
+    "kilometer": "km",
+    "kilometers": "km",
+    "kilometre": "km",
+    "kilometres": "km",
+    "mi": "miles",
+    "mile": "miles",
+    "miles": "miles",
+}
+
+
+def _normalize_distance_unit(raw: str, default: str = "km") -> str:
+    """Normalize Honda's distance unit aliases to a canonical form.
+
+    Honda returns "mile" (singular) for UK accounts; we canonicalize to
+    "miles" so downstream consumers can pick a single shape.
+    """
+    if not isinstance(raw, str):
+        return default
+    return _DISTANCE_UNIT_MAP.get(raw.strip().lower(), default)
+
+
+def _normalize_speed_unit(raw: str, distance_unit: str) -> str:
+    """Normalize Honda's speed unit aliases to "<distance>/h"."""
+    if isinstance(raw, str) and raw.strip():
+        head, _, tail = raw.strip().partition("/")
+        unit = _normalize_distance_unit(head, default="")
+        if unit:
+            suffix = tail.strip().lower() or "h"
+            return f"{unit}/{suffix}"
+    return f"{distance_unit}/h"
+
+
 def _normalize_charge_status(raw) -> str:
     """Normalize a raw chargeStatus API value to a canonical enum value."""
     if not isinstance(raw, str):
@@ -1487,8 +1522,10 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
     ev = dashboard.get("evStatus", {})
     gps = dashboard.get("gpsData", {})
     coord = gps.get("coordinate", {})
-    distance_unit = ev.get("rangeUnit", dashboard.get("odometer", {}).get("unit", "km"))
-    speed_unit = gps.get("velocity", {}).get("unit", f"{distance_unit}/h")
+    distance_unit = _normalize_distance_unit(
+        ev.get("rangeUnit", dashboard.get("odometer", {}).get("unit", "km")))
+    speed_unit = _normalize_speed_unit(
+        gps.get("velocity", {}).get("unit"), distance_unit)
     temp_unit = dashboard.get("temperature", {}).get("cabin", {}).get("unit", "c")
 
     return EVStatus(
@@ -1620,7 +1657,13 @@ def compute_trip_stats(rows: list[dict], period: str = "month",
         avg_consumption = 0.0
 
     actual_dates = sorted(set(r.get("OneTripDate", "")[:10] for r in rows))
+    distance_unit = _normalize_distance_unit(distance_unit)
     speed_unit = f"{distance_unit}/h"
+    is_imperial = distance_unit == "miles"
+    if fuel_type == "E":
+        consumption_unit = "mi/kWh" if is_imperial else "kWh/100km"
+    else:
+        consumption_unit = "mpg" if is_imperial else "L/100km"
     return {
         "period": period,
         "start_date": actual_dates[0] if actual_dates else "",
@@ -1635,5 +1678,5 @@ def compute_trip_stats(rows: list[dict], period: str = "month",
         "avg_consumption": round(avg_consumption, 1),
         "distance_unit": distance_unit,
         "speed_unit": speed_unit,
-        "consumption_unit": "kWh/100km" if fuel_type == "E" else "L/100km",
+        "consumption_unit": consumption_unit,
     }

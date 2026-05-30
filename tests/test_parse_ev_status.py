@@ -35,6 +35,32 @@ def test_gps(dashboard_ev):
     assert ev["distance_unit"] == "km"
 
 
+def test_units_uk_aliases(dashboard_ev):
+    """Honda returns 'mile' / 'mile/h' for UK accounts; canonicalize to miles."""
+    dashboard_ev["evStatus"]["rangeUnit"] = "mile"
+    dashboard_ev["odometer"]["unit"] = "mile"
+    dashboard_ev["gpsData"]["velocity"]["unit"] = "mile/h"
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["distance_unit"] == "miles"
+    assert ev["speed_unit"] == "miles/h"
+
+
+def test_units_distance_alias_falls_through_to_odometer(dashboard_ev):
+    """If rangeUnit is absent we read odometer.unit, normalized."""
+    dashboard_ev["evStatus"].pop("rangeUnit", None)
+    dashboard_ev["odometer"]["unit"] = "Miles"
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["distance_unit"] == "miles"
+
+
+def test_units_unknown_distance_defaults_to_km(dashboard_ev):
+    dashboard_ev["evStatus"]["rangeUnit"] = "furlong"
+    dashboard_ev["odometer"]["unit"] = "furlong"
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["distance_unit"] == "km"
+    assert ev["speed_unit"] == "km/h"
+
+
 def test_doors_locked(dashboard_ev):
     ev = parse_ev_status(dashboard_ev)
     assert ev["doors_locked"] is True

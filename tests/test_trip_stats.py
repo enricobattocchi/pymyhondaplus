@@ -51,6 +51,23 @@ def test_distance_unit(trip_rows):
     assert stats["speed_unit"] == "miles/h"
 
 
+def test_distance_unit_alias_normalized(trip_rows):
+    """Honda's 'mile' (singular) alias must canonicalize to 'miles'."""
+    stats = compute_trip_stats(trip_rows, distance_unit="mile")
+    assert stats["distance_unit"] == "miles"
+    assert stats["speed_unit"] == "miles/h"
+
+
+def test_consumption_unit_ice_imperial(trip_rows):
+    stats = compute_trip_stats(trip_rows, fuel_type="G", distance_unit="miles")
+    assert stats["consumption_unit"] == "mpg"
+
+
+def test_consumption_unit_ev_imperial(trip_rows):
+    stats = compute_trip_stats(trip_rows, fuel_type="E", distance_unit="miles")
+    assert stats["consumption_unit"] == "mi/kWh"
+
+
 def test_empty_rows():
     stats = compute_trip_stats([])
     assert stats["trips"] == 0
