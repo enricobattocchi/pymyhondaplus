@@ -26,6 +26,7 @@ from .api import (
     HondaAPIError,
     HondaAuthError,
     compute_trip_stats,
+    consumption_unit_for,
     parse_ev_status,
 )
 from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
@@ -176,10 +177,9 @@ def _resolve_vehicle(api: HondaAPI, vin_arg: str | None) -> tuple[str | None, in
     return api.tokens.resolve_vin(vin_arg) or vin_arg, 0
 
 
-def _get_vehicle_display_context(api: HondaAPI, vin: str, args: argparse.Namespace) -> tuple[dict | None, str]:
-    """Return vehicle info and consumption unit, and print the current header when needed."""
+def _get_vehicle_display_context(api: HondaAPI, vin: str, args: argparse.Namespace) -> dict | None:
+    """Return vehicle info and print the current header when needed."""
     vehicle_info = next((vehicle for vehicle in api.tokens.vehicles if vehicle["vin"] == vin), None)
-    consumption_unit = "kWh/100km" if (vehicle_info or {}).get("fuel_type") == "E" else "L/100km"
     if not args.json and not getattr(args, "csv", False):
         if vehicle_info:
             label = vehicle_info["name"] or vin
@@ -188,7 +188,24 @@ def _get_vehicle_display_context(api: HondaAPI, vin: str, args: argparse.Namespa
         else:
             print(f"[{vin}]", file=sys.stderr)
         print(file=sys.stderr)
-    return vehicle_info, consumption_unit
+    return vehicle_info
+
+
+def _resolve_trip_units(
+    api: HondaAPI, vin: str, vehicle_info: dict | None,
+) -> tuple[str, str]:
+    """Read the vehicle's distance_unit (from the cached dashboard) and
+    derive the matching consumption_unit. Used by trips / trip-stats so
+    that imperial-locale accounts (UK) get mi / mph / mpg / mi/kWh
+    labels instead of the metric defaults."""
+    distance_unit = "km"
+    try:
+        ev = parse_ev_status(api.get_dashboard_cached(vin))
+        distance_unit = ev.get("distance_unit", "km")
+    except HondaAPIError:
+        pass
+    fuel_type = (vehicle_info or {}).get("fuel_type", "")
+    return distance_unit, consumption_unit_for(fuel_type, distance_unit)
 
 
 def _wait_command(api: HondaAPI, timeout: int, cmd_id: str, label: str) -> int:
@@ -716,7 +733,10 @@ def _load_trip_stats_rows(
     return rows, 0
 
 
-def _handle_trip_stats_command(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_info: dict | None) -> int:
+def _handle_trip_stats_command(
+    api: HondaAPI, vin: str, args: argparse.Namespace,
+    vehicle_info: dict | None, distance_unit: str,
+) -> int:
     """Handle the trip-stats command, preserving current CLI behavior."""
     ref = date.fromisoformat(args.ref_date) if args.ref_date else date.today()
     start_date, end_date = _trip_stats_period_bounds(ref, args.period)
@@ -729,7 +749,8 @@ def _handle_trip_stats_command(api: HondaAPI, vin: str, args: argparse.Namespace
         return 0
 
     fuel_type = (vehicle_info or {}).get("fuel_type", "")
-    stats = compute_trip_stats(rows, args.period, fuel_type=fuel_type)
+    stats = compute_trip_stats(
+        rows, args.period, fuel_type=fuel_type, distance_unit=distance_unit)
     if args.json:
         print(json.dumps(stats, indent=2))
     elif args.csv:
@@ -1271,7 +1292,7 @@ def _run_main(args: argparse.Namespace, storage) -> int:
             return 1
         return 0
 
-    vehicle_info, consumption_unit = _get_vehicle_display_context(api, vin, args)
+    vehicle_info = _get_vehicle_display_context(api, vin, args)
 
     confirm_exit = _confirm_command(args)
     if confirm_exit is not None:
@@ -1336,13 +1357,16 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         return _handle_climate_schedule_clear_command(api, vin, args, vehicle_info)
 
     elif args.command == "trips":
+        _, consumption_unit = _resolve_trip_units(api, vin, vehicle_info)
         return _handle_trips_command(api, vin, args, vehicle_info, consumption_unit)
 
     elif args.command == "trip-detail":
         return _handle_trip_detail_command(api, vin, args)
 
     elif args.command == "trip-stats":
-        return _handle_trip_stats_command(api, vin, args, vehicle_info)
+        distance_unit, _ = _resolve_trip_units(api, vin, vehicle_info)
+        return _handle_trip_stats_command(
+            api, vin, args, vehicle_info, distance_unit)
 
     return 0
 
