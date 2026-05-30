@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.10.0 (2026-05-30)
+
+### Added
+
+- `consumption_unit_for(fuel_type, distance_unit)`: canonical mapping shared by the library and the CLI.
+
+### Fixed
+
+- `parse_ev_status` canonicalizes the distance and speed unit strings Honda returns for non-metric accounts. UK accounts come back with `rangeUnit="mile"` (singular) and `velocity.unit="mile/h"`; the library was passing those through unchanged, breaking consumers that expect `"miles"` / `"miles/h"` (most visibly: the Home Assistant integration mislabelled odometer, range, and speed as km).
+- `compute_trip_stats` derives `consumption_unit` from `(fuel_type, distance_unit)` instead of `fuel_type` alone. UK ICE accounts now get `mpg`, UK EV accounts get `mi/kWh`. Metric accounts are unchanged.
+- `compute_trip_stats` aggregates `AveFuelEconomy` correctly for imperial units. `mpg` and `mi/kWh` are distance-per-fuel: the right rollup is `total_distance / sum(distance / efficiency)`, not the distance-weighted average used for `L/100km` / `kWh/100km`. Two trips of 10mi at 10mpg and 20mi at 20mpg now report 15.0 mpg instead of 16.7.
+- `pymyhondaplus trips` and `pymyhondaplus trip-stats` label output by the vehicle's locale: distance unit is read from the cached dashboard and the consumption label follows.
+
 ## 5.9.1 (2026-05-24)
 
 ### Fixed
