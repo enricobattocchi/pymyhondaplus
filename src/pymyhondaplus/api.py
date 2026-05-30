@@ -133,14 +133,27 @@ def _normalize_distance_unit(raw: str, default: str = "km") -> str:
     return _DISTANCE_UNIT_MAP.get(raw.strip().lower(), default)
 
 
+_SPEED_UNIT_ALIASES = {
+    "kph": "km/h",
+    "kmh": "km/h",
+    "kmph": "km/h",
+    "mph": "miles/h",
+}
+
+
 def _normalize_speed_unit(raw: str, distance_unit: str) -> str:
     """Normalize Honda's speed unit aliases to "<distance>/h".
 
-    Honda only ships per-hour speeds (km/h, mile/h), so any
-    distance-prefix variant collapses to "<canonical>/h".
+    Honda only ships per-hour speeds. The dashboard uses "km/h" or
+    "mile/h"; the car-location endpoint uses "kph"; locale-specific
+    aliases like "mph" / "kmh" / "mi/h" may also surface. Everything
+    collapses to a canonical "<distance>/h".
     """
     if isinstance(raw, str) and raw.strip():
-        head = raw.strip().split("/", 1)[0]
+        normalized = raw.strip().lower()
+        if normalized in _SPEED_UNIT_ALIASES:
+            return _SPEED_UNIT_ALIASES[normalized]
+        head = normalized.split("/", 1)[0]
         unit = _normalize_distance_unit(head, default="")
         if unit:
             return f"{unit}/h"
@@ -300,7 +313,7 @@ class CarLocation:
         coord = gps.get("coordinate") or {}
         velocity = gps.get("velocity") or {}
         # Coordinates from this endpoint come as integer milliarcseconds.
-        unit_raw = velocity.get("unit", "kph")
+        speed_unit = _normalize_speed_unit(velocity.get("unit", "kph"), "km")
         # Normalize ignition: API returns "ignitionOn" / "ignitionOff" here,
         # but the dashboard's igStatus field uses "ON" / "OFF". Collapse to a
         # canonical lowercase "on" / "off" so downstream display logic can
@@ -319,7 +332,7 @@ class CarLocation:
             longitude=float(coord.get("longitude", 0)) / 3_600_000,
             timestamp=gps.get("dtTime", ""),
             speed=float(velocity.get("value", 0)),
-            speed_unit="km/h" if unit_raw == "kph" else unit_raw,
+            speed_unit=speed_unit,
             course_heading=float(gps.get("courseHeading", 0)),
             ignition=ignition,
         )

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.10.1 (2026-05-30)
+
+### Fixed
+
+- `CarLocation.from_command_result` canonicalizes `velocity.unit` through `_normalize_speed_unit`. Previously only `"kph"` was rewritten to `"km/h"`, so UK accounts (Honda returns `"mile/h"`) surfaced the raw alias through `pymyhondaplus find-car` and the Home Assistant `car_finder_location` service, while the rest of the stack had already settled on `"miles/h"`.
+- `_normalize_speed_unit` learns the slash-less aliases `kph` / `kmh` / `kmph` / `mph` that the car-location endpoint can return.
+
 ## 5.10.0 (2026-05-30)
 
 ### Added

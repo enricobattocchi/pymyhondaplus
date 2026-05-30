@@ -86,3 +86,47 @@ def test_handles_pre_parsed_content():
     assert loc is not None
     assert loc.speed == 5.0
     assert loc.ignition == "on"
+
+
+def test_speed_unit_uk_alias_normalized():
+    """UK accounts come back with 'mile/h'; canonicalize to 'miles/h'."""
+    result = _make_result({
+        "gpsData": {
+            "dtTime": "2026-04-26T18:18:01+00:00",
+            "coordinate": {"latitude": 0, "longitude": 0},
+            "velocity": {"unit": "mile/h", "value": 22.0},
+        },
+        "ignition": "ignitionOff",
+    })
+    loc = CarLocation.from_command_result(result)
+    assert loc is not None
+    assert loc.speed == 22.0
+    assert loc.speed_unit == "miles/h"
+
+
+def test_speed_unit_mph_alias_normalized():
+    """Also collapse the bare 'mph' alias to 'miles/h'."""
+    result = _make_result({
+        "gpsData": {
+            "coordinate": {"latitude": 0, "longitude": 0},
+            "velocity": {"unit": "mph", "value": 30.0},
+        },
+        "ignition": "ignitionOff",
+    })
+    loc = CarLocation.from_command_result(result)
+    assert loc is not None
+    assert loc.speed_unit == "miles/h"
+
+
+def test_speed_unit_unknown_defaults_to_km_h():
+    """An unrecognized unit string falls back to 'km/h' (EU default)."""
+    result = _make_result({
+        "gpsData": {
+            "coordinate": {"latitude": 0, "longitude": 0},
+            "velocity": {"unit": "furlongs/fortnight", "value": 0},
+        },
+        "ignition": "ignitionOff",
+    })
+    loc = CarLocation.from_command_result(result)
+    assert loc is not None
+    assert loc.speed_unit == "km/h"
