@@ -68,6 +68,43 @@ def test_consumption_unit_ev_imperial(trip_rows):
     assert stats["consumption_unit"] == "mi/kWh"
 
 
+def test_avg_consumption_imperial_ice_uses_harmonic_aggregation():
+    """mpg is distance-per-fuel: 10mi @10mpg + 20mi @20mpg should be 15 mpg, not 16.7."""
+    rows = [
+        {"OneTripDate": "2026-05-01", "Mileage": "10", "AveSpeed": "30",
+         "MaxSpeed": "60", "DriveTime": "20", "AveFuelEconomy": "10"},
+        {"OneTripDate": "2026-05-02", "Mileage": "20", "AveSpeed": "40",
+         "MaxSpeed": "60", "DriveTime": "30", "AveFuelEconomy": "20"},
+    ]
+    stats = compute_trip_stats(rows, fuel_type="G", distance_unit="miles")
+    assert stats["consumption_unit"] == "mpg"
+    assert stats["avg_consumption"] == 15.0
+
+
+def test_avg_consumption_imperial_ev_uses_harmonic_aggregation():
+    """mi/kWh: 10mi @5mi/kWh + 20mi @10mi/kWh consumes 2+2=4 kWh -> 30/4 = 7.5 mi/kWh."""
+    rows = [
+        {"OneTripDate": "2026-05-01", "Mileage": "10", "AveSpeed": "30",
+         "MaxSpeed": "60", "DriveTime": "20", "AveFuelEconomy": "5"},
+        {"OneTripDate": "2026-05-02", "Mileage": "20", "AveSpeed": "40",
+         "MaxSpeed": "60", "DriveTime": "30", "AveFuelEconomy": "10"},
+    ]
+    stats = compute_trip_stats(rows, fuel_type="E", distance_unit="miles")
+    assert stats["consumption_unit"] == "mi/kWh"
+    assert stats["avg_consumption"] == 7.5
+
+
+def test_avg_consumption_imperial_skips_zero_efficiency_rows():
+    rows = [
+        {"OneTripDate": "2026-05-01", "Mileage": "10", "AveSpeed": "30",
+         "MaxSpeed": "60", "DriveTime": "20", "AveFuelEconomy": "10"},
+        {"OneTripDate": "2026-05-02", "Mileage": "5", "AveSpeed": "0",
+         "MaxSpeed": "0", "DriveTime": "5", "AveFuelEconomy": "0"},
+    ]
+    stats = compute_trip_stats(rows, fuel_type="G", distance_unit="miles")
+    assert stats["avg_consumption"] == 10.0
+
+
 def test_empty_rows():
     stats = compute_trip_stats([])
     assert stats["trips"] == 0
