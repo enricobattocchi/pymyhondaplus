@@ -28,7 +28,12 @@ dependencies = [
 [project.optional-dependencies]
 keyring = ["keyring>=24.0"]
 completion = ["argcomplete>=3.0"]
-dev = ["pytest>=7.0", "ruff>=0.16.1,<0.17", "mypy>=1.10", "types-requests>=2.31"]
+dev = [
+    "pytest>=9.0,<10",
+    "ruff>=0.16.1,<0.17",
+    "mypy>=2.3,<2.4",
+    "types-requests>=2.33,<2.34",
+]
 
 [project.urls]
 Homepage = "https://github.com/enricobattocchi/pymyhondaplus"
