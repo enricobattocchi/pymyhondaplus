@@ -11,7 +11,7 @@ import os
 import sys
 import threading
 import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 try:
@@ -33,8 +33,13 @@ from .auth import DEFAULT_DEVICE_KEY_FILE, DeviceKey, HondaAuth
 from .http import DEFAULT_REQUEST_TIMEOUT
 from .storage import get_storage
 from .translations import (
-    CHARGE_MODE_FALLBACK_MAP, CHARGE_MODE_MAP, CHARGE_STATUS_MAP,
-    IG_STATUS_MAP, PLUG_STATUS_MAP, TEMP_UNIT_MAP, get_translator,
+    CHARGE_MODE_FALLBACK_MAP,
+    CHARGE_MODE_MAP,
+    CHARGE_STATUS_MAP,
+    IG_STATUS_MAP,
+    PLUG_STATUS_MAP,
+    TEMP_UNIT_MAP,
+    get_translator,
 )
 
 WATCH_FIELDS = {
@@ -139,7 +144,7 @@ def _to_utc_iso(s: str) -> str:
     Returns the input unchanged if it can't be parsed; the API will then surface its own error.
     """
     try:
-        return datetime.fromisoformat(s).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        return datetime.fromisoformat(s).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S+00:00")
     except (ValueError, TypeError):
         return s
 
@@ -622,7 +627,7 @@ def _load_trip_rows(api: HondaAPI, vin: str, args: argparse.Namespace, vehicle_i
             return None, 0
         payload = data.get("payload", {})
         fields = payload.get("def", [])
-        rows = [dict(zip(fields, trip)) for trip in payload.get("data", [])]
+        rows = [dict(zip(fields, trip, strict=False)) for trip in payload.get("data", [])]
         if not args.json and not args.csv:
             print(f"Page {data.get('page', '?')}/{data.get('maxPage', '?')}")
         return rows, 0

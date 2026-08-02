@@ -6,13 +6,14 @@ Tested on Honda e. Should work with other Honda Connect Europe vehicles
 """
 
 import json
-import os
-import time
 import logging
+import os
 import threading
-from pathlib import Path
+import time
 from dataclasses import dataclass, field
-from typing import Optional, TYPE_CHECKING
+from datetime import UTC
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 import requests
 from urllib3.util.retry import Retry
@@ -703,7 +704,7 @@ class Vehicle:
         try:
             return getattr(self, key)
         except AttributeError:
-            raise KeyError(key)
+            raise KeyError(key) from None
 
     def get(self, key: str, default=None):
         return getattr(self, key, default)
@@ -819,7 +820,7 @@ class HondaAPI:
     """
 
     def __init__(self, storage: Optional["SecretStorage"] = None,
-                 token_file: Optional[Path] = None,
+                 token_file: Path | None = None,
                  request_timeout: float = DEFAULT_REQUEST_TIMEOUT):
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
@@ -843,8 +844,8 @@ class HondaAPI:
 
         # Backward compatibility: token_file without storage
         if storage is None and token_file is not None:
-            from .storage import PlainFileStorage
             from .auth import DEFAULT_DEVICE_KEY_FILE
+            from .storage import PlainFileStorage
             self._storage = PlainFileStorage(token_file, DEFAULT_DEVICE_KEY_FILE)
 
         if self._storage is not None:
@@ -1398,8 +1399,8 @@ class HondaAPI:
             page: Page number (1-based)
         """
         if not month_start:
-            from datetime import datetime, timezone
-            now = datetime.now(timezone.utc)
+            from datetime import datetime
+            now = datetime.now(UTC)
             month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).strftime(
                 "%Y-%m-%dT%H:%M:%S.000Z")
         import urllib.parse
@@ -1461,7 +1462,7 @@ class HondaAPI:
             if page >= data.get("maxPage", 1):
                 break
             page += 1
-        rows = [dict(zip(fields, trip)) for trip in all_trips]
+        rows = [dict(zip(fields, trip, strict=False)) for trip in all_trips]
 
         if ref_date:
             rows = [r for r in rows if r.get("OneTripDate", "").startswith(ref_date[:10])]
@@ -1484,7 +1485,7 @@ class HondaAPI:
             detail = self.get_trip_detail(vin, start_time, end_time, trip_type)
             data = detail.get("payload", {}).get("data", [[]])[0]
             fields = detail.get("payload", {}).get("def", [])
-            row = dict(zip(fields, data))
+            row = dict(zip(fields, data, strict=False))
             result[f"{prefix}_lat"] = row.get("lat")
             result[f"{prefix}_lon"] = row.get("lon")
             result[f"{prefix}_dir"] = row.get("dir")
@@ -1537,7 +1538,7 @@ class EVStatus:
         try:
             return getattr(self, key)
         except AttributeError:
-            raise KeyError(key)
+            raise KeyError(key) from None
 
     def get(self, key: str, default=None):
         return getattr(self, key, default)

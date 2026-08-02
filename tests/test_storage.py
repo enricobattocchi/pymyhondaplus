@@ -6,9 +6,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pymyhondaplus.storage import (
-    PlainFileStorage,
     EncryptedFileStorage,
     KeyringStorage,
+    PlainFileStorage,
     get_storage,
 )
 

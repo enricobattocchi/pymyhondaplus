@@ -2,7 +2,6 @@
 
 from pymyhondaplus.api import Geofence
 
-
 # Colosseum, Rome: 41.890251°N, 12.492373°E → MAS: 150804903, 44972542
 ACTIVE_GEOFENCE_API = {
     "nickName": "Geofence",
@@ -103,6 +102,7 @@ class TestWaitForGeofence:
     def _build_api(self, responses):
         """Return a HondaAPI whose get_geofence emits the given sequence."""
         import time as _time
+
         from pymyhondaplus.api import HondaAPI
 
         api = HondaAPI.__new__(HondaAPI)

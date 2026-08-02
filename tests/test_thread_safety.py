@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import requests
 
-from pymyhondaplus.api import HondaAPI, AuthTokens
+from pymyhondaplus.api import AuthTokens, HondaAPI
 
 
 def _make_api(**token_overrides):

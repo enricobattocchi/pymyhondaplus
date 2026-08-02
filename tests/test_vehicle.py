@@ -3,10 +3,14 @@
 import time
 
 import pytest
-from pymyhondaplus.api import (
-    AuthTokens, Subscription, UserProfile, Vehicle, VehicleCapabilities,
-)
 
+from pymyhondaplus.api import (
+    AuthTokens,
+    Subscription,
+    UserProfile,
+    Vehicle,
+    VehicleCapabilities,
+)
 
 # -- Sample API data matching captured response --
 
@@ -240,11 +244,8 @@ class TestVehicleDictAccess:
 
     def test_missing_key_raises(self):
         v = Vehicle.from_api(FULL_VEHICLE_API)
-        try:
+        with pytest.raises(KeyError):
             _ = v["nonexistent"]
-            assert False, "Should have raised KeyError"
-        except KeyError:
-            pass
 
 
 class TestVehicleSerialization:
