@@ -1,12 +1,12 @@
 """Tests for HondaAPI HTTP layer — auth headers, token refresh, error handling."""
 
-from unittest.mock import MagicMock
 import time
+from unittest.mock import MagicMock
 
 import pytest
 import requests
 
-from pymyhondaplus.api import HondaAPI, HondaAPIError, HondaAuthError, AuthTokens
+from pymyhondaplus.api import AuthTokens, HondaAPI, HondaAPIError, HondaAuthError
 
 
 def _make_api(**token_overrides):
@@ -233,9 +233,11 @@ class TestTimeoutAdapter:
     """TimeoutAdapter applies default timeout to all requests."""
 
     def test_applies_default_timeout(self):
-        from pymyhondaplus.http import DEFAULT_REQUEST_TIMEOUT, TimeoutAdapter
-        from requests import PreparedRequest
         from unittest.mock import patch
+
+        from requests import PreparedRequest
+
+        from pymyhondaplus.http import DEFAULT_REQUEST_TIMEOUT, TimeoutAdapter
 
         adapter = TimeoutAdapter()
         with patch("requests.adapters.HTTPAdapter.send") as mock_send:
@@ -246,9 +248,11 @@ class TestTimeoutAdapter:
             assert call_kwargs["timeout"] == DEFAULT_REQUEST_TIMEOUT
 
     def test_respects_explicit_timeout(self):
-        from pymyhondaplus.http import TimeoutAdapter
-        from requests import PreparedRequest
         from unittest.mock import patch
+
+        from requests import PreparedRequest
+
+        from pymyhondaplus.http import TimeoutAdapter
 
         adapter = TimeoutAdapter()
         with patch("requests.adapters.HTTPAdapter.send") as mock_send:

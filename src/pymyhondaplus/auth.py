@@ -10,15 +10,14 @@ import logging
 import os
 import urllib.parse
 from pathlib import Path
-from typing import Optional
 
 import requests
-
-from .api import HondaAuthError
-from .http import DEFAULT_AUTH_TIMEOUT, TimeoutAdapter
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+from .api import HondaAuthError
+from .http import DEFAULT_AUTH_TIMEOUT, TimeoutAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -126,8 +125,8 @@ class DeviceKey:
 
     _private_key: rsa.RSAPrivateKey
 
-    def __init__(self, pem_data: Optional[bytes] = None,
-                 key_file: Optional[Path] = None,
+    def __init__(self, pem_data: bytes | None = None,
+                 key_file: Path | None = None,
                  storage=None):
         self._key_file = key_file
         self._storage = storage
@@ -206,7 +205,7 @@ class DeviceKey:
 class HondaAuth:
     """Handles the full Honda Connect Europe authentication flow."""
 
-    def __init__(self, device_key: Optional[DeviceKey] = None,
+    def __init__(self, device_key: DeviceKey | None = None,
                  request_timeout: float = DEFAULT_AUTH_TIMEOUT):
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)

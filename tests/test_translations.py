@@ -1,8 +1,11 @@
 """Tests for the translations module."""
 
 from pymyhondaplus.translations import (
-    CHARGE_MODE_MAP, CHARGE_STATUS_MAP, PLUG_STATUS_MAP,
-    TRANSLATIONS, get_translator,
+    CHARGE_MODE_MAP,
+    CHARGE_STATUS_MAP,
+    PLUG_STATUS_MAP,
+    TRANSLATIONS,
+    get_translator,
 )
 
 
