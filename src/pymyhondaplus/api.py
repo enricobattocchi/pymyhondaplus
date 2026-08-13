@@ -1562,7 +1562,11 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
         battery_level=_safe_int(ev.get("soc", 0)),
         range_climate_on=_safe_int(ev.get("evRange", 0)),
         range_climate_off=_safe_int(ev.get("evRange", 0)) + _safe_int(ev.get("evClimateOffRange", 0)),
-        total_range=_safe_int(ev.get("totalRange", 0)),
+        total_range=_safe_int(ev.get("totalRange")) or _safe_int(
+            dashboard.get("fuelLevel", {})
+            .get("driveRange", {})
+            .get("value", 0)
+        ),
         distance_unit=distance_unit,
         speed_unit=speed_unit,
         temp_unit=temp_unit,
