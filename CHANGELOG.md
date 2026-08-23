@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- `EVStatus.fuel_level` and `EVStatus.fuel_range`: fuel percentage and petrol driving range parsed from the dashboard `fuelLevel` block that hybrid and ICE vehicles report (seen on the 2026 Prelude e:HEV).
+
+### Fixed
+
+- `parse_ev_status` falls back to `fuelLevel.driveRange` for `total_range` when `evStatus.totalRange` is "unknown", so non plug-in vehicles no longer report a total range of 0. BEV and PHEV dashboards with a real `totalRange` are unchanged.
+
 ## 5.10.1 (2026-05-30)
 
 ### Fixed

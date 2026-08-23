@@ -1502,6 +1502,8 @@ class EVStatus:
     range_climate_on: int = 0
     range_climate_off: int = 0
     total_range: int = 0
+    fuel_level: int = 0
+    fuel_range: int = 0
     distance_unit: str = "km"
     speed_unit: str = "km/h"
     temp_unit: str = "c"
@@ -1550,6 +1552,11 @@ class EVStatus:
 def parse_ev_status(dashboard: dict) -> EVStatus:
     """Extract the most useful EV data from a dashboard response."""
     ev = dashboard.get("evStatus", {})
+    # Hybrids and ICE vehicles report fuel under "fuelLevel" while their
+    # "evStatus" block is entirely "unknown" (seen on the 2026 Prelude e:HEV).
+    fuel = dashboard.get("fuelLevel", {})
+    fuel_level = _safe_int(fuel.get("currentLevel", {}).get("value", 0))
+    fuel_range = _safe_int(fuel.get("driveRange", {}).get("value", 0))
     gps = dashboard.get("gpsData", {})
     coord = gps.get("coordinate", {})
     distance_unit = _normalize_distance_unit(
@@ -1562,7 +1569,9 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
         battery_level=_safe_int(ev.get("soc", 0)),
         range_climate_on=_safe_int(ev.get("evRange", 0)),
         range_climate_off=_safe_int(ev.get("evRange", 0)) + _safe_int(ev.get("evClimateOffRange", 0)),
-        total_range=_safe_int(ev.get("totalRange", 0)),
+        total_range=_safe_int(ev.get("totalRange", 0)) or fuel_range,
+        fuel_level=fuel_level,
+        fuel_range=fuel_range,
         distance_unit=distance_unit,
         speed_unit=speed_unit,
         temp_unit=temp_unit,
