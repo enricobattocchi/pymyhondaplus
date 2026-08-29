@@ -575,3 +575,47 @@ def test_agreement_accept_fails_when_terms_stay_pending(monkeypatch, capsys):
     assert rc == 1
     assert fake_api.accept_calls == [("100013", "it")]
     assert "100013" in capsys.readouterr().err
+
+
+def test_status_renders_fuel_rows_for_hybrids(monkeypatch, capsys):
+    """Hybrid dashboards render the fuel level and fuel range rows."""
+    monkeypatch.setenv("LC_ALL", "en_US.UTF-8")
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Prelude", "plate": "", "fuel_type": "P"},
+    ], default_vin="VIN123")
+    payload = fake_api._dashboard_payload()
+    payload["fuelLevel"] = {
+        "currentLevel": {"gaugeBars": 10, "value": "100", "unit": "percentage"},
+        "driveRange": {"value": "598", "unit": "km"},
+    }
+    monkeypatch.setattr(fake_api, "_dashboard_payload", lambda: payload)
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "status"])
+
+    rc = cli.main()
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Fuel level" in out
+    assert "100%" in out
+    assert "Fuel range" in out
+    assert "598 km" in out
+
+
+def test_status_hides_fuel_rows_without_fuel_data(monkeypatch, capsys):
+    """BEV dashboards (no fuelLevel block) do not render fuel rows."""
+    monkeypatch.setenv("LC_ALL", "en_US.UTF-8")
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Honda e", "plate": "", "fuel_type": "E"},
+    ], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "status"])
+
+    rc = cli.main()
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Fuel level" not in out
+    assert "Fuel range" not in out
