@@ -49,6 +49,8 @@ WATCH_FIELDS = {
     "charge_status": ("Charge", ""),
     "plug_status": ("Plug", ""),
     "time_to_charge": ("ETA", " min"),
+    "fuel_level": ("Fuel", "%"),
+    "fuel_range": ("Fuel range", " {dist}"),
     "climate_active": ("Climate", ""),
     "cabin_temp": ("Cabin", " {temp}"),
     "interior_temp": ("Interior", " {temp}"),
@@ -321,6 +323,9 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     ]
     if ev['time_to_charge']:
         rows.append((t("time_remaining_label"), f"{ev['time_to_charge']} {t('mins')}"))
+    if ev['fuel_level'] or ev['fuel_range']:
+        rows.append((t("fuel_label"), f"{ev['fuel_level']}%"))
+        rows.append((t("fuel_range_label"), f"{ev['fuel_range']} {du}"))
     rows += [
         (t("location_label"), t("home") if ev['home_away'] == "home" else t("away_location", raw=ev['home_away'])),
         (t("coordinates_label"), f"{ev['latitude']:.6f}, {ev['longitude']:.6f}"),

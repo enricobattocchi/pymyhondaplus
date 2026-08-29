@@ -258,3 +258,73 @@ def test_malformed_numeric_fields_do_not_crash(dashboard_ev):
     assert ev["speed"] == 0.0
     assert ev["cabin_temp"] == 0
     assert ev["odometer"] == 0
+
+
+def test_fuel_fields_default_to_zero_without_fuel_level(dashboard_ev):
+    """BEV dashboards have no fuelLevel block; fuel fields default to 0."""
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["fuel_level"] == 0
+    assert ev["fuel_range"] == 0
+
+
+def test_fuel_fields_hybrid(dashboard_ev):
+    """Hybrids report fuel under fuelLevel (seen on the 2026 Prelude e:HEV)."""
+    dashboard_ev["fuelLevel"] = {
+        "currentLevel": {"gaugeBars": 10, "value": "100", "unit": "percentage"},
+        "driveRange": {"value": "598", "unit": "km"},
+    }
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["fuel_level"] == 100
+    assert ev["fuel_range"] == 598
+
+
+def test_total_range_falls_back_to_fuel_range(dashboard_ev):
+    """On hybrids evStatus.totalRange is "unknown"; fall back to driveRange."""
+    dashboard_ev["fuelLevel"] = {
+        "currentLevel": {"gaugeBars": 10, "value": "100", "unit": "percentage"},
+        "driveRange": {"value": "598", "unit": "km"},
+    }
+    dashboard_ev["evStatus"]["totalRange"] = "unknown"
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["total_range"] == 598
+
+
+def test_total_range_prefers_ev_status_when_present(dashboard_ev):
+    """A real evStatus.totalRange (BEV/PHEV) wins over the fuel fallback."""
+    dashboard_ev["fuelLevel"] = {
+        "currentLevel": {"gaugeBars": 3, "value": "30", "unit": "percentage"},
+        "driveRange": {"value": "150", "unit": "km"},
+    }
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["total_range"] == 176
+
+
+def test_fuel_level_malformed_block(dashboard_ev):
+    """A fuelLevel block with missing keys parses to zeros, not errors."""
+    dashboard_ev["fuelLevel"] = {"currentLevel": {}, "driveRange": {"value": "unknown"}}
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["fuel_level"] == 0
+    assert ev["fuel_range"] == 0
+
+
+def test_distance_unit_falls_back_to_fuel_drive_range_unit(dashboard_ev):
+    """UK hybrids: evStatus.rangeUnit is "unknown" but driveRange carries miles."""
+    dashboard_ev["evStatus"]["rangeUnit"] = "unknown"
+    dashboard_ev["odometer"]["unit"] = "unknown"
+    dashboard_ev["fuelLevel"] = {
+        "currentLevel": {"gaugeBars": 8, "value": "80", "unit": "percentage"},
+        "driveRange": {"value": "370", "unit": "mile"},
+    }
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["distance_unit"] == "miles"
+
+
+def test_total_range_zero_is_not_replaced_by_fuel_range(dashboard_ev):
+    """A genuine totalRange of 0 must survive; only the "unknown" sentinel falls back."""
+    dashboard_ev["fuelLevel"] = {
+        "currentLevel": {"gaugeBars": 10, "value": "100", "unit": "percentage"},
+        "driveRange": {"value": "598", "unit": "km"},
+    }
+    dashboard_ev["evStatus"]["totalRange"] = "0"
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["total_range"] == 0

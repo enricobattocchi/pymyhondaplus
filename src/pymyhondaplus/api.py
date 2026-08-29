@@ -1502,6 +1502,8 @@ class EVStatus:
     range_climate_on: int = 0
     range_climate_off: int = 0
     total_range: int = 0
+    fuel_level: int = 0
+    fuel_range: int = 0
     distance_unit: str = "km"
     speed_unit: str = "km/h"
     temp_unit: str = "c"
@@ -1550,10 +1552,26 @@ class EVStatus:
 def parse_ev_status(dashboard: dict) -> EVStatus:
     """Extract the most useful EV data from a dashboard response."""
     ev = dashboard.get("evStatus", {})
+    # Hybrids and ICE vehicles report fuel under "fuelLevel" while their
+    # "evStatus" block is entirely "unknown" (seen on the 2026 Prelude e:HEV).
+    fuel = dashboard.get("fuelLevel", {})
+    fuel_level = _safe_int(fuel.get("currentLevel", {}).get("value", 0))
+    fuel_range = _safe_int(fuel.get("driveRange", {}).get("value", 0))
     gps = dashboard.get("gpsData", {})
     coord = gps.get("coordinate", {})
-    distance_unit = _normalize_distance_unit(
-        ev.get("rangeUnit", dashboard.get("odometer", {}).get("unit", "km")))
+    # Unit fallback chain: evStatus.rangeUnit, then fuelLevel.driveRange.unit
+    # (hybrids report "unknown" in evStatus), then the odometer unit.
+    distance_unit = ""
+    for raw_unit in (
+        ev.get("rangeUnit"),
+        fuel.get("driveRange", {}).get("unit"),
+        dashboard.get("odometer", {}).get("unit"),
+    ):
+        distance_unit = _normalize_distance_unit(raw_unit, default="")
+        if distance_unit:
+            break
+    distance_unit = distance_unit or "km"
+
     speed_unit = _normalize_speed_unit(
         gps.get("velocity", {}).get("unit"), distance_unit)
     temp_unit = dashboard.get("temperature", {}).get("cabin", {}).get("unit", "c")
@@ -1562,7 +1580,13 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
         battery_level=_safe_int(ev.get("soc", 0)),
         range_climate_on=_safe_int(ev.get("evRange", 0)),
         range_climate_off=_safe_int(ev.get("evRange", 0)) + _safe_int(ev.get("evClimateOffRange", 0)),
-        total_range=_safe_int(ev.get("totalRange", 0)),
+        total_range=(
+            fuel_range
+            if ev.get("totalRange") in (None, "", "unknown")
+            else _safe_int(ev.get("totalRange", 0))
+        ),
+        fuel_level=fuel_level,
+        fuel_range=fuel_range,
         distance_unit=distance_unit,
         speed_unit=speed_unit,
         temp_unit=temp_unit,
