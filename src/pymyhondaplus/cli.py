@@ -1011,6 +1011,18 @@ vehicle selection (only needed with multiple vehicles):
     trip_stats.add_argument("--csv", action="store_true",
                              help="Output as CSV")
 
+    # Experimental agreement commands. They work, but stay out of --help:
+    # freezing the metavar before adding them keeps them off the command list.
+    visible_commands = "{" + ",".join(subparsers.choices) + "}"
+    agreement = subparsers.add_parser("agreement", parents=[_common])
+    agreement.add_argument("--language", default="it",
+                           help="Language for the agreement text (default: it)")
+    agreement_accept = subparsers.add_parser("agreement-accept",
+                                             parents=[_common, _yes])
+    agreement_accept.add_argument("--language", default="it",
+                                  help="Language for the agreement text (default: it)")
+    subparsers.metavar = visible_commands
+
     return parser
 
 
@@ -1128,6 +1140,36 @@ def _run_main(args: argparse.Namespace, storage) -> int:
             print(f"{t('profile_heading')}:")
             for lbl, val in rows:
                 print(f"  {lbl + ':':<{w}}  {val}")
+        return 0
+
+    if args.command == "agreement":
+        agreement = api.get_user_agreement(language=args.language)
+        print(f"Term ID:  {agreement.term_id}")
+        print(f"Accepted: {'yes' if agreement.accepted else 'no'}")
+        if agreement.text:
+            print()
+            print(agreement.text)
+        return 0
+
+    if args.command == "agreement-accept":
+        agreement = api.get_user_agreement(language=args.language)
+        if agreement.accepted:
+            print(f"Terms {agreement.term_id} are already accepted.")
+            return 0
+        print(agreement.text)
+        print()
+        if sys.stdin.isatty() and not args.yes:
+            reply = input(f"Accept terms {agreement.term_id}? [y/N] ")
+            if reply.strip().lower() not in ("y", "yes"):
+                print("Cancelled.")
+                return 1
+        accepted_agreement = api.accept_user_agreement(
+            agreement.term_id, language=args.language)
+        if not accepted_agreement.accepted:
+            print(f"Honda still reports terms {agreement.term_id} "
+                  f"as not accepted.")
+            return 1
+        print(f"Accepted terms {agreement.term_id}.")
         return 0
 
     if not args.command:

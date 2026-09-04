@@ -799,6 +799,30 @@ class Vehicle:
         )
 
 
+@dataclass
+class UserAgreement:
+    """Terms and conditions the account is asked to accept."""
+    term_id: str = ""
+    accepted: bool = False
+    text: str = ""
+
+    @classmethod
+    def from_api(cls, data: dict) -> "UserAgreement":
+        """Parse a /tsp/get-user-agreement payload."""
+        return cls(
+            term_id=str(data.get("termId", "") or ""),
+            accepted=bool(data.get("agreement", False)),
+            text=data.get("fileContent", "") or "",
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "term_id": self.term_id,
+            "accepted": self.accepted,
+            "text": self.text,
+        }
+
+
 class HondaAPIError(Exception):
     def __init__(self, status_code: int, message: str):
         self.status_code = status_code
@@ -808,6 +832,42 @@ class HondaAPIError(Exception):
 class HondaAuthError(HondaAPIError):
     """Raised for authentication failures (login, device registration, etc.)."""
     pass
+
+
+class HondaAgreementError(HondaAPIError):
+    """Raised when the account has updated terms and conditions to accept.
+
+    Honda rejects every other call with error code 10052 until the current
+    agreement is accepted. Read it with HondaAPI.get_user_agreement() and
+    accept it with HondaAPI.accept_user_agreement().
+    """
+
+    def __init__(self, status_code: int, message: str = ""):
+        super().__init__(
+            status_code,
+            "Accept the updated Honda terms and conditions to continue. "
+            "Use the My Honda+ app, or run 'pymyhondaplus agreement-accept'.",
+        )
+        self.api_message = message
+
+
+# Honda error codes that carry a dedicated exception. Codes with no entry here
+# raise a plain HondaAPIError.
+ERROR_CODE_EXCEPTIONS: dict[str, type[HondaAPIError]] = {
+    "10052": HondaAgreementError,
+}
+
+# Endpoints that stay reachable while an agreement is pending. The code
+# mapping skips them, otherwise accepting the agreement is impossible.
+AGREEMENT_PATHS = ("/tsp/get-user-agreement", "/tsp/accept-user-agreement")
+
+
+def _api_error_code(resp: requests.Response) -> str:
+    """Return Honda's errorCode from a failed response, or an empty string."""
+    try:
+        return str(resp.json().get("errorCode", ""))
+    except (ValueError, AttributeError):
+        return ""
 
 
 class HondaAPI:
@@ -952,6 +1012,11 @@ class HondaAPI:
                         401, "Authentication failed after token refresh",
                     )
 
+            if resp.status_code >= 400 and not path.startswith(AGREEMENT_PATHS):
+                exc_class = ERROR_CODE_EXCEPTIONS.get(_api_error_code(resp))
+                if exc_class is not None:
+                    raise exc_class(resp.status_code, resp.text)
+
             return resp
 
     # -- Vehicle data --
@@ -968,6 +1033,47 @@ class HondaAPI:
         if resp.status_code != 200:
             raise HondaAPIError(resp.status_code, resp.text)
         return resp.json()
+
+    def _require_personal_id(self) -> str:
+        """Return the account's personal ID, reading login info if needed."""
+        if self.tokens.personal_id:
+            return self.tokens.personal_id
+        return self.get_user_info().get("personalId", "")
+
+    def get_user_agreement(self, language: str = "it",
+                           agreement_type: str = "1") -> UserAgreement:
+        """Get the terms and conditions tied to the account."""
+        personal_id = self._require_personal_id()
+        resp = self._request(
+            "GET",
+            f"/tsp/get-user-agreement?language={language}"
+            f"&agreementType={agreement_type}&personalId={personal_id}",
+        )
+        if resp.status_code != 200:
+            raise HondaAPIError(resp.status_code, resp.text)
+        return UserAgreement.from_api(resp.json())
+
+    def accept_user_agreement(self, term_id: str = "", language: str = "it",
+                              agreement_type: str = "1") -> UserAgreement:
+        """Accept the terms and conditions and return the resulting state.
+
+        Omit term_id to accept whichever agreement Honda currently reports.
+        """
+        personal_id = self._require_personal_id()
+        if not term_id:
+            term_id = self.get_user_agreement(language, agreement_type).term_id
+        if not term_id:
+            raise HondaAPIError(404, "Honda reports no agreement to accept")
+        resp = self._request("POST", "/tsp/accept-user-agreement", json={
+            "termId": term_id,
+            "action": "accept",
+            "personalId": personal_id,
+            "agreementType": agreement_type,
+            "language": language,
+        })
+        if resp.status_code != 200:
+            raise HondaAPIError(resp.status_code, resp.text)
+        return self.get_user_agreement(language, agreement_type)
 
     def get_user_profile(self, **kwargs) -> UserProfile:
         """Get the user profile (name, email, address, preferences)."""
