@@ -18,6 +18,7 @@ def test_basic_fields(dashboard_ev):
     assert ev["charge_mode"] == "unconfirmed"
     assert ev["time_to_charge"] == 0
 
+
 def test_total_range_falls_back_to_fuel_drive_range(dashboard_ev):
     """Hybrid vehicles report remaining range under fuelLevel.driveRange."""
     dashboard_ev["evStatus"]["totalRange"] = "unknown"
@@ -39,7 +40,7 @@ def test_total_range_falls_back_to_fuel_drive_range(dashboard_ev):
 
 
 def test_total_range_prefers_ev_total_range(dashboard_ev):
-    """EV totalRange should take precedence when Honda supplies it."""
+    """EV totalRange should take precedence when the My Honda+ API supplies it."""
     dashboard_ev["fuelLevel"] = {
         "driveRange": {
             "value": "675",
