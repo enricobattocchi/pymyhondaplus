@@ -318,6 +318,21 @@ Migration notes for library consumers:
 
 - Validate charge limit values (80, 85, 90, 95, 100).
 
+## 2.0.1 (2026-03-25)
+
+### Added
+
+- Add `HONDA_KEY_FILE` env var for device key path (matches existing `HONDA_TOKEN_FILE`).
+
+### Fixed
+
+- Handle API errors gracefully for secondary users on schedule commands.
+
+### Changed
+
+- Document env vars for `--token-file`, `--key-file`, and `--storage` in USAGE.md.
+- Add test workflow (pytest across Python 3.11, 3.12, 3.13).
+
 ## 2.0.0 (2026-03-25)
 
 ### Added
@@ -337,6 +352,12 @@ Migration notes for library consumers:
 - Improve library API for Home Assistant integration.
 - Extract trip helpers into API layer for library reuse.
 - Show kWh/100km for electric vehicles instead of L/100km.
+
+## 1.2.1 (2026-03-21)
+
+### Changed
+
+- Mark project as unofficial in all user-facing descriptions (PyPI, CLI, README).
 
 ## 1.2.0 (2026-03-21)
 
