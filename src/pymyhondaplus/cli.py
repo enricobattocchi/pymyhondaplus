@@ -780,6 +780,44 @@ def _handle_trip_stats_command(
     return 0
 
 
+def _handle_agreement_command(api: HondaAPI, args: argparse.Namespace) -> int:
+    t = get_translator()
+    agreement = api.get_user_agreement(language=args.language)
+    accepted = t("agreement_yes") if agreement.accepted else t("agreement_no")
+    rows = [
+        (t("agreement_term_id"), agreement.term_id),
+        (t("agreement_accepted_label"), accepted),
+    ]
+    w = max(len(lbl) for lbl, _ in rows) + 1
+    for lbl, val in rows:
+        print(f"{lbl + ':':<{w}}  {val}")
+    if agreement.text:
+        print()
+        print(agreement.text)
+    return 0
+
+
+def _handle_agreement_accept_command(api: HondaAPI, args: argparse.Namespace) -> int:
+    t = get_translator()
+    agreement = api.get_user_agreement(language=args.language)
+    if agreement.accepted:
+        print(f"{t('agreement_already_accepted')}: {agreement.term_id}")
+        return 0
+    print(agreement.text)
+    print()
+    if sys.stdin.isatty() and not args.yes and not _confirm(args.command):
+        print(t("aborted"))
+        return 0
+    accepted_agreement = api.accept_user_agreement(
+        agreement.term_id, language=args.language)
+    if not accepted_agreement.accepted:
+        print(f"{t('agreement_still_pending')}: {agreement.term_id}",
+              file=sys.stderr)
+        return 1
+    print(f"{t('agreement_accept_done')}: {agreement.term_id}")
+    return 0
+
+
 CONFIRM_COMMANDS = frozenset({
     "lock", "unlock", "horn",
     "climate-start", "climate-stop", "climate-settings-set",
@@ -1011,6 +1049,18 @@ vehicle selection (only needed with multiple vehicles):
     trip_stats.add_argument("--csv", action="store_true",
                              help="Output as CSV")
 
+    # Experimental agreement commands. They work, but stay out of --help:
+    # freezing the metavar before adding them keeps them off the command list.
+    visible_commands = "{" + ",".join(subparsers.choices) + "}"
+    agreement = subparsers.add_parser("agreement", parents=[_common])
+    agreement.add_argument("--language", default="it",
+                           help="Language for the agreement text (default: it)")
+    agreement_accept = subparsers.add_parser("agreement-accept",
+                                             parents=[_common, _yes])
+    agreement_accept.add_argument("--language", default="it",
+                                  help="Language for the agreement text (default: it)")
+    subparsers.metavar = visible_commands
+
     return parser
 
 
@@ -1129,6 +1179,12 @@ def _run_main(args: argparse.Namespace, storage) -> int:
             for lbl, val in rows:
                 print(f"  {lbl + ':':<{w}}  {val}")
         return 0
+
+    if args.command == "agreement":
+        return _handle_agreement_command(api, args)
+
+    if args.command == "agreement-accept":
+        return _handle_agreement_accept_command(api, args)
 
     if not args.command:
         args.command = "status"
