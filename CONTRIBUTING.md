@@ -123,8 +123,9 @@ Translation values that map to user-visible strings should be coherent and accur
 ## Release process
 
 1. Bump `version` in `pyproject.toml`.
-2. Add a `## X.Y.Z — YYYY-MM-DD` section to `CHANGELOG.md`.
+2. Add a `## X.Y.Z (YYYY-MM-DD)` section to `CHANGELOG.md`.
 3. Verify `pytest` / `ruff` / `mypy` are clean.
 4. PR → merge to `main` (merge commit, not squash).
 5. Tag `X.Y.Z` (no `v` prefix) on the merge commit. Push the tag.
-6. `gh release create X.Y.Z` triggers the GitHub Actions workflow that uploads to PyPI.
+6. `gh release create X.Y.Z` triggers the GitHub Actions workflow that uploads to PyPI. The release body is the `CHANGELOG.md` section, `##` header included, ending with `### Thanks` for the people who authored or took part in the PRs it ships.
+7. Rename the `Next release` milestone to `X.Y.Z`, close it, and open a new `Next release` (milestone titles are unique, so the rename comes first).
