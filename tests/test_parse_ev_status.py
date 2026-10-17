@@ -319,12 +319,22 @@ def test_fuel_fields_hybrid(dashboard_ev):
 
 
 def test_fuel_level_malformed_block(dashboard_ev):
-    """A fuelLevel block with missing keys parses to zeros, not errors."""
-    dashboard_ev["fuelLevel"] = {"currentLevel": {}, "driveRange": {"value": "unknown"}}
-    ev = parse_ev_status(dashboard_ev)
-    assert ev["has_fuel"] is False
-    assert ev["fuel_level"] == 0
-    assert ev["fuel_range"] == 0
+    """A fuelLevel block with missing or null sub-blocks parses to zeros, not errors."""
+    for malformed in (
+        {"currentLevel": {}, "driveRange": {"value": "unknown"}},
+        None,
+        {"currentLevel": None, "driveRange": {"value": "598", "unit": "km"}},
+        {"currentLevel": {"gaugeBars": 8, "value": "80"}, "driveRange": None},
+    ):
+        dashboard_ev["fuelLevel"] = malformed
+        ev = parse_ev_status(dashboard_ev)
+        assert ev["fuel_range"] == 0
+        if isinstance(malformed, dict) and isinstance(malformed.get("currentLevel"), dict) and malformed["currentLevel"]:
+            assert ev["has_fuel"] is True
+            assert ev["fuel_level"] == 80
+        else:
+            assert ev["has_fuel"] is False
+            assert ev["fuel_level"] == 0
 
 
 def test_distance_unit_falls_back_to_fuel_drive_range_unit(dashboard_ev):

@@ -123,7 +123,7 @@ _DISTANCE_UNIT_MAP = {
 }
 
 
-def _normalize_distance_unit(raw: str, default: str = "km") -> str:
+def _normalize_distance_unit(raw: str | None, default: str = "km") -> str:
     """Normalize Honda's distance unit aliases to a canonical form.
 
     Honda returns "mile" (singular) for UK accounts; we canonicalize to
@@ -1663,8 +1663,12 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
     # "evStatus" block is entirely "unknown" (seen on the 2026 Prelude e:HEV).
     # Electric vehicles send the block too, with "gaugeBars": -1 and an
     # "unknown" level, so the gauge rather than the block marks fuel data.
-    fuel = dashboard.get("fuelLevel", {})
-    current_level = fuel.get("currentLevel", {})
+    raw_fuel = dashboard.get("fuelLevel")
+    fuel = raw_fuel if isinstance(raw_fuel, dict) else {}
+    raw_current_level = fuel.get("currentLevel")
+    current_level = raw_current_level if isinstance(raw_current_level, dict) else {}
+    raw_drive_range = fuel.get("driveRange")
+    drive_range_block = raw_drive_range if isinstance(raw_drive_range, dict) else {}
     gauge_bars = _safe_int(current_level.get("gaugeBars"), default=-1)
     level_value = _safe_int(current_level.get("value"), default=-1)
     has_fuel = gauge_bars >= 0 or level_value >= 0
@@ -1674,7 +1678,7 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
         fuel_level = gauge_bars * 10
     else:
         fuel_level = 0
-    drive_range = _safe_int(fuel.get("driveRange", {}).get("value", 0))
+    drive_range = _safe_int(drive_range_block.get("value", 0))
     fuel_range = drive_range if has_fuel else 0
     gps = dashboard.get("gpsData", {})
     coord = gps.get("coordinate", {})
@@ -1684,7 +1688,7 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
     distance_unit = ""
     for raw_unit in (
         ev.get("rangeUnit"),
-        fuel.get("driveRange", {}).get("unit") if has_fuel else None,
+        drive_range_block.get("unit") if has_fuel else None,
         dashboard.get("odometer", {}).get("unit"),
     ):
         distance_unit = _normalize_distance_unit(raw_unit, default="")
