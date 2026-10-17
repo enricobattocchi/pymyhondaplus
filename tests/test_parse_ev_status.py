@@ -19,6 +19,44 @@ def test_basic_fields(dashboard_ev):
     assert ev["time_to_charge"] == 0
 
 
+def test_total_range_falls_back_to_fuel_drive_range(dashboard_ev):
+    """Hybrid vehicles report remaining range under fuelLevel.driveRange."""
+    dashboard_ev["evStatus"]["totalRange"] = "unknown"
+    dashboard_ev["fuelLevel"] = {
+        "currentLevel": {
+            "gaugeBars": 10,
+            "value": "100",
+            "unit": "percentage",
+        },
+        "driveRange": {
+            "value": "675",
+            "unit": "km",
+        },
+    }
+
+    ev = parse_ev_status(dashboard_ev)
+
+    assert ev["total_range"] == 675
+
+
+def test_total_range_prefers_ev_total_range(dashboard_ev):
+    """EV totalRange should take precedence when the My Honda+ API supplies it."""
+    dashboard_ev["fuelLevel"] = {
+        "driveRange": {
+            "value": "675",
+            "unit": "km",
+        },
+    }
+
+    dashboard_ev["evStatus"]["totalRange"] = "200"
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["total_range"] == 200
+
+    dashboard_ev["evStatus"]["totalRange"] = "0"
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["total_range"] == 0
+
+
 def test_temperature(dashboard_ev):
     ev = parse_ev_status(dashboard_ev)
     assert ev["cabin_temp"] == 24
