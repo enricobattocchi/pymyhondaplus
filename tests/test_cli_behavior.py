@@ -5,7 +5,7 @@ import importlib.metadata
 import pytest
 
 from pymyhondaplus import cli
-from pymyhondaplus.api import HondaAPIError, HondaAuthError
+from pymyhondaplus.api import HondaAPIError, HondaAuthError, UserAgreement
 from pymyhondaplus.http import DEFAULT_AUTH_TIMEOUT
 
 
@@ -480,3 +480,98 @@ def test_trip_detail_normalizes_local_tz_input_to_utc(monkeypatch, capsys):
     # Output (text mode) should still show UTC by default
     out = capsys.readouterr().out
     assert "2026-03-21T14:12:41+00:00" in out
+
+
+class _FakeAgreementAPI(_FakeAPI):
+    def __init__(self, accepted=False, accept_result=True):
+        super().__init__([])
+        self.agreement = UserAgreement(term_id="100013", accepted=accepted,
+                                       text="Terms text")
+        self.accept_result = accept_result
+        self.get_languages = []
+        self.accept_calls = []
+
+    def get_user_agreement(self, language="it"):
+        self.get_languages.append(language)
+        return self.agreement
+
+    def accept_user_agreement(self, term_id="", language="it"):
+        self.accept_calls.append((term_id, language))
+        return UserAgreement(term_id=term_id, accepted=self.accept_result,
+                             text="Terms text")
+
+
+def test_agreement_commands_stay_out_of_help():
+    help_text = cli.build_parser().format_help()
+    assert "agreement" not in help_text
+
+
+def test_agreement_forwards_language_and_prints_terms(monkeypatch, capsys):
+    fake_api = _FakeAgreementAPI(accepted=True)
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv",
+                        ["pymyhondaplus", "agreement", "--language", "en"])
+
+    rc = cli.main()
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert fake_api.get_languages == ["en"]
+    assert "100013" in out
+    assert "Terms text" in out
+
+
+def test_agreement_accept_skips_already_accepted_terms(monkeypatch, capsys):
+    fake_api = _FakeAgreementAPI(accepted=True)
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "agreement-accept"])
+
+    rc = cli.main()
+
+    assert rc == 0
+    assert fake_api.accept_calls == []
+
+
+def test_agreement_accept_aborts_when_confirmation_declined(monkeypatch, capsys):
+    fake_api = _FakeAgreementAPI()
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "agreement-accept"])
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(cli, "_confirm", lambda command: False)
+
+    rc = cli.main()
+
+    assert rc == 0
+    assert fake_api.accept_calls == []
+
+
+def test_agreement_accept_yes_skips_prompt_and_forwards_language(monkeypatch, capsys):
+    fake_api = _FakeAgreementAPI()
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", [
+        "pymyhondaplus", "agreement-accept", "--yes", "--language", "en"])
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+
+    def _fail_confirm(command):
+        raise AssertionError("--yes must skip the prompt")
+
+    monkeypatch.setattr(cli, "_confirm", _fail_confirm)
+
+    rc = cli.main()
+
+    assert rc == 0
+    assert fake_api.get_languages == ["en"]
+    assert fake_api.accept_calls == [("100013", "en")]
+
+
+def test_agreement_accept_fails_when_terms_stay_pending(monkeypatch, capsys):
+    fake_api = _FakeAgreementAPI(accept_result=False)
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv",
+                        ["pymyhondaplus", "agreement-accept", "--yes"])
+
+    rc = cli.main()
+
+    assert rc == 1
+    assert fake_api.accept_calls == [("100013", "it")]
+    assert "100013" in capsys.readouterr().err
