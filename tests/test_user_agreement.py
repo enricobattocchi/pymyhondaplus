@@ -151,3 +151,27 @@ class TestAgreementCalls:
         api.get_user_agreement()
         url = api.session.request.call_args[0][1]
         assert "personalId=frominfo" in url
+
+    def test_accept_with_empty_personal_id_while_terms_are_pending(self):
+        """Login info reports pending terms instead of being blocked by them."""
+        api = _make_api(personal_id="")
+        blocked = _mock_response(502, {"errorCode": 10052})
+
+        def respond(method, url, **kwargs):
+            if "/user/get-login-info" in url:
+                return _mock_response(200, {"personalId": "frominfo",
+                                            "agreement": False})
+            if "/tsp/get-user-agreement" in url:
+                return _mock_response(200, {"agreement": False,
+                                            "termId": "100013",
+                                            "fileContent": "t"})
+            if "/tsp/accept-user-agreement" in url:
+                return _mock_response(200, {})
+            return blocked
+
+        api.session.request = MagicMock(side_effect=respond)
+        api.accept_user_agreement()
+        post = next(c for c in api.session.request.call_args_list
+                    if c[0][0] == "POST")
+        assert post[1]["json"]["personalId"] == "frominfo"
+        assert post[1]["json"]["termId"] == "100013"
