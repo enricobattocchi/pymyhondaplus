@@ -49,7 +49,7 @@ All notable changes to this project will be documented in this file.
 - Global flag `--local-tz` renders timestamps in human-readable CLI output (`status`, `location`, `trips`, `trip-detail`, `find-car`) in the system's local timezone instead of UTC. Default behavior is unchanged (UTC with `+00:00` suffix), so existing scripts and consumers are not affected. JSON and CSV output are also unchanged (raw API passthrough).
 - `trip-detail` now accepts either UTC or local-tz ISO 8601 strings for its `start_time` / `end_time` arguments and normalizes them to UTC before calling Honda's endpoint, so timestamps copied from `trips --local-tz` round-trip cleanly.
 
-Migration:
+### Upgrade notes
 
 ```python
 # Before
@@ -109,7 +109,7 @@ The single-tier API matches how every other action method (`remote_lock`, `set_c
 - Normalize `EVStatus.charge_status` to a canonical enum (`charging`, `stopped`, `unknown`). The raw API returns values like `running` / `unavailable` which previously leaked through and broke downstream consumers declaring strict enum sensors (e.g. the Home Assistant integration). Mapping: `running` to `charging`, `stopped` to `stopped`, `unavailable` / missing / unexpected values to `unknown` (with a DEBUG log for unexpected values).
 - CLI `CHARGE_STATUS_MAP` (in `translations.py`) is now keyed by the normalized values rather than raw API values.
 
-Migration notes for library consumers:
+### Upgrade notes
 
 - `EVStatus.latitude` / `EVStatus.longitude` are now `float`. Consumers doing string comparisons or concatenation must update.
 - `EVStatus.charge_status` will no longer emit `"running"` or `"unavailable"`. Consumers that branched on these raw values should switch to `"charging"` / `"unknown"`.
@@ -138,7 +138,7 @@ Migration notes for library consumers:
 - CLI geofence set/clear now show a spinner during polling.
 - Downgrade token refresh log messages from INFO to DEBUG.
 
-Migration notes for library consumers:
+### Upgrade notes
 
 - `wait_for_geofence()` can now return a `Geofence` with `processing=True` when the server reports failure. Check `gf.activate_status` or `gf.deactivate_status` for `"failure"` / `"timeout"` to detect vehicle-unreachable conditions.
 - Default timeouts are longer; pass explicit `timeout=` if you need the old behavior.
@@ -383,10 +383,9 @@ Migration notes for library consumers:
 
 ## 1.0.0 (2026-03-16)
 
-Initial release.
-
 ### Added
 
+- Initial release.
 - Login with email verification.
 - Vehicle status (battery, range, charge, location, doors, lights).
 - Remote commands (lock, unlock, horn, climate, charge).
