@@ -301,6 +301,7 @@ def test_malformed_numeric_fields_do_not_crash(dashboard_ev):
 def test_fuel_fields_default_to_zero_without_fuel_level(dashboard_ev):
     """BEV dashboards have no fuelLevel block; fuel fields default to 0."""
     ev = parse_ev_status(dashboard_ev)
+    assert ev["has_fuel"] is False
     assert ev["fuel_level"] == 0
     assert ev["fuel_range"] == 0
 
@@ -312,16 +313,16 @@ def test_fuel_fields_hybrid(dashboard_ev):
         "driveRange": {"value": "598", "unit": "km"},
     }
     ev = parse_ev_status(dashboard_ev)
+    assert ev["has_fuel"] is True
     assert ev["fuel_level"] == 100
     assert ev["fuel_range"] == 598
-
-
 
 
 def test_fuel_level_malformed_block(dashboard_ev):
     """A fuelLevel block with missing keys parses to zeros, not errors."""
     dashboard_ev["fuelLevel"] = {"currentLevel": {}, "driveRange": {"value": "unknown"}}
     ev = parse_ev_status(dashboard_ev)
+    assert ev["has_fuel"] is False
     assert ev["fuel_level"] == 0
     assert ev["fuel_range"] == 0
 
@@ -336,7 +337,6 @@ def test_distance_unit_falls_back_to_fuel_drive_range_unit(dashboard_ev):
     }
     ev = parse_ev_status(dashboard_ev)
     assert ev["distance_unit"] == "miles"
-
 
 
 def test_electric_vehicle_fuel_block_is_not_fuel_data(dashboard_ev):
