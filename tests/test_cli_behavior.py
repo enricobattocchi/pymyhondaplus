@@ -5,7 +5,7 @@ import importlib.metadata
 import pytest
 
 from pymyhondaplus import cli
-from pymyhondaplus.api import HondaAPIError, HondaAuthError, UserAgreement
+from pymyhondaplus.api import EVStatus, HondaAPIError, HondaAuthError, UserAgreement
 from pymyhondaplus.http import DEFAULT_AUTH_TIMEOUT
 
 
@@ -619,3 +619,42 @@ def test_status_hides_fuel_rows_without_fuel_data(monkeypatch, capsys):
     assert rc == 0
     assert "Fuel level" not in out
     assert "Fuel range" not in out
+
+
+def test_status_renders_fuel_rows_for_an_empty_tank(monkeypatch, capsys):
+    """A 0% / 0 km reading is fuel data and keeps its rows."""
+    monkeypatch.setenv("LC_ALL", "en_US.UTF-8")
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Prelude", "plate": "", "fuel_type": "P"},
+    ], default_vin="VIN123")
+    payload = fake_api._dashboard_payload()
+    payload["fuelLevel"] = {
+        "currentLevel": {"gaugeBars": 0, "value": "0", "unit": "percentage"},
+        "driveRange": {"value": "0", "unit": "km"},
+    }
+    monkeypatch.setattr(fake_api, "_dashboard_payload", lambda: payload)
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "status"])
+
+    rc = cli.main()
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "Fuel level" in out
+    assert "Fuel range" in out
+
+
+def test_watch_omits_fuel_fields_without_fuel_data():
+    """Electric vehicles do not print Fuel: 0% in watch mode."""
+    ev = EVStatus(battery_level=80)
+    line = cli._format_watch_fields(ev, cli._watch_fields(ev), t=lambda k, **kw: k)
+    assert "Fuel" not in line
+    assert "Battery: 80%" in line
+
+
+def test_watch_keeps_fuel_fields_with_fuel_data():
+    ev = EVStatus(has_fuel=True, fuel_level=0, fuel_range=0)
+    line = cli._format_watch_fields(ev, cli._watch_fields(ev), t=lambda k, **kw: k)
+    assert "Fuel: 0%" in line
+    assert "Fuel range: 0 km" in line

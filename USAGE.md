@@ -486,8 +486,9 @@ ev = parse_ev_status(dashboard)
 ev.battery_level    # 82
 ev.charge_status    # "stopped"
 ev.doors_locked     # True
-ev.fuel_level       # 100 (percent, hybrids/ICE; 0 on BEVs)
-ev.fuel_range       # 598 (petrol driving range; total_range falls back to this)
+ev.has_fuel         # True (False on BEVs, which report no fuel gauge)
+ev.fuel_level       # 100 (percent; 0 when has_fuel is False)
+ev.fuel_range       # 598 (petrol driving range; 0 when has_fuel is False)
 ev["battery_level"] # also works (backward compat)
 
 # Trips (all pages, parsed as dicts)

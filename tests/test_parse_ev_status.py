@@ -316,25 +316,6 @@ def test_fuel_fields_hybrid(dashboard_ev):
     assert ev["fuel_range"] == 598
 
 
-def test_total_range_falls_back_to_fuel_range(dashboard_ev):
-    """On hybrids evStatus.totalRange is "unknown"; fall back to driveRange."""
-    dashboard_ev["fuelLevel"] = {
-        "currentLevel": {"gaugeBars": 10, "value": "100", "unit": "percentage"},
-        "driveRange": {"value": "598", "unit": "km"},
-    }
-    dashboard_ev["evStatus"]["totalRange"] = "unknown"
-    ev = parse_ev_status(dashboard_ev)
-    assert ev["total_range"] == 598
-
-
-def test_total_range_prefers_ev_status_when_present(dashboard_ev):
-    """A real evStatus.totalRange (BEV/PHEV) wins over the fuel fallback."""
-    dashboard_ev["fuelLevel"] = {
-        "currentLevel": {"gaugeBars": 3, "value": "30", "unit": "percentage"},
-        "driveRange": {"value": "150", "unit": "km"},
-    }
-    ev = parse_ev_status(dashboard_ev)
-    assert ev["total_range"] == 176
 
 
 def test_fuel_level_malformed_block(dashboard_ev):
@@ -357,12 +338,38 @@ def test_distance_unit_falls_back_to_fuel_drive_range_unit(dashboard_ev):
     assert ev["distance_unit"] == "miles"
 
 
-def test_total_range_zero_is_not_replaced_by_fuel_range(dashboard_ev):
-    """A genuine totalRange of 0 must survive; only the "unknown" sentinel falls back."""
+
+def test_electric_vehicle_fuel_block_is_not_fuel_data(dashboard_ev):
+    """Electric vehicles send fuelLevel with gaugeBars -1 and an unknown level."""
     dashboard_ev["fuelLevel"] = {
-        "currentLevel": {"gaugeBars": 10, "value": "100", "unit": "percentage"},
-        "driveRange": {"value": "598", "unit": "km"},
+        "currentLevel": {"gaugeBars": -1, "value": "unknown", "unit": "percentage"},
+        "driveRange": {"value": "0", "unit": "km"},
     }
-    dashboard_ev["evStatus"]["totalRange"] = "0"
     ev = parse_ev_status(dashboard_ev)
-    assert ev["total_range"] == 0
+    assert ev["has_fuel"] is False
+    assert ev["fuel_level"] == 0
+    assert ev["fuel_range"] == 0
+
+
+def test_empty_tank_is_fuel_data(dashboard_ev):
+    """An empty tank reports zero bars, not -1, and stays visible."""
+    dashboard_ev["fuelLevel"] = {
+        "currentLevel": {"gaugeBars": 0, "value": "0", "unit": "percentage"},
+        "driveRange": {"value": "0", "unit": "km"},
+    }
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["has_fuel"] is True
+    assert ev["fuel_level"] == 0
+    assert ev["fuel_range"] == 0
+
+
+def test_fuel_level_falls_back_to_gauge_bars(dashboard_ev):
+    """Without a numeric level, the ten-bar gauge gives the percentage."""
+    dashboard_ev["fuelLevel"] = {
+        "currentLevel": {"gaugeBars": 7, "value": "unknown", "unit": "percentage"},
+        "driveRange": {"value": "420", "unit": "km"},
+    }
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["has_fuel"] is True
+    assert ev["fuel_level"] == 70
+    assert ev["fuel_range"] == 420

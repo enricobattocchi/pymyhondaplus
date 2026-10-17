@@ -1608,8 +1608,6 @@ class EVStatus:
     range_climate_on: int = 0
     range_climate_off: int = 0
     total_range: int = 0
-    fuel_level: int = 0
-    fuel_range: int = 0
     distance_unit: str = "km"
     speed_unit: str = "km/h"
     temp_unit: str = "c"
@@ -1641,6 +1639,9 @@ class EVStatus:
     climate_temp: str = "unknown"
     climate_duration: int = 0
     climate_defrost: bool = False
+    has_fuel: bool = False
+    fuel_level: int = 0
+    fuel_range: int = 0
 
     def __getitem__(self, key: str):
         try:
@@ -1660,9 +1661,21 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
     ev = dashboard.get("evStatus", {})
     # Hybrids and ICE vehicles report fuel under "fuelLevel" while their
     # "evStatus" block is entirely "unknown" (seen on the 2026 Prelude e:HEV).
+    # Electric vehicles send the block too, with "gaugeBars": -1 and an
+    # "unknown" level, so the gauge rather than the block marks fuel data.
     fuel = dashboard.get("fuelLevel", {})
-    fuel_level = _safe_int(fuel.get("currentLevel", {}).get("value", 0))
-    fuel_range = _safe_int(fuel.get("driveRange", {}).get("value", 0))
+    current_level = fuel.get("currentLevel", {})
+    gauge_bars = _safe_int(current_level.get("gaugeBars"), default=-1)
+    level_value = _safe_int(current_level.get("value"), default=-1)
+    has_fuel = gauge_bars >= 0 or level_value >= 0
+    if level_value >= 0:
+        fuel_level = level_value
+    elif gauge_bars >= 0:
+        fuel_level = gauge_bars * 10
+    else:
+        fuel_level = 0
+    drive_range = _safe_int(fuel.get("driveRange", {}).get("value", 0))
+    fuel_range = drive_range if has_fuel else 0
     gps = dashboard.get("gpsData", {})
     coord = gps.get("coordinate", {})
     # Unit fallback chain: evStatus.rangeUnit, then fuelLevel.driveRange.unit
@@ -1684,19 +1697,13 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
 
     total_range = _safe_int(ev.get("totalRange"), default=-1)
     if total_range == -1:
-        total_range = _safe_int(
-            dashboard.get("fuelLevel", {})
-            .get("driveRange", {})
-            .get("value", 0)
-        )
+        total_range = drive_range
 
     return EVStatus(
         battery_level=_safe_int(ev.get("soc", 0)),
         range_climate_on=_safe_int(ev.get("evRange", 0)),
         range_climate_off=_safe_int(ev.get("evRange", 0)) + _safe_int(ev.get("evClimateOffRange", 0)),
         total_range=total_range,
-        fuel_level=fuel_level,
-        fuel_range=fuel_range,
         distance_unit=distance_unit,
         speed_unit=speed_unit,
         temp_unit=temp_unit,
@@ -1750,6 +1757,9 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
         climate_temp=_normalize_climate_temp(ev.get("acTempVal", "normal")),
         climate_duration=_safe_int(ev.get("acDurationSetting", 0)),
         climate_defrost=ev.get("acDefAutoSetting", "").lower().startswith("def auto on"),
+        has_fuel=has_fuel,
+        fuel_level=fuel_level,
+        fuel_range=fuel_range,
     )
 
 
