@@ -1679,11 +1679,12 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
     gps = dashboard.get("gpsData", {})
     coord = gps.get("coordinate", {})
     # Unit fallback chain: evStatus.rangeUnit, then fuelLevel.driveRange.unit
-    # (hybrids report "unknown" in evStatus), then the odometer unit.
+    # when the vehicle has fuel data (hybrids report "unknown" in evStatus),
+    # then the odometer unit.
     distance_unit = ""
     for raw_unit in (
         ev.get("rangeUnit"),
-        fuel.get("driveRange", {}).get("unit"),
+        fuel.get("driveRange", {}).get("unit") if has_fuel else None,
         dashboard.get("odometer", {}).get("unit"),
     ):
         distance_unit = _normalize_distance_unit(raw_unit, default="")

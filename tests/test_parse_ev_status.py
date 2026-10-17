@@ -341,6 +341,8 @@ def test_distance_unit_falls_back_to_fuel_drive_range_unit(dashboard_ev):
 
 def test_electric_vehicle_fuel_block_is_not_fuel_data(dashboard_ev):
     """Electric vehicles send fuelLevel with gaugeBars -1 and an unknown level."""
+    dashboard_ev["evStatus"].pop("rangeUnit", None)
+    dashboard_ev["odometer"]["unit"] = "mile"
     dashboard_ev["fuelLevel"] = {
         "currentLevel": {"gaugeBars": -1, "value": "unknown", "unit": "percentage"},
         "driveRange": {"value": "0", "unit": "km"},
@@ -349,6 +351,7 @@ def test_electric_vehicle_fuel_block_is_not_fuel_data(dashboard_ev):
     assert ev["has_fuel"] is False
     assert ev["fuel_level"] == 0
     assert ev["fuel_range"] == 0
+    assert ev["distance_unit"] == "miles"
 
 
 def test_empty_tank_is_fuel_data(dashboard_ev):
