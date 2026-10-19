@@ -49,6 +49,8 @@ WATCH_FIELDS = {
     "charge_status": ("Charge", ""),
     "plug_status": ("Plug", ""),
     "time_to_charge": ("ETA", " min"),
+    "fuel_level": ("Fuel", "%"),
+    "fuel_range": ("Fuel range", " {dist}"),
     "climate_active": ("Climate", ""),
     "cabin_temp": ("Cabin", " {temp}"),
     "interior_temp": ("Interior", " {temp}"),
@@ -58,6 +60,8 @@ WATCH_FIELDS = {
     "lights_on": ("Lights", ""),
     "home_away": ("Location", ""),
 }
+
+FUEL_FIELDS = ("fuel_level", "fuel_range")
 
 
 def _parse_interval(s: str) -> int:
@@ -70,6 +74,13 @@ def _parse_interval(s: str) -> int:
     if s.endswith("s"):
         return int(s[:-1])
     return int(s)
+
+
+def _watch_fields(ev) -> dict:
+    """Return the watch fields, without the fuel ones when the vehicle has no fuel data."""
+    if ev.get("has_fuel"):
+        return WATCH_FIELDS
+    return {k: v for k, v in WATCH_FIELDS.items() if k not in FUEL_FIELDS}
 
 
 def _format_watch_fields(ev, fields: dict, prev=None, t=None) -> str:
@@ -287,7 +298,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
                 if args.json:
                     print(json.dumps(dataclasses.asdict(ev)), flush=True)
                 else:
-                    line = _format_watch_fields(ev, WATCH_FIELDS, prev_ev, t)
+                    line = _format_watch_fields(ev, _watch_fields(ev), prev_ev, t)
                     if line:
                         print(f"{ts}  {line}", flush=True)
                 prev_ev = ev
@@ -321,6 +332,9 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
     ]
     if ev['time_to_charge']:
         rows.append((t("time_remaining_label"), f"{ev['time_to_charge']} {t('mins')}"))
+    if ev['has_fuel']:
+        rows.append((t("fuel_label"), f"{ev['fuel_level']}%"))
+        rows.append((t("fuel_range_label"), f"{ev['fuel_range']} {du}"))
     rows += [
         (t("location_label"), t("home") if ev['home_away'] == "home" else t("away_location", raw=ev['home_away'])),
         (t("coordinates_label"), f"{ev['latitude']:.6f}, {ev['longitude']:.6f}"),
