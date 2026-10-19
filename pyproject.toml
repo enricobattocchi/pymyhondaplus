@@ -30,7 +30,7 @@ keyring = ["keyring>=24.0"]
 completion = ["argcomplete>=3.0"]
 dev = [
     "pytest>=9.0,<10",
-    "ruff>=0.16.1,<0.17",
+    "ruff>=0.16.1,<0.18",
     "mypy>=2.3,<2.5",
     "types-requests>=2.33,<2.34",
 ]
