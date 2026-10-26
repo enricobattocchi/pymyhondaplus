@@ -123,7 +123,7 @@ _DISTANCE_UNIT_MAP = {
 }
 
 
-def _normalize_distance_unit(raw: str, default: str = "km") -> str:
+def _normalize_distance_unit(raw: str | None, default: str = "km") -> str:
     """Normalize Honda's distance unit aliases to a canonical form.
 
     Honda returns "mile" (singular) for UK accounts; we canonicalize to
@@ -1639,6 +1639,9 @@ class EVStatus:
     climate_temp: str = "unknown"
     climate_duration: int = 0
     climate_defrost: bool = False
+    has_fuel: bool = False
+    fuel_level: int = 0
+    fuel_range: int = 0
 
     def __getitem__(self, key: str):
         try:
@@ -1656,21 +1659,50 @@ class EVStatus:
 def parse_ev_status(dashboard: dict) -> EVStatus:
     """Extract the most useful EV data from a dashboard response."""
     ev = dashboard.get("evStatus", {})
+    # Hybrids and ICE vehicles report fuel under "fuelLevel" while their
+    # "evStatus" block is entirely "unknown" (seen on the 2026 Prelude e:HEV).
+    # Electric vehicles send the block too, with "gaugeBars": -1 and an
+    # "unknown" level, so the gauge rather than the block marks fuel data.
+    raw_fuel = dashboard.get("fuelLevel")
+    fuel = raw_fuel if isinstance(raw_fuel, dict) else {}
+    raw_current_level = fuel.get("currentLevel")
+    current_level = raw_current_level if isinstance(raw_current_level, dict) else {}
+    raw_drive_range = fuel.get("driveRange")
+    drive_range_block = raw_drive_range if isinstance(raw_drive_range, dict) else {}
+    gauge_bars = _safe_int(current_level.get("gaugeBars"), default=-1)
+    level_value = _safe_int(current_level.get("value"), default=-1)
+    has_fuel = gauge_bars >= 0 or level_value >= 0
+    if level_value >= 0:
+        fuel_level = level_value
+    elif gauge_bars >= 0:
+        fuel_level = gauge_bars * 10
+    else:
+        fuel_level = 0
+    drive_range = _safe_int(drive_range_block.get("value", 0))
+    fuel_range = drive_range if has_fuel else 0
     gps = dashboard.get("gpsData", {})
     coord = gps.get("coordinate", {})
-    distance_unit = _normalize_distance_unit(
-        ev.get("rangeUnit", dashboard.get("odometer", {}).get("unit", "km")))
+    # Unit fallback chain: evStatus.rangeUnit, then fuelLevel.driveRange.unit
+    # when the vehicle has fuel data (hybrids report "unknown" in evStatus),
+    # then the odometer unit.
+    distance_unit = ""
+    for raw_unit in (
+        ev.get("rangeUnit"),
+        drive_range_block.get("unit") if has_fuel else None,
+        dashboard.get("odometer", {}).get("unit"),
+    ):
+        distance_unit = _normalize_distance_unit(raw_unit, default="")
+        if distance_unit:
+            break
+    distance_unit = distance_unit or "km"
+
     speed_unit = _normalize_speed_unit(
         gps.get("velocity", {}).get("unit"), distance_unit)
     temp_unit = dashboard.get("temperature", {}).get("cabin", {}).get("unit", "c")
 
     total_range = _safe_int(ev.get("totalRange"), default=-1)
     if total_range == -1:
-        total_range = _safe_int(
-            dashboard.get("fuelLevel", {})
-            .get("driveRange", {})
-            .get("value", 0)
-        )
+        total_range = drive_range
 
     return EVStatus(
         battery_level=_safe_int(ev.get("soc", 0)),
@@ -1730,6 +1762,9 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
         climate_temp=_normalize_climate_temp(ev.get("acTempVal", "normal")),
         climate_duration=_safe_int(ev.get("acDurationSetting", 0)),
         climate_defrost=ev.get("acDefAutoSetting", "").lower().startswith("def auto on"),
+        has_fuel=has_fuel,
+        fuel_level=fuel_level,
+        fuel_range=fuel_range,
     )
 
 
