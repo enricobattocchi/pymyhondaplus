@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.11.0 (2026-10-27)
+
+### Added
+
+- `EVStatus.has_fuel`, `EVStatus.fuel_level` and `EVStatus.fuel_range` expose the fuel gauge of hybrid and ICE vehicles, and `pymyhondaplus status` shows them.
+- `HondaAgreementError`, a `HondaAPIError` subclass raised when Honda blocks the account with error code 10052 until updated terms and conditions are accepted.
+- `HondaAPI.get_user_agreement()` and `HondaAPI.accept_user_agreement()` read and accept the pending terms, returning a `UserAgreement`.
+
+### Fixed
+
+- `EVStatus.total_range` falls back to `fuelLevel.driveRange` when `evStatus.totalRange` is unknown, so non-plug-in hybrids no longer report 0.
+- `EVStatus.distance_unit` falls back to the `fuelLevel.driveRange` unit on vehicles with a fuel gauge when `evStatus.rangeUnit` is missing.
+
+### Thanks
+
+Thanks to @Kaskobiii (#24), @zymba2k (#25) and @VYarda (#25).
+
 ## 5.10.1 (2026-05-30)
 
 ### Fixed

@@ -389,7 +389,7 @@ Use `--storage plain` to disable encryption. Existing plain-text token files are
 ## Library usage
 
 ```python
-from pymyhondaplus import HondaAPI, HondaAPIError, HondaAuth, DeviceKey, compute_trip_stats
+from pymyhondaplus import HondaAPI, HondaAPIError, HondaAgreementError, HondaAuth, DeviceKey, compute_trip_stats
 # Authenticate
 auth = HondaAuth()
 tokens = auth.full_login("user@example.com", "password")
@@ -549,6 +549,18 @@ try:
     status = api.get_dashboard("JHMZC7840LXXXXXX")
 except HondaAPIError as e:
     print(f"API error: {e.status_code} — {e}")
+
+# Pending terms: when Honda blocks the account until the updated terms and
+# conditions are accepted (error code 10052), API methods raise
+# HondaAgreementError, a HondaAPIError subclass
+try:
+    status = api.get_dashboard("JHMZC7840LXXXXXX")
+except HondaAgreementError:
+    agreement = api.get_user_agreement()      # UserAgreement
+    agreement.term_id                         # "100013"
+    agreement.accepted                        # False
+    agreement.text                            # terms text to show the user
+    api.accept_user_agreement(agreement.term_id)  # returns the updated UserAgreement
 
 # Capability checks — command methods raise ValueError if the feature
 # is not supported by the vehicle's subscription
