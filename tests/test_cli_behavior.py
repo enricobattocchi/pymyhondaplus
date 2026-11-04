@@ -5,7 +5,15 @@ import importlib.metadata
 import pytest
 
 from pymyhondaplus import cli
-from pymyhondaplus.api import EVStatus, HondaAPIError, HondaAuthError, UserAgreement
+from pymyhondaplus.api import (
+    EVStatus,
+    HondaAPIError,
+    HondaAuthError,
+    UIConfiguration,
+    UserAgreement,
+    Vehicle,
+    VehicleCapabilities,
+)
 from pymyhondaplus.http import DEFAULT_AUTH_TIMEOUT
 
 
@@ -248,6 +256,153 @@ def test_climate_settings_json_outputs_parsed_fields(monkeypatch, capsys):
     assert '"temp": "normal"' in out.out
     assert '"duration": 30' in out.out
     assert '"temp_unit": "c"' in out.out
+    assert '"target_temp": null' in out.out
+
+
+def _climate_settings_ev(**overrides):
+    return {
+        "climate_active": False,
+        "climate_temp": "unknown",
+        "climate_target_temp": None,
+        "climate_duration": 30,
+        "climate_defrost": True,
+        "cabin_temp": 21,
+        "interior_temp": 19,
+        "temp_unit": "c",
+        **overrides,
+    }
+
+
+def test_climate_settings_json_includes_target_temp(monkeypatch, capsys):
+    _patch_common(monkeypatch, _FakeAPI([
+        {"vin": "VIN123", "name": "CR-V", "plate": "", "fuel_type": "X"},
+    ], default_vin="VIN123"))
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "--json", "climate-settings"])
+    monkeypatch.setattr(cli, "parse_ev_status",
+                        lambda dashboard: _climate_settings_ev(climate_target_temp=21.5))
+
+    assert cli.main() == 0
+    assert '"target_temp": 21.5' in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("target, shown", [(21.5, True), (None, False)])
+def test_climate_settings_shows_target_temp_when_reported(monkeypatch, capsys, target, shown):
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    monkeypatch.delenv("LC_ALL", raising=False)
+    _patch_common(monkeypatch, _FakeAPI([
+        {"vin": "VIN123", "name": "CR-V", "plate": "", "fuel_type": "X"},
+    ], default_vin="VIN123"))
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "climate-settings"])
+    monkeypatch.setattr(cli, "parse_ev_status",
+                        lambda dashboard: _climate_settings_ev(climate_target_temp=target))
+
+    assert cli.main() == 0
+    out = capsys.readouterr().out
+    assert ("Target temperature:" in out) is shown
+    assert ("21.5 °C" in out) is shown
+
+
+class _ClimateStartAPI(_FakeAPI):
+    def __init__(self, *args, error=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.error = error
+        self.calls = []
+
+    def remote_climate_start(self, vin, temperature=None, defrost=True):
+        self.calls.append((vin, temperature, defrost))
+        if self.error:
+            raise self.error
+        return "cmd-1"
+
+
+@pytest.mark.parametrize("extra_args, expected", [
+    ([], (None, True)),
+    (["--temperature", "21.5"], (21.5, True)),
+    (["--no-defrost"], (None, False)),
+    (["--temperature", "18", "--no-defrost"], (18.0, False)),
+])
+def test_climate_start_forwards_arguments(monkeypatch, capsys, extra_args, expected):
+    fake_api = _ClimateStartAPI([
+        {"vin": "VIN123", "name": "CR-V", "plate": "", "fuel_type": "X"},
+    ], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli, "_wait_command", lambda api, timeout, cmd_id, label: 0)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "climate-start", "--yes", *extra_args])
+
+    assert cli.main() == 0
+    assert fake_api.calls == [("VIN123", *expected)]
+
+
+def _numeric_climate_vehicle(default=None):
+    return Vehicle(
+        vin="VIN123", name="CR-V",
+        capabilities=VehicleCapabilities(remote_climate=True, specific_temperature=True),
+        ui_config=UIConfiguration(climate_temp_default=default),
+    )
+
+
+@pytest.mark.parametrize("reported, default, expected", [
+    (21.5, 22.0, 21.5),
+    (None, 22.0, 22.0),
+])
+def test_climate_start_uses_reported_then_default_temperature(monkeypatch, capsys, reported, default, expected):
+    fake_api = _ClimateStartAPI([_numeric_climate_vehicle(default)], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli, "_wait_command", lambda api, timeout, cmd_id, label: 0)
+    monkeypatch.setattr(cli, "parse_ev_status",
+                        lambda dashboard: _climate_settings_ev(climate_target_temp=reported))
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "climate-start", "--yes"])
+
+    assert cli.main() == 0
+    assert fake_api.calls == [("VIN123", expected, True)]
+
+
+def test_climate_start_chosen_temperature_skips_dashboard(monkeypatch, capsys):
+    fake_api = _ClimateStartAPI([_numeric_climate_vehicle(22.0)], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli, "_wait_command", lambda api, timeout, cmd_id, label: 0)
+    monkeypatch.setattr(cli, "_get_dashboard", lambda *a, **k: pytest.fail("dashboard requested"))
+    monkeypatch.setattr(cli.sys, "argv",
+                        ["pymyhondaplus", "climate-start", "--yes", "--temperature", "18"])
+
+    assert cli.main() == 0
+    assert fake_api.calls == [("VIN123", 18.0, True)]
+
+
+def test_climate_start_stops_without_any_temperature(monkeypatch, capsys):
+    fake_api = _ClimateStartAPI([_numeric_climate_vehicle()], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli, "parse_ev_status", lambda dashboard: _climate_settings_ev())
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "climate-start", "--yes"])
+
+    assert cli.main() == 1
+    assert fake_api.calls == []
+    assert "--temperature" in capsys.readouterr().err
+
+
+def test_climate_start_without_capability_skips_dashboard(monkeypatch, capsys):
+    vehicle = Vehicle(vin="VIN123", name="Honda e",
+                      capabilities=VehicleCapabilities(remote_climate=True, specific_temperature=False))
+    fake_api = _ClimateStartAPI([vehicle], default_vin="VIN123")
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli, "_wait_command", lambda api, timeout, cmd_id, label: 0)
+    monkeypatch.setattr(cli, "_get_dashboard", lambda *a, **k: pytest.fail("dashboard requested"))
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "climate-start", "--yes"])
+
+    assert cli.main() == 0
+    assert fake_api.calls == [("VIN123", None, True)]
+
+
+def test_climate_start_reports_out_of_range_temperature(monkeypatch, capsys):
+    fake_api = _ClimateStartAPI([
+        {"vin": "VIN123", "name": "CR-V", "plate": "", "fuel_type": "X"},
+    ], default_vin="VIN123", error=ValueError("temperature must be between 16.0 and 30.0"))
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv",
+                        ["pymyhondaplus", "climate-start", "--yes", "--temperature", "40"])
+
+    assert cli.main() == 1
+    assert "between 16.0 and 30.0" in capsys.readouterr().err
 
 
 def test_remote_command_timeout_exits_with_error(monkeypatch, capsys):

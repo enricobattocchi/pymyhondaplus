@@ -16,7 +16,7 @@ def test_all_languages_have_required_keys():
         "unplugged", "locked", "unlocked", "open", "closed",
         "battery_label", "charge_speed_label", "time_remaining_label",
         "climate_label", "bonnet_label", "boot_label", "defrost_label",
-        "doors_label", "home", "away",
+        "doors_label", "home", "away", "target_temp_label",
     }
     for lang, strings in TRANSLATIONS.items():
         missing = required - set(strings)

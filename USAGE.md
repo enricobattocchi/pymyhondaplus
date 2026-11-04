@@ -193,6 +193,10 @@ pymyhondaplus horn
 pymyhondaplus climate-start
 pymyhondaplus climate-stop
 
+# Start with a target temperature, on vehicles with numeric climate control
+pymyhondaplus climate-start --temperature 21.5
+pymyhondaplus climate-start --temperature 21.5 --no-defrost
+
 # View current climate settings
 pymyhondaplus climate-settings
 
@@ -203,6 +207,8 @@ pymyhondaplus climate-settings-set --temp normal --duration 20
 ```
 
 Temperature options: `cooler`, `normal`, `hotter`. Duration: `10`, `20`, or `30` minutes. Defrost is on by default, use `--no-defrost` to disable.
+
+`--temperature` takes degrees Celsius and requires the `specific_temperature` capability. The library validates the value against the range the vehicle reports. Without `--temperature`, `climate-start` uses the target that a vehicle with this capability reports, then the vehicle's default, and stops with an error if neither is available. `climate-settings-set` covers only the `cooler`, `normal`, and `hotter` modes. On vehicles that report a value in degrees, `status` and `climate-settings` show the target temperature.
 
 ### Climate schedule
 
@@ -427,6 +433,10 @@ v.ui_config.hide_rear_door_status               # False
 v.ui_config.hide_internal_temperature           # False
 v.ui_config.hide_climate_settings               # False
 v.ui_config.show_plugin_warning_climate_schedule # False
+v.ui_config.climate_temp_min                    # None, or the lowest target temperature
+v.ui_config.climate_temp_max                    # None, or the highest target temperature
+v.ui_config.climate_temp_step                   # None, or the step between target temperatures
+v.ui_config.climate_temp_default                # None, or the default target temperature
 
 # Subscription
 v.subscription.package_name     # "My Honda+"
@@ -489,6 +499,7 @@ ev.doors_locked     # True
 ev.has_fuel         # True (False on BEVs, which report no fuel gauge)
 ev.fuel_level       # 100 (percent; 0 when has_fuel is False)
 ev.fuel_range       # 598 (petrol driving range; 0 when has_fuel is False)
+ev.climate_target_temp # 21.5 (degrees Celsius; None when the vehicle reports no value in degrees)
 ev["battery_level"] # also works (backward compat)
 
 # Trips (all pages, parsed as dicts)
@@ -531,6 +542,10 @@ elif result.timed_out:
     print(f"Car unreachable: {result.reason or 'timed out'}")
 else:
     print(f"Command failed: {result.reason or result.status}")
+
+# Start climate control. temperature requires the specific_temperature
+# capability and must fall within the range in v.ui_config.
+cmd_id = api.remote_climate_start("JHMZC7840LXXXXXX", temperature=21.5, defrost=True)
 
 # CommandResult fields:
 #   result.complete    — True if the server returned a final answer

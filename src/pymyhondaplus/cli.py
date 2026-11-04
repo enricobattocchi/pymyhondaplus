@@ -340,6 +340,7 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
         (t("coordinates_label"), f"{ev['latitude']:.6f}, {ev['longitude']:.6f}"),
         (t("charge_limit_label"), f"{ev['charge_limit_home']}% ({home}) / {ev['charge_limit_away']}% ({away})"),
         (t("climate_label"), _translate_field('climate_active', ev['climate_active'], t)),
+        *_target_temp_rows(ev, t),
         (t("cabin_temp_label"), f"{ev['cabin_temp']} {tu}"),
         (t("interior_temp_label"), f"{ev['interior_temp']} {tu}"),
         (t("odometer_label"), f"{ev['odometer']} {du}"),
@@ -432,6 +433,48 @@ def _handle_find_car_command(api: HondaAPI, vin: str, args: argparse.Namespace) 
     return 0
 
 
+def _target_temp_rows(ev, t) -> list[tuple[str, str]]:
+    """Return the target temperature row on vehicles that report a value in degrees."""
+    target = ev.get("climate_target_temp")
+    return [] if target is None else [(t("target_temp_label"), f"{target} °C")]
+
+
+def _default_climate_temperature(api: HondaAPI, vin: str, args: argparse.Namespace) -> float | None:
+    """Return the temperature to use when the user doesn't choose one.
+
+    Vehicles with numeric climate control use the target they report, then
+    their default. Other vehicles return None and keep their configured settings.
+    """
+    vehicle = next((v for v in api.tokens.vehicles if v["vin"] == vin), None)
+    if vehicle is None or not hasattr(vehicle, "capabilities") or not vehicle.capabilities.specific_temperature:
+        return None
+    ev = parse_ev_status(_get_dashboard(api, vin, fresh=args.fresh, json_mode=args.json))
+    temperature = ev.get("climate_target_temp") or vehicle.ui_config.climate_temp_default
+    if temperature is None:
+        raise ValueError("No target temperature available for this vehicle, use --temperature")
+    return temperature
+
+
+def _handle_climate_start_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
+    """Handle the climate-start command."""
+    temperature = args.temperature
+    if temperature is None:
+        temperature = _default_climate_temperature(api, vin, args)
+    label = get_translator()("cmd_climate_start")
+    details = []
+    if temperature is not None:
+        details.append(f"{temperature} °C")
+    if not args.defrost:
+        details.append("defrost=off")
+    if details:
+        label = f"{label} ({', '.join(details)})"
+    return _wait_command(
+        api, args.timeout,
+        api.remote_climate_start(vin, temperature=temperature, defrost=args.defrost),
+        label,
+    )
+
+
 def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Namespace) -> int:
     """Handle the climate-settings command, preserving current CLI behavior."""
     dashboard = _get_dashboard(api, vin, fresh=args.fresh, json_mode=args.json)
@@ -440,6 +483,7 @@ def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Nam
         print(json.dumps({
             "active": ev["climate_active"],
             "temp": ev["climate_temp"],
+            "target_temp": ev.get("climate_target_temp"),
             "duration": ev["climate_duration"],
             "defrost": ev["climate_defrost"],
             "cabin_temp": ev["cabin_temp"],
@@ -453,6 +497,7 @@ def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Nam
     rows = [
         (t("climate_label"), _translate_field('climate_active', ev['climate_active'], t)),
         ("Temperature", ev['climate_temp']),
+        *_target_temp_rows(ev, t),
         ("Duration", f"{ev['climate_duration']} {t('mins')}"),
         (t("defrost_label"), "on" if ev['climate_defrost'] else "off"),
         ("Cabin", f"{ev['cabin_temp']} {tu}"),
@@ -972,12 +1017,20 @@ vehicle selection (only needed with multiple vehicles):
         ("lock", "Lock doors"),
         ("unlock", "Unlock doors"),
         ("horn", "Flash lights & horn"),
-        ("climate-start", "Start climate control"),
         ("climate-stop", "Stop climate control"),
         ("charge-start", "Start charging"),
         ("charge-stop", "Stop charging"),
     ]:
         subparsers.add_parser(cmd_name, parents=[_common, _yes], help=cmd_help)
+
+    climate_start = subparsers.add_parser("climate-start", parents=[_common, _yes],
+                                          help="Start climate control")
+    climate_start.add_argument("--temperature", type=float,
+                               help="Target temperature in degrees Celsius, on vehicles with numeric climate control "
+                                    "(default: the target the vehicle reports, then its default)")
+    climate_start.add_argument("--defrost", default=True,
+                               action=argparse.BooleanOptionalAction,
+                               help="Auto defrost (default: on, use --no-defrost to disable)")
 
     subparsers.add_parser("climate-settings", parents=[_common], help="Show current climate settings")
 
@@ -1399,7 +1452,7 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         return _wait_command(api, args.timeout, api.remote_charge_stop(vin), t("cmd_charge_stop"))
 
     elif args.command == "climate-start":
-        return _wait_command(api, args.timeout, api.remote_climate_start(vin), t("cmd_climate_start"))
+        return _handle_climate_start_command(api, vin, args)
 
     elif args.command == "climate-stop":
         return _wait_command(api, args.timeout, api.remote_climate_stop(vin), t("cmd_climate_stop"))
