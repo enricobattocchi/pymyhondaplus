@@ -28,7 +28,7 @@ ruff check src/ tests/
 mypy src/
 ```
 
-All three must pass before a PR can be merged. CI runs these automatically on Python 3.11, 3.12, and 3.13.
+All three must pass before a PR can be merged. CI runs these automatically on Python 3.11, 3.12, 3.13, and 3.14.
 
 ## Submitting changes
 
