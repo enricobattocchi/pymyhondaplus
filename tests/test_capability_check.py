@@ -334,7 +334,62 @@ class TestStoredVehicleWithoutClimateRange:
         assert api.tokens.vehicles == original
         api._remote_command.assert_not_called()
 
+    @pytest.mark.parametrize(
+        "temperature, message",
+        [
+            (0, "above zero"),
+            (-1.0, "above zero"),
+            (True, "must be a number"),
+            ("21.5", "must be a number"),
+            (float("nan"), "must be a number"),
+            (float("inf"), "must be a number"),
+        ],
+    )
+    def test_invalid_value_stops_before_reread(self, temperature, message):
+        api = self._make_api()
+        api.get_vehicles.side_effect = HondaAuthError(401, "expired")
+        with pytest.raises(ValueError, match=message):
+            api.remote_climate_start("VIN123", temperature=temperature)
+        api.get_vehicles.assert_not_called()
+        api._remote_command.assert_not_called()
+
     def test_no_reread_without_temperature(self):
         api = self._make_api()
         api.remote_climate_start("VIN123")
         api.get_vehicles.assert_not_called()
+
+
+class TestValidateClimateTemperature:
+    @pytest.mark.parametrize("temperature", [16.0, 21.5, 30, 30.0])
+    def test_accepts_values_inside_the_range(self, temperature):
+        RANGE_16_TO_30.validate_climate_temperature(temperature)
+
+    @pytest.mark.parametrize(
+        "temperature, message",
+        [
+            (15.5, "between 16.0 and 30.0"),
+            (30.5, "between 16.0 and 30.0"),
+            (21.25, "multiple of 0.5"),
+            (0, "above zero"),
+            (-1.0, "above zero"),
+            (True, "must be a number"),
+            ("21.5", "must be a number"),
+            (float("nan"), "must be a number"),
+            (float("inf"), "must be a number"),
+        ],
+    )
+    def test_rejects_invalid_values(self, temperature, message):
+        with pytest.raises(ValueError, match=message):
+            RANGE_16_TO_30.validate_climate_temperature(temperature)
+
+    def test_without_limits_checks_only_the_value(self):
+        UIConfiguration().validate_climate_temperature(21.3)
+        with pytest.raises(ValueError, match="above zero"):
+            UIConfiguration().validate_climate_temperature(0)
+
+    def test_start_rejects_zero_without_stored_vehicles(self):
+        api = _make_climate_api()
+        api.tokens.vehicles = []
+        with pytest.raises(ValueError, match="above zero"):
+            api.remote_climate_start("VIN123", temperature=0)
+        api._remote_command.assert_not_called()

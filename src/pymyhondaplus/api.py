@@ -52,6 +52,18 @@ def _safe_float(value, default: float = 0.0) -> float:
         return default
 
 
+def _check_temperature_value(temperature: float) -> None:
+    """Raise ValueError unless temperature is a finite number above zero."""
+    if (
+        isinstance(temperature, bool)
+        or not isinstance(temperature, (int, float))
+        or not math.isfinite(temperature)
+    ):
+        raise ValueError("temperature must be a number")
+    if temperature <= 0:
+        raise ValueError("temperature must be above zero")
+
+
 def _safe_positive_float(value) -> float | None:
     """Return value as a finite float above zero, or None when it isn't one."""
     if isinstance(value, bool):
@@ -590,6 +602,28 @@ class UIConfiguration:
     climate_temp_step: float | None = None
     climate_temp_default: float | None = None
 
+    def validate_climate_temperature(self, temperature: float) -> None:
+        """Raise ValueError if temperature doesn't fit the reported range and step.
+
+        Limits that the vehicle doesn't report aren't checked.
+        """
+        _check_temperature_value(temperature)
+        low = self.climate_temp_min
+        high = self.climate_temp_max
+        step = self.climate_temp_step
+        if low is not None and temperature < low:
+            if high is not None:
+                raise ValueError(f"temperature must be between {low} and {high}")
+            raise ValueError(f"temperature must be at least {low}")
+        if high is not None and temperature > high:
+            if low is not None:
+                raise ValueError(f"temperature must be between {low} and {high}")
+            raise ValueError(f"temperature must be at most {high}")
+        if low is not None and step is not None:
+            steps = (temperature - low) / step
+            if abs(steps - round(steps)) > 1e-6:
+                raise ValueError(f"temperature must be {low} plus a multiple of {step}")
+
     @classmethod
     def from_api(cls, cfg: dict) -> "UIConfiguration":
         temp_range = cfg.get("airConditioningTemperature")
@@ -1015,30 +1049,9 @@ class HondaAPI:
 
     def _check_climate_temperature(self, vin: str, temperature: float) -> None:
         """Raise if temperature falls outside the range the vehicle reports."""
-        if (
-            isinstance(temperature, bool)
-            or not isinstance(temperature, (int, float))
-            or not math.isfinite(temperature)
-        ):
-            raise ValueError("temperature must be a number")
-        config = self._climate_ui_config(vin)
-        if config is None:
-            return
-        low = config.climate_temp_min
-        high = config.climate_temp_max
-        step = config.climate_temp_step
-        if low is not None and temperature < low:
-            if high is not None:
-                raise ValueError(f"temperature must be between {low} and {high}")
-            raise ValueError(f"temperature must be at least {low}")
-        if high is not None and temperature > high:
-            if low is not None:
-                raise ValueError(f"temperature must be between {low} and {high}")
-            raise ValueError(f"temperature must be at most {high}")
-        if low is not None and step is not None:
-            steps = (temperature - low) / step
-            if abs(steps - round(steps)) > 1e-6:
-                raise ValueError(f"temperature must be {low} plus a multiple of {step}")
+        _check_temperature_value(temperature)
+        config = self._climate_ui_config(vin) or UIConfiguration()
+        config.validate_climate_temperature(temperature)
 
     def _climate_ui_config(self, vin: str) -> UIConfiguration | None:
         """Return the vehicle's UI configuration for numeric climate control.
