@@ -7,6 +7,7 @@ import pytest
 from pymyhondaplus.api import (
     AuthTokens,
     Subscription,
+    UIConfiguration,
     UserProfile,
     Vehicle,
     VehicleCapabilities,
@@ -390,6 +391,48 @@ class TestUIConfiguration:
         v = Vehicle.from_api(MINIMAL_VEHICLE_API)
         assert v.ui_config.hide_window_status is False
         assert v.ui_config.hide_internal_temperature is False
+
+    def test_climate_temp_range_from_api(self):
+        cfg = UIConfiguration.from_api({
+            "airConditioningTemperature": {
+                "minimum": 16, "maximum": "30", "step": 0.5, "defaultValue": "22.5",
+            },
+        })
+        assert cfg.climate_temp_min == 16.0
+        assert cfg.climate_temp_max == 30.0
+        assert cfg.climate_temp_step == 0.5
+        assert cfg.climate_temp_default == 22.5
+
+    def test_climate_temp_range_defaults_to_none(self):
+        v = Vehicle.from_api(FULL_VEHICLE_API)
+        assert v.ui_config.climate_temp_min is None
+        assert v.ui_config.climate_temp_max is None
+        assert v.ui_config.climate_temp_step is None
+        assert v.ui_config.climate_temp_default is None
+
+    @pytest.mark.parametrize("block", [
+        None,
+        "unknown",
+        [],
+        {"minimum": 0, "maximum": 0, "step": 0, "defaultValue": 0},
+        {"minimum": "unknown", "maximum": None, "step": True, "defaultValue": []},
+    ])
+    def test_climate_temp_range_ignores_unusable_values(self, block):
+        cfg = UIConfiguration.from_api({"airConditioningTemperature": block})
+        assert cfg.climate_temp_min is None
+        assert cfg.climate_temp_max is None
+        assert cfg.climate_temp_step is None
+        assert cfg.climate_temp_default is None
+
+    def test_climate_temp_range_roundtrip(self):
+        cfg = UIConfiguration(climate_temp_min=16.0, climate_temp_max=30.0,
+                              climate_temp_step=0.5, climate_temp_default=22.5)
+        assert UIConfiguration.from_dict(cfg.to_dict()) == cfg
+
+    def test_stored_config_without_climate_temp_range_loads(self):
+        cfg = UIConfiguration.from_dict({"hide_climate_settings": True})
+        assert cfg.hide_climate_settings is True
+        assert cfg.climate_temp_min is None
 
 
 class TestUserProfile:

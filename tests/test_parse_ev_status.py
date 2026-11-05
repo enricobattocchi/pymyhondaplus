@@ -1,6 +1,8 @@
 """Tests for parse_ev_status."""
 
-from pymyhondaplus.api import parse_ev_status
+import pytest
+
+from pymyhondaplus.api import EVStatus, parse_ev_status
 
 
 def test_basic_fields(dashboard_ev):
@@ -265,12 +267,41 @@ def test_home_away_normalization(dashboard_ev):
     assert parse_ev_status(dashboard_ev)["home_away"] == "unknown"
 
 
-def test_climate_temp_numeric_passes_through(dashboard_ev):
-    dashboard_ev["evStatus"]["acTempVal"] = "17"
-    assert parse_ev_status(dashboard_ev)["climate_temp"] == "17"
+@pytest.mark.parametrize("code", ["0A", "15", "16", "1A", "1E", "2A", "Lo", "Hi", "nan", "inf"])
+def test_climate_temp_step_codes_normalized_to_unknown(dashboard_ev, code):
+    dashboard_ev["evStatus"]["acTempVal"] = code
+    assert parse_ev_status(dashboard_ev)["climate_temp"] == "unknown"
 
-    dashboard_ev["evStatus"]["acTempVal"] = "25.5"
-    assert parse_ev_status(dashboard_ev)["climate_temp"] == "25.5"
+
+@pytest.mark.parametrize("raw", [[], {}])
+def test_climate_temp_unhashable_values_normalized_to_unknown(dashboard_ev, raw):
+    dashboard_ev["evStatus"]["acTempVal"] = raw
+    assert parse_ev_status(dashboard_ev)["climate_temp"] == "unknown"
+
+
+def test_climate_target_temp_follows_the_earlier_positional_fields():
+    fields = list(EVStatus.__dataclass_fields__)
+    assert fields.index("climate_target_temp") == fields.index("fuel_range") + 1
+
+
+def test_climate_target_temp_defaults_to_none(dashboard_ev):
+    dashboard_ev["evStatus"].pop("acTempCelsiusVal", None)
+    assert parse_ev_status(dashboard_ev)["climate_target_temp"] is None
+
+
+@pytest.mark.parametrize("raw, expected", [(21.5, 21.5), ("21.5", 21.5), (21, 21.0)])
+def test_climate_target_temp_parses_degrees(dashboard_ev, raw, expected):
+    dashboard_ev["evStatus"]["acTempVal"] = "16"
+    dashboard_ev["evStatus"]["acTempCelsiusVal"] = raw
+    ev = parse_ev_status(dashboard_ev)
+    assert ev["climate_target_temp"] == expected
+    assert ev["climate_temp"] == "unknown"
+
+
+@pytest.mark.parametrize("raw", ["unknown", "not specified", "nan", "inf", None, 0, "0", -1, True, {}, []])
+def test_climate_target_temp_rejects_unusable_values(dashboard_ev, raw):
+    dashboard_ev["evStatus"]["acTempCelsiusVal"] = raw
+    assert parse_ev_status(dashboard_ev)["climate_target_temp"] is None
 
 
 def test_climate_temp_garbage_normalized_to_unknown(dashboard_ev):

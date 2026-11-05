@@ -7,6 +7,7 @@ Tested on Honda e. Should work with other Honda Connect Europe vehicles
 
 import json
 import logging
+import math
 import os
 import threading
 import time
@@ -51,6 +52,14 @@ def _safe_float(value, default: float = 0.0) -> float:
         return default
 
 
+def _safe_positive_float(value) -> float | None:
+    """Return value as a finite float above zero, or None when it isn't one."""
+    if isinstance(value, bool):
+        return None
+    number = _safe_float(value, math.nan)
+    return number if math.isfinite(number) and number > 0 else None
+
+
 def _safe_int(value, default: int = 0) -> int:
     """Convert a numeric-looking value to int, tolerating float-like strings."""
     return int(_safe_float(value, float(default)))
@@ -87,14 +96,16 @@ _CLIMATE_TEMP_MAP = {
 
 
 def _normalize_climate_temp(raw: str) -> str:
-    """Normalize acTempVal: map known labels, pass through numeric values."""
-    label = _CLIMATE_TEMP_MAP.get(raw)
-    if label:
-        return label
+    """Normalize acTempVal to the canonical cooler/normal/hotter/unknown set.
+
+    Vehicles with numeric climate control report a step code in acTempVal, so
+    any value outside the known labels maps to "unknown". EVStatus exposes
+    their setpoint in degrees as climate_target_temp.
+    """
     try:
-        float(raw)
-        return raw
-    except (ValueError, TypeError):
+        return _CLIMATE_TEMP_MAP.get(raw, "unknown")
+    except TypeError:
+        # A malformed API value may be unhashable (for example, a list).
         return "unknown"
 
 
@@ -574,15 +585,26 @@ class UIConfiguration:
     hide_internal_temperature: bool = False
     hide_climate_settings: bool = False
     show_plugin_warning_climate_schedule: bool = False
+    climate_temp_min: float | None = None
+    climate_temp_max: float | None = None
+    climate_temp_step: float | None = None
+    climate_temp_default: float | None = None
 
     @classmethod
     def from_api(cls, cfg: dict) -> "UIConfiguration":
+        temp_range = cfg.get("airConditioningTemperature")
+        if not isinstance(temp_range, dict):
+            temp_range = {}
         return cls(
             hide_window_status=cfg.get("hideWindowStatus", False),
             hide_rear_door_status=cfg.get("hideRearDoorStatus", False),
             hide_internal_temperature=cfg.get("shouldHideInternalTemperature", False),
             hide_climate_settings=cfg.get("shouldHideClimateSettingsButton", False),
             show_plugin_warning_climate_schedule=cfg.get("shouldDisplayPluginWarningForClimateSchedule", False),
+            climate_temp_min=_safe_positive_float(temp_range.get("minimum")),
+            climate_temp_max=_safe_positive_float(temp_range.get("maximum")),
+            climate_temp_step=_safe_positive_float(temp_range.get("step")),
+            climate_temp_default=_safe_positive_float(temp_range.get("defaultValue")),
         )
 
     def to_dict(self) -> dict:
@@ -592,6 +614,10 @@ class UIConfiguration:
             "hide_internal_temperature": self.hide_internal_temperature,
             "hide_climate_settings": self.hide_climate_settings,
             "show_plugin_warning_climate_schedule": self.show_plugin_warning_climate_schedule,
+            "climate_temp_min": self.climate_temp_min,
+            "climate_temp_max": self.climate_temp_max,
+            "climate_temp_step": self.climate_temp_step,
+            "climate_temp_default": self.climate_temp_default,
         }
 
     @classmethod
@@ -885,6 +911,7 @@ class HondaAPI:
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
         self._lock = threading.Lock()
+        self._climate_config_refreshed: set[str] = set()
         self.request_timeout = request_timeout
         retry = Retry(
             total=None,
@@ -985,6 +1012,70 @@ class HondaAPI:
                         f"Vehicle {vin} does not support {capability}",
                     )
                 return
+
+    def _check_climate_temperature(self, vin: str, temperature: float) -> None:
+        """Raise if temperature falls outside the range the vehicle reports."""
+        if (
+            isinstance(temperature, bool)
+            or not isinstance(temperature, (int, float))
+            or not math.isfinite(temperature)
+        ):
+            raise ValueError("temperature must be a number")
+        config = self._climate_ui_config(vin)
+        if config is None:
+            return
+        low = config.climate_temp_min
+        high = config.climate_temp_max
+        step = config.climate_temp_step
+        if low is not None and temperature < low:
+            if high is not None:
+                raise ValueError(f"temperature must be between {low} and {high}")
+            raise ValueError(f"temperature must be at least {low}")
+        if high is not None and temperature > high:
+            if low is not None:
+                raise ValueError(f"temperature must be between {low} and {high}")
+            raise ValueError(f"temperature must be at most {high}")
+        if low is not None and step is not None:
+            steps = (temperature - low) / step
+            if abs(steps - round(steps)) > 1e-6:
+                raise ValueError(f"temperature must be {low} plus a multiple of {step}")
+
+    def _climate_ui_config(self, vin: str) -> UIConfiguration | None:
+        """Return the vehicle's UI configuration for numeric climate control.
+
+        Stored vehicles from earlier versions have no temperature range, so
+        reread the vehicle list once per VIN when the range is missing. A
+        failed refresh must not allow a climate command to bypass validation.
+        """
+        vehicle = self._stored_vehicle(vin)
+        if vehicle is None:
+            return None
+        config = vehicle.ui_config
+        if (
+            config.climate_temp_min is not None
+            or config.climate_temp_max is not None
+            or config.climate_temp_default is not None
+            or vin in self._climate_config_refreshed
+        ):
+            return config
+        vehicles = self.get_vehicles()
+        if not any(v["vin"] == vin for v in vehicles):
+            raise ValueError(
+                f"Could not refresh climate configuration for vehicle {vin}"
+            )
+        with self._lock:
+            self._climate_config_refreshed.update(v["vin"] for v in vehicles)
+            self.tokens.vehicles = vehicles
+            self._save_tokens()
+        vehicle = self._stored_vehicle(vin)
+        return config if vehicle is None else vehicle.ui_config
+
+    def _stored_vehicle(self, vin: str) -> "Vehicle | None":
+        """Return the stored Vehicle for vin, if there is one."""
+        for v in self.tokens.vehicles:
+            if v["vin"] == vin and hasattr(v, "ui_config"):
+                return v
+        return None
 
     def _request(self, method: str, path: str, **kwargs) -> requests.Response:
         """Make an authenticated API request. Thread-safe."""
@@ -1231,15 +1322,31 @@ class HondaAPI:
             temperatureMode="simple",
         )
 
-    def remote_climate_start(self, vin: str) -> str:
-        """Start climate control (uses previously configured settings)."""
+    def remote_climate_start(self, vin: str, temperature: float | None = None,
+                             defrost: bool = True) -> str:
+        """Start climate control.
+
+        Args:
+            vin: Vehicle identification number.
+            temperature: Target temperature in degrees Celsius, for vehicles
+                with the ``specific_temperature`` capability. Omit it on other
+                vehicles, which use their previously configured settings.
+            defrost: Whether to enable auto defrost.
+
+        Raises:
+            ValueError: The vehicle lacks a required capability, or temperature
+                falls outside the range in ``Vehicle.ui_config``.
+        """
         self._check_capability(vin, "remote_climate")
+        if temperature is not None:
+            self._check_capability(vin, "specific_temperature")
+            self._check_climate_temperature(vin, temperature)
         return self._remote_command(
             "remote-climate", vin,
             command="start",
             temperatureMode="specific",
-            temperature=0,
-            autoDefrosterSetting="autoOn",
+            temperature=0 if temperature is None else temperature,
+            autoDefrosterSetting="autoOn" if defrost else "autoOff",
         )
 
     def remote_climate_stop(self, vin: str) -> str:
@@ -1642,6 +1749,7 @@ class EVStatus:
     has_fuel: bool = False
     fuel_level: int = 0
     fuel_range: int = 0
+    climate_target_temp: float | None = None
 
     def __getitem__(self, key: str):
         try:
@@ -1760,6 +1868,7 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
         ],
         speed=_safe_float(gps.get("velocity", {}).get("value", 0)),
         climate_temp=_normalize_climate_temp(ev.get("acTempVal", "normal")),
+        climate_target_temp=_safe_positive_float(ev.get("acTempCelsiusVal")),
         climate_duration=_safe_int(ev.get("acDurationSetting", 0)),
         climate_defrost=ev.get("acDefAutoSetting", "").lower().startswith("def auto on"),
         has_fuel=has_fuel,
