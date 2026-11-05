@@ -341,8 +341,8 @@ def _handle_status_command(api: HondaAPI, vin: str, args: argparse.Namespace) ->
         (t("charge_limit_label"), f"{ev['charge_limit_home']}% ({home}) / {ev['charge_limit_away']}% ({away})"),
         (t("climate_label"), _translate_field('climate_active', ev['climate_active'], t)),
         *_target_temp_rows(ev, t),
-        (t("cabin_temp_label"), f"{ev['cabin_temp']} {tu}"),
-        (t("interior_temp_label"), f"{ev['interior_temp']} {tu}"),
+        (t("cabin_temp_label"), _temp_text(ev['cabin_temp'], tu, t)),
+        (t("interior_temp_label"), _temp_text(ev['interior_temp'], tu, t)),
         (t("odometer_label"), f"{ev['odometer']} {du}"),
         (t("doors_label"), t("locked") if ev['doors_locked'] else t("unlocked")),
         (t("bonnet_label"), t("open") if ev['hood_open'] else t("closed")),
@@ -433,6 +433,11 @@ def _handle_find_car_command(api: HondaAPI, vin: str, args: argparse.Namespace) 
     return 0
 
 
+def _temp_text(value, unit: str, t) -> str:
+    """Format a temperature reading, or the translated unknown label when it's missing."""
+    return t("unknown") if value is None else f"{value} {unit}"
+
+
 def _target_temp_rows(ev, t) -> list[tuple[str, str]]:
     """Return the target temperature row on vehicles that report a value in degrees."""
     target = ev.get("climate_target_temp")
@@ -503,8 +508,8 @@ def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Nam
         *_target_temp_rows(ev, t),
         ("Duration", f"{ev['climate_duration']} {t('mins')}"),
         (t("defrost_label"), "on" if ev['climate_defrost'] else "off"),
-        ("Cabin", f"{ev['cabin_temp']} {tu}"),
-        ("Interior", f"{ev['interior_temp']} {tu}"),
+        ("Cabin", _temp_text(ev['cabin_temp'], tu, t)),
+        ("Interior", _temp_text(ev['interior_temp'], tu, t)),
     ]
     w = max(len(label) for label, _ in rows)
     for label, value in rows:

@@ -816,3 +816,52 @@ def test_watch_keeps_fuel_fields_with_fuel_data():
     line = cli._format_watch_fields(ev, cli._watch_fields(ev), t=lambda k, **kw: k)
     assert "Fuel: 0%" in line
     assert "Fuel range: 0 km" in line
+
+
+def test_status_shows_missing_temperatures_as_unknown(monkeypatch, capsys):
+    monkeypatch.setenv("LC_ALL", "en_US.UTF-8")
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Prelude", "plate": "", "fuel_type": "H"},
+    ], default_vin="VIN123")
+    payload = fake_api._dashboard_payload()
+    payload["temperature"] = {"cabin": {"value": "unknown"}}
+    payload.setdefault("evStatus", {})["intTemp"] = "unknown"
+    monkeypatch.setattr(fake_api, "_dashboard_payload", lambda: payload)
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "status"])
+
+    assert cli.main() == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert any("Cabin temp" in line and "Unknown" in line for line in lines)
+    assert any("Interior temp" in line and "Unknown" in line for line in lines)
+
+
+def test_climate_settings_shows_missing_temperatures_as_unknown(monkeypatch, capsys):
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    monkeypatch.delenv("LC_ALL", raising=False)
+    _patch_common(monkeypatch, _FakeAPI([
+        {"vin": "VIN123", "name": "CR-V", "plate": "", "fuel_type": "X"},
+    ], default_vin="VIN123"))
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "climate-settings"])
+    monkeypatch.setattr(cli, "parse_ev_status",
+                        lambda dashboard: _climate_settings_ev(cabin_temp=None, interior_temp=None))
+
+    assert cli.main() == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert any(line.startswith("Cabin:") and "Unknown" in line for line in lines)
+    assert any(line.startswith("Interior:") and "Unknown" in line for line in lines)
+
+
+def test_climate_settings_json_reports_missing_temperatures_as_null(monkeypatch, capsys):
+    _patch_common(monkeypatch, _FakeAPI([
+        {"vin": "VIN123", "name": "CR-V", "plate": "", "fuel_type": "X"},
+    ], default_vin="VIN123"))
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "--json", "climate-settings"])
+    monkeypatch.setattr(cli, "parse_ev_status",
+                        lambda dashboard: _climate_settings_ev(cabin_temp=None, interior_temp=None))
+
+    assert cli.main() == 0
+    out = capsys.readouterr().out
+    assert '"cabin_temp": null' in out
+    assert '"interior_temp": null' in out
