@@ -95,7 +95,7 @@ Only escalate to "user must take action" when the code genuinely cannot fix the 
 - Lint: `ruff check src/ tests/`
 - Types: `mypy src/`
 
-CI runs `pytest` on Python 3.11/3.12/3.13 plus `ruff check` and `mypy`. Tag is the bare version (e.g. `5.8.2`, not `v5.8.2`). `CHANGELOG.md` is updated in the same PR as the version bump.
+CI runs `pytest` on Python 3.11/3.12/3.13/3.14 plus `ruff check` and `mypy`. Tag is the bare version (e.g. `5.8.2`, not `v5.8.2`). `CHANGELOG.md` is updated in the same PR as the version bump.
 
 ## 8. Full reference
 
