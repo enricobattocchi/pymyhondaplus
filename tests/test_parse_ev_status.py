@@ -2,7 +2,7 @@
 
 import pytest
 
-from pymyhondaplus.api import parse_ev_status
+from pymyhondaplus.api import EVStatus, parse_ev_status
 
 
 def test_basic_fields(dashboard_ev):
@@ -271,6 +271,17 @@ def test_home_away_normalization(dashboard_ev):
 def test_climate_temp_step_codes_normalized_to_unknown(dashboard_ev, code):
     dashboard_ev["evStatus"]["acTempVal"] = code
     assert parse_ev_status(dashboard_ev)["climate_temp"] == "unknown"
+
+
+@pytest.mark.parametrize("raw", [[], {}])
+def test_climate_temp_unhashable_values_normalized_to_unknown(dashboard_ev, raw):
+    dashboard_ev["evStatus"]["acTempVal"] = raw
+    assert parse_ev_status(dashboard_ev)["climate_temp"] == "unknown"
+
+
+def test_climate_target_temp_follows_the_earlier_positional_fields():
+    fields = list(EVStatus.__dataclass_fields__)
+    assert fields.index("climate_target_temp") == fields.index("fuel_range") + 1
 
 
 def test_climate_target_temp_defaults_to_none(dashboard_ev):

@@ -314,6 +314,9 @@ class _ClimateStartAPI(_FakeAPI):
             raise self.error
         return "cmd-1"
 
+    def _climate_ui_config(self, vin):
+        return self.tokens.vehicles[0].ui_config
+
 
 @pytest.mark.parametrize("extra_args, expected", [
     ([], (None, True)),

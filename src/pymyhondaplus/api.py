@@ -102,7 +102,11 @@ def _normalize_climate_temp(raw: str) -> str:
     any value outside the known labels maps to "unknown". EVStatus exposes
     their setpoint in degrees as climate_target_temp.
     """
-    return _CLIMATE_TEMP_MAP.get(raw, "unknown")
+    try:
+        return _CLIMATE_TEMP_MAP.get(raw, "unknown")
+    except TypeError:
+        # A malformed API value may be unhashable (for example, a list).
+        return "unknown"
 
 
 # Raw API chargeStatus values -> canonical enum values exposed on EVStatus.
@@ -907,6 +911,7 @@ class HondaAPI:
         self.session = requests.Session()
         self.session.headers.update(DEFAULT_HEADERS)
         self._lock = threading.Lock()
+        self._climate_config_refreshed: set[str] = set()
         self.request_timeout = request_timeout
         retry = Retry(
             total=None,
@@ -1016,18 +1021,61 @@ class HondaAPI:
             or not math.isfinite(temperature)
         ):
             raise ValueError("temperature must be a number")
+        config = self._climate_ui_config(vin)
+        if config is None:
+            return
+        low = config.climate_temp_min
+        high = config.climate_temp_max
+        step = config.climate_temp_step
+        if low is not None and temperature < low:
+            if high is not None:
+                raise ValueError(f"temperature must be between {low} and {high}")
+            raise ValueError(f"temperature must be at least {low}")
+        if high is not None and temperature > high:
+            if low is not None:
+                raise ValueError(f"temperature must be between {low} and {high}")
+            raise ValueError(f"temperature must be at most {high}")
+        if low is not None and step is not None:
+            steps = (temperature - low) / step
+            if abs(steps - round(steps)) > 1e-6:
+                raise ValueError(f"temperature must be {low} plus a multiple of {step}")
+
+    def _climate_ui_config(self, vin: str) -> UIConfiguration | None:
+        """Return the vehicle's UI configuration for numeric climate control.
+
+        Stored vehicles from earlier versions have no temperature range, so
+        reread the vehicle list once per VIN when the range is missing. A
+        failed refresh must not allow a climate command to bypass validation.
+        """
+        vehicle = self._stored_vehicle(vin)
+        if vehicle is None:
+            return None
+        config = vehicle.ui_config
+        if (
+            config.climate_temp_min is not None
+            or config.climate_temp_max is not None
+            or config.climate_temp_default is not None
+            or vin in self._climate_config_refreshed
+        ):
+            return config
+        vehicles = self.get_vehicles()
+        if not any(v["vin"] == vin for v in vehicles):
+            raise ValueError(
+                f"Could not refresh climate configuration for vehicle {vin}"
+            )
+        with self._lock:
+            self._climate_config_refreshed.update(v["vin"] for v in vehicles)
+            self.tokens.vehicles = vehicles
+            self._save_tokens()
+        vehicle = self._stored_vehicle(vin)
+        return config if vehicle is None else vehicle.ui_config
+
+    def _stored_vehicle(self, vin: str) -> "Vehicle | None":
+        """Return the stored Vehicle for vin, if there is one."""
         for v in self.tokens.vehicles:
             if v["vin"] == vin and hasattr(v, "ui_config"):
-                low = v.ui_config.climate_temp_min
-                high = v.ui_config.climate_temp_max
-                step = v.ui_config.climate_temp_step
-                if (low is not None and temperature < low) or (high is not None and temperature > high):
-                    raise ValueError(f"temperature must be between {low} and {high}")
-                if low is not None and step is not None:
-                    steps = (temperature - low) / step
-                    if abs(steps - round(steps)) > 1e-6:
-                        raise ValueError(f"temperature must be {low} plus a multiple of {step}")
-                return
+                return v
+        return None
 
     def _request(self, method: str, path: str, **kwargs) -> requests.Response:
         """Make an authenticated API request. Thread-safe."""
@@ -1696,12 +1744,12 @@ class EVStatus:
     warning_lamps: list = field(default_factory=list)
     speed: float = 0.0
     climate_temp: str = "unknown"
-    climate_target_temp: float | None = None
     climate_duration: int = 0
     climate_defrost: bool = False
     has_fuel: bool = False
     fuel_level: int = 0
     fuel_range: int = 0
+    climate_target_temp: float | None = None
 
     def __getitem__(self, key: str):
         try:

@@ -449,7 +449,10 @@ def _default_climate_temperature(api: HondaAPI, vin: str, args: argparse.Namespa
     if vehicle is None or not hasattr(vehicle, "capabilities") or not vehicle.capabilities.specific_temperature:
         return None
     ev = parse_ev_status(_get_dashboard(api, vin, fresh=args.fresh, json_mode=args.json))
-    temperature = ev.get("climate_target_temp") or vehicle.ui_config.climate_temp_default
+    temperature = ev.get("climate_target_temp")
+    if temperature is None:
+        config = api._climate_ui_config(vin)
+        temperature = None if config is None else config.climate_temp_default
     if temperature is None:
         raise ValueError("No target temperature available for this vehicle, use --temperature")
     return temperature
