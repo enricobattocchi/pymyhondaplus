@@ -437,6 +437,7 @@ v.ui_config.climate_temp_min                    # None, or the lowest target tem
 v.ui_config.climate_temp_max                    # None, or the highest target temperature
 v.ui_config.climate_temp_step                   # None, or the step between target temperatures
 v.ui_config.climate_temp_default                # None, or the default target temperature
+v.ui_config.validate_climate_temperature(21.5)  # Raises ValueError if the value doesn't fit
 
 # Subscription
 v.subscription.package_name     # "My Honda+"
