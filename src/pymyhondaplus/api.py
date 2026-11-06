@@ -77,6 +77,14 @@ def _safe_int(value, default: int = 0) -> int:
     return int(_safe_float(value, float(default)))
 
 
+def _safe_optional_int(value) -> int | None:
+    """Return value as an int, or None when it's missing or non-numeric."""
+    if isinstance(value, bool):
+        return None
+    number = _safe_float(value, math.nan)
+    return int(number) if math.isfinite(number) else None
+
+
 def _format_hhmm(raw: str) -> str:
     """Format an HHMM-ish string as HH:MM, falling back to 00:00."""
     digits = "".join(ch for ch in str(raw or "") if ch.isdigit())
@@ -1737,8 +1745,8 @@ class EVStatus:
     charge_limit_home: int = 0
     charge_limit_away: int = 0
     climate_active: bool = False
-    cabin_temp: int = 0
-    interior_temp: int = 0
+    cabin_temp: int | None = None
+    interior_temp: int | None = None
     odometer: int = 0
     latitude: float = 0.0
     longitude: float = 0.0
@@ -1841,8 +1849,8 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
         charge_limit_home=_safe_int(ev.get("chargeLimitHome", 0)),
         charge_limit_away=_safe_int(ev.get("chargeLimitAway", 0)),
         climate_active=dashboard.get("climateControl", {}).get("status", {}).get("isActive", False),
-        cabin_temp=_safe_int(dashboard.get("temperature", {}).get("cabin", {}).get("value", 0)),
-        interior_temp=_safe_int(ev.get("intTemp", 0)),
+        cabin_temp=_safe_optional_int(dashboard.get("temperature", {}).get("cabin", {}).get("value")),
+        interior_temp=_safe_optional_int(ev.get("intTemp")),
         odometer=_safe_int(dashboard.get("odometer", {}).get("value", 0)),
         latitude=_dms_to_decimal(coord.get("latitude", "")),
         longitude=_dms_to_decimal(coord.get("longitude", "")),

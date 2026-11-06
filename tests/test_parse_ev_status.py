@@ -66,6 +66,38 @@ def test_temperature(dashboard_ev):
     assert ev["temp_unit"] == "c"
 
 
+@pytest.mark.parametrize("value", ["unknown", "", "nan", "inf", None, True])
+def test_non_numeric_temperatures_are_none(dashboard_ev, value):
+    dashboard_ev["temperature"]["cabin"]["value"] = value
+    dashboard_ev["evStatus"]["intTemp"] = value
+
+    ev = parse_ev_status(dashboard_ev)
+
+    assert ev["cabin_temp"] is None
+    assert ev["interior_temp"] is None
+
+
+def test_missing_temperatures_are_none(dashboard_ev):
+    del dashboard_ev["temperature"]
+    del dashboard_ev["evStatus"]["intTemp"]
+
+    ev = parse_ev_status(dashboard_ev)
+
+    assert ev["cabin_temp"] is None
+    assert ev["interior_temp"] is None
+
+
+@pytest.mark.parametrize("value", ["0", 0])
+def test_reported_zero_temperatures_stay_zero(dashboard_ev, value):
+    dashboard_ev["temperature"]["cabin"]["value"] = value
+    dashboard_ev["evStatus"]["intTemp"] = value
+
+    ev = parse_ev_status(dashboard_ev)
+
+    assert ev["cabin_temp"] == 0
+    assert ev["interior_temp"] == 0
+
+
 def test_gps(dashboard_ev):
     ev = parse_ev_status(dashboard_ev)
     assert abs(ev["latitude"] - 41.890251) < 0.000001
@@ -325,7 +357,7 @@ def test_malformed_numeric_fields_do_not_crash(dashboard_ev):
     assert ev["charge_limit_home"] == 0
     assert ev["climate_duration"] == 0
     assert ev["speed"] == 0.0
-    assert ev["cabin_temp"] == 0
+    assert ev["cabin_temp"] is None
     assert ev["odometer"] == 0
 
 

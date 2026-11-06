@@ -1,6 +1,7 @@
 """Behavioral tests for CLI flows."""
 
 import importlib.metadata
+import json
 
 import pytest
 
@@ -816,3 +817,93 @@ def test_watch_keeps_fuel_fields_with_fuel_data():
     line = cli._format_watch_fields(ev, cli._watch_fields(ev), t=lambda k, **kw: k)
     assert "Fuel: 0%" in line
     assert "Fuel range: 0 km" in line
+
+
+def test_status_shows_missing_temperatures_as_unknown(monkeypatch, capsys):
+    monkeypatch.setenv("LC_ALL", "en_US.UTF-8")
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Prelude", "plate": "", "fuel_type": "H"},
+    ], default_vin="VIN123")
+    payload = fake_api._dashboard_payload()
+    payload["temperature"] = {"cabin": {"value": "unknown"}}
+    payload.setdefault("evStatus", {})["intTemp"] = "unknown"
+    monkeypatch.setattr(fake_api, "_dashboard_payload", lambda: payload)
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "status"])
+
+    assert cli.main() == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert any("Cabin temp" in line and "Unknown" in line for line in lines)
+    assert any("Interior temp" in line and "Unknown" in line for line in lines)
+
+
+def test_climate_settings_shows_missing_temperatures_as_unknown(monkeypatch, capsys):
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    monkeypatch.delenv("LC_ALL", raising=False)
+    _patch_common(monkeypatch, _FakeAPI([
+        {"vin": "VIN123", "name": "CR-V", "plate": "", "fuel_type": "X"},
+    ], default_vin="VIN123"))
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "climate-settings"])
+    monkeypatch.setattr(cli, "parse_ev_status",
+                        lambda dashboard: _climate_settings_ev(cabin_temp=None, interior_temp=None))
+
+    assert cli.main() == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert any(line.startswith("Cabin:") and "Unknown" in line for line in lines)
+    assert any(line.startswith("Interior:") and "Unknown" in line for line in lines)
+
+
+def test_climate_settings_json_reports_missing_temperatures_as_null(monkeypatch, capsys):
+    _patch_common(monkeypatch, _FakeAPI([
+        {"vin": "VIN123", "name": "CR-V", "plate": "", "fuel_type": "X"},
+    ], default_vin="VIN123"))
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "--json", "climate-settings"])
+    monkeypatch.setattr(cli, "parse_ev_status",
+                        lambda dashboard: _climate_settings_ev(cabin_temp=None, interior_temp=None))
+
+    assert cli.main() == 0
+    out = capsys.readouterr().out
+    assert '"cabin_temp": null' in out
+    assert '"interior_temp": null' in out
+
+
+WATCH_TEMPERATURE = {"cabin_temp": cli.WATCH_FIELDS["cabin_temp"]}
+
+
+@pytest.mark.parametrize("prev, current, expected", [
+    ({"cabin_temp": 21}, {"cabin_temp": None}, "Cabin: Unknown"),
+    ({"cabin_temp": None}, {"cabin_temp": None}, ""),
+    (None, {"cabin_temp": None}, ""),
+    ({"cabin_temp": None}, {"cabin_temp": 21}, "Cabin: 21 °C"),
+    ({"cabin_temp": 21}, {"cabin_temp": 0}, "Cabin: 0 °C"),
+])
+def test_watch_reports_temperature_transitions(prev, current, expected):
+    t = cli.get_translator("en")
+
+    assert cli._format_watch_fields(current, WATCH_TEMPERATURE, prev, t) == expected
+
+
+def test_status_watch_json_reports_missing_temperatures_as_null(monkeypatch, capsys):
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Prelude", "plate": "", "fuel_type": "H"},
+    ], default_vin="VIN123")
+    payload = fake_api._dashboard_payload()
+    payload["temperature"] = {"cabin": {"value": "unknown"}}
+    payload.setdefault("evStatus", {})["intTemp"] = "unknown"
+    monkeypatch.setattr(fake_api, "_dashboard_payload", lambda: payload)
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "--json", "status", "--watch", "1m"])
+
+    def stop_watching(_interval):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli.time, "sleep", stop_watching)
+
+    assert cli.main() == 0
+    line = next(
+        line for line in capsys.readouterr().out.splitlines() if line.startswith("{")
+    )
+    ev = json.loads(line)
+    assert ev["cabin_temp"] is None
+    assert ev["interior_temp"] is None
