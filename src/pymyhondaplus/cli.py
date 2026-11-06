@@ -97,6 +97,8 @@ def _format_watch_fields(ev, fields: dict, prev=None, t=None) -> str:
     for key, (label, suffix) in fields.items():
         val = ev.get(key)
         if val is None:
+            if prev is not None and prev.get(key) is not None:
+                parts.append(f"{label}: {t('unknown')}")
             continue
         if prev is not None and prev.get(key) == val:
             continue

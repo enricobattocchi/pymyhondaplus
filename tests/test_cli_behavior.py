@@ -865,3 +865,19 @@ def test_climate_settings_json_reports_missing_temperatures_as_null(monkeypatch,
     out = capsys.readouterr().out
     assert '"cabin_temp": null' in out
     assert '"interior_temp": null' in out
+
+
+WATCH_TEMPERATURE = {"cabin_temp": cli.WATCH_FIELDS["cabin_temp"]}
+
+
+@pytest.mark.parametrize("prev, current, expected", [
+    ({"cabin_temp": 21}, {"cabin_temp": None}, "Cabin: Unknown"),
+    ({"cabin_temp": None}, {"cabin_temp": None}, ""),
+    (None, {"cabin_temp": None}, ""),
+    ({"cabin_temp": None}, {"cabin_temp": 21}, "Cabin: 21 °C"),
+    ({"cabin_temp": 21}, {"cabin_temp": 0}, "Cabin: 0 °C"),
+])
+def test_watch_reports_temperature_transitions(prev, current, expected):
+    t = cli.get_translator("en")
+
+    assert cli._format_watch_fields(current, WATCH_TEMPERATURE, prev, t) == expected
