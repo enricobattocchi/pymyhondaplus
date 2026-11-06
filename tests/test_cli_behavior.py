@@ -1,6 +1,7 @@
 """Behavioral tests for CLI flows."""
 
 import importlib.metadata
+import json
 
 import pytest
 
@@ -881,3 +882,28 @@ def test_watch_reports_temperature_transitions(prev, current, expected):
     t = cli.get_translator("en")
 
     assert cli._format_watch_fields(current, WATCH_TEMPERATURE, prev, t) == expected
+
+
+def test_status_watch_json_reports_missing_temperatures_as_null(monkeypatch, capsys):
+    fake_api = _FakeAPI([
+        {"vin": "VIN123", "name": "Prelude", "plate": "", "fuel_type": "H"},
+    ], default_vin="VIN123")
+    payload = fake_api._dashboard_payload()
+    payload["temperature"] = {"cabin": {"value": "unknown"}}
+    payload.setdefault("evStatus", {})["intTemp"] = "unknown"
+    monkeypatch.setattr(fake_api, "_dashboard_payload", lambda: payload)
+    _patch_common(monkeypatch, fake_api)
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "--json", "status", "--watch", "1m"])
+
+    def stop_watching(_interval):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli.time, "sleep", stop_watching)
+
+    assert cli.main() == 0
+    line = next(
+        line for line in capsys.readouterr().out.splitlines() if line.startswith("{")
+    )
+    ev = json.loads(line)
+    assert ev["cabin_temp"] is None
+    assert ev["interior_temp"] is None
