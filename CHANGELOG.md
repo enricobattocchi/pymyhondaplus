@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.12.0b1 (2026-11-17)
+
+### Breaking
+
+- `EVStatus.cabin_temp` and `EVStatus.interior_temp` are `int | None` and default to `None`. They're `None` when Honda reports a missing or non-numeric value, instead of `0`.
+
+### Added
+
+- `HondaAPI.remote_climate_start()` takes a `temperature` in degrees Celsius on vehicles with the `specific_temperature` capability, and `pymyhondaplus climate-start --temperature` exposes it.
+- `EVStatus.climate_target_temp` reports the target temperature in degrees on those vehicles.
+- `UIConfiguration` exposes `climate_temp_min`, `climate_temp_max`, `climate_temp_step` and `climate_temp_default`, and `UIConfiguration.validate_climate_temperature()` checks a value against them.
+- Tests run on Python 3.14.
+
+### Fixed
+
+- `pymyhondaplus climate-start` sends the vehicle's target or default temperature on vehicles with numeric climate control, so the cabin no longer goes to Lo.
+- `pymyhondaplus status`, `status --watch` and `climate-settings` show a missing temperature as unknown instead of 0.
+
+### Upgrade notes
+
+Code that reads `cabin_temp` or `interior_temp` must handle `None`. `remote_climate_start()` without `temperature` still sends 0 on vehicles with numeric climate control, so pass a temperature on those vehicles.
+
 ## 5.11.0 (2026-10-27)
 
 ### Added
