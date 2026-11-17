@@ -440,6 +440,13 @@ def _temp_text(value, unit: str, t) -> str:
     return t("unknown") if value is None else f"{value} {unit}"
 
 
+def _defrost_text(value, t) -> str:
+    """Format the auto defrost setting, or the translated unknown label when it's missing."""
+    if value is None:
+        return t("unknown")
+    return "on" if value else "off"
+
+
 def _target_temp_rows(ev, t) -> list[tuple[str, str]]:
     """Return the target temperature row on vehicles that report a value in degrees."""
     target = ev.get("climate_target_temp")
@@ -509,7 +516,7 @@ def _handle_climate_settings_command(api: HondaAPI, vin: str, args: argparse.Nam
         ("Temperature", ev['climate_temp']),
         *_target_temp_rows(ev, t),
         ("Duration", f"{ev['climate_duration']} {t('mins')}"),
-        (t("defrost_label"), "on" if ev['climate_defrost'] else "off"),
+        (t("defrost_label"), _defrost_text(ev['climate_defrost'], t)),
         ("Cabin", _temp_text(ev['cabin_temp'], tu, t)),
         ("Interior", _temp_text(ev['interior_temp'], tu, t)),
     ]
