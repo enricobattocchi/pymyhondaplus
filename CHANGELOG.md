@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.12.0b2 (2026-11-17)
+
+### Breaking
+
+- `EVStatus.climate_defrost` is `bool | None` and defaults to `None`. It's `None` when Honda reports a missing or unrecognized `acDefAutoSetting`, instead of `False`.
+
+### Fixed
+
+- `pymyhondaplus climate-settings` shows a missing auto defrost setting as unknown instead of off.
+
+### Upgrade notes
+
+Code that reads `climate_defrost` must handle `None`. Map it to a default before you pass it to `set_climate_settings()` or `remote_climate_start()`.
+
 ## 5.12.0b1 (2026-11-17)
 
 ### Breaking
