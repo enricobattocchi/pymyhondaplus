@@ -303,6 +303,22 @@ def test_climate_settings_shows_target_temp_when_reported(monkeypatch, capsys, t
     assert ("21.5 °C" in out) is shown
 
 
+@pytest.mark.parametrize("defrost, shown", [(True, "on"), (False, "off"), (None, "unknown")])
+def test_climate_settings_shows_defrost(monkeypatch, capsys, defrost, shown):
+    monkeypatch.setenv("LANG", "en_US.UTF-8")
+    monkeypatch.delenv("LC_ALL", raising=False)
+    _patch_common(monkeypatch, _FakeAPI([
+        {"vin": "VIN123", "name": "CR-V", "plate": "", "fuel_type": "X"},
+    ], default_vin="VIN123"))
+    monkeypatch.setattr(cli.sys, "argv", ["pymyhondaplus", "climate-settings"])
+    monkeypatch.setattr(cli, "parse_ev_status",
+                        lambda dashboard: _climate_settings_ev(climate_defrost=defrost))
+
+    assert cli.main() == 0
+    line = next(row for row in capsys.readouterr().out.splitlines() if "efrost" in row)
+    assert line.split()[-1].lower() == shown
+
+
 class _ClimateStartAPI(_FakeAPI):
     def __init__(self, *args, error=None, **kwargs):
         super().__init__(*args, **kwargs)

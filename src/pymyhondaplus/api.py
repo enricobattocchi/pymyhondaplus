@@ -1766,7 +1766,7 @@ class EVStatus:
     speed: float = 0.0
     climate_temp: str = "unknown"
     climate_duration: int = 0
-    climate_defrost: bool = False
+    climate_defrost: bool | None = None
     has_fuel: bool = False
     fuel_level: int = 0
     fuel_range: int = 0
@@ -1783,6 +1783,13 @@ class EVStatus:
 
     def __contains__(self, key: str) -> bool:
         return hasattr(self, key)
+
+
+def _parse_auto_defrost(value) -> bool | None:
+    """Return whether auto defrost is on, or None when the vehicle doesn't report it."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip().lower().startswith("def auto on")
 
 
 def parse_ev_status(dashboard: dict) -> EVStatus:
@@ -1891,7 +1898,7 @@ def parse_ev_status(dashboard: dict) -> EVStatus:
         climate_temp=_normalize_climate_temp(ev.get("acTempVal", "normal")),
         climate_target_temp=_safe_positive_float(ev.get("acTempCelsiusVal")),
         climate_duration=_safe_int(ev.get("acDurationSetting", 0)),
-        climate_defrost=ev.get("acDefAutoSetting", "").lower().startswith("def auto on"),
+        climate_defrost=_parse_auto_defrost(ev.get("acDefAutoSetting")),
         has_fuel=has_fuel,
         fuel_level=fuel_level,
         fuel_range=fuel_range,
