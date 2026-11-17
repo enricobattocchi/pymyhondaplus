@@ -1786,10 +1786,15 @@ class EVStatus:
 
 
 def _parse_auto_defrost(value) -> bool | None:
-    """Return whether auto defrost is on, or None when the vehicle doesn't report it."""
-    if not isinstance(value, str) or not value.strip():
+    """Return whether auto defrost is on, or None for a missing or unrecognized value."""
+    if not isinstance(value, str):
         return None
-    return value.strip().lower().startswith("def auto on")
+    value = value.strip().lower()
+    if value.startswith("def auto on"):
+        return True
+    if value.startswith("def auto off"):
+        return False
+    return None
 
 
 def parse_ev_status(dashboard: dict) -> EVStatus:

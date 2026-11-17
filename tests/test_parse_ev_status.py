@@ -451,7 +451,7 @@ def test_fuel_level_falls_back_to_gauge_bars(dashboard_ev):
     assert ev["fuel_range"] == 420
 
 
-@pytest.mark.parametrize("value", [None, "", "  ", 1])
+@pytest.mark.parametrize("value", [None, "", "  ", 1, "unknown", "not specified"])
 def test_climate_defrost_unreported_value(dashboard_ev, value):
     dashboard_ev["evStatus"]["acDefAutoSetting"] = value
     assert parse_ev_status(dashboard_ev)["climate_defrost"] is None
