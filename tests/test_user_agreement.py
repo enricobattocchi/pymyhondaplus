@@ -43,13 +43,16 @@ class TestErrorCodeMapping:
 
     def test_10052_raises_agreement_error(self):
         api = _make_api()
+        body = '{"errorCode":10052,"errorMessage":"BR006 Rule Failed"}'
         api.session.request = MagicMock(return_value=_mock_response(
-            502, {"errorCode": 10052, "errorMessage": "BR006 Rule Failed"},
+            502, {"errorCode": 10052, "errorMessage": "BR006 Rule Failed"}, text=body,
         ))
         with pytest.raises(HondaAgreementError) as exc:
             api._request("GET", "/tsp/dashboard-latest?vin=X")
         assert exc.value.status_code == 502
         assert "terms and conditions" in str(exc.value)
+        assert exc.value.api_message == body
+        assert exc.value.body == body
 
     def test_other_codes_are_left_alone(self):
         api = _make_api()

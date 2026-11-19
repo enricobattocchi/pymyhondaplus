@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from .api import HondaAuthError
+from .api import HondaAuthError, _response_error
 from .http import DEFAULT_AUTH_TIMEOUT, TimeoutAdapter
 
 logger = logging.getLogger(__name__)
@@ -231,7 +231,7 @@ class HondaAuth:
         resp = self._post("/auth/reset-device-authenticator", json_data=payload)
         logger.info("reset-device-authenticator: %s", resp.status_code)
         if resp.status_code not in (200, 202):
-            raise HondaAuthError(resp.status_code, f"reset-device-authenticator failed: {resp.text}")
+            raise _response_error(resp, HondaAuthError, "reset-device-authenticator failed")
         return resp.json() if resp.text else {}
 
     def request_verify_link(self, email: str, request_type: str = "MfaSetup") -> dict:
@@ -243,7 +243,7 @@ class HondaAuth:
         resp = self._post("/auth/verify-link", json_data=payload)
         logger.info("verify-link: %s", resp.status_code)
         if resp.status_code not in (200, 202):
-            raise HondaAuthError(resp.status_code, f"verify-link failed: {resp.text}")
+            raise _response_error(resp, HondaAuthError, "verify-link failed")
         return resp.json() if resp.text else {}
 
     def check_verify_link_status(self, email: str) -> dict:
@@ -263,7 +263,7 @@ class HondaAuth:
         resp = self._post("/auth/register", json_data=payload)
         logger.info("register: %s", resp.status_code)
         if resp.status_code not in (200, 202):
-            raise HondaAuthError(resp.status_code, f"register failed: {resp.text}")
+            raise _response_error(resp, HondaAuthError, "register failed")
         return resp.json() if resp.text else {}
 
     def initiate_login(self, email: str, password: str,
@@ -291,7 +291,7 @@ class HondaAuth:
         resp = self._post("/auth/initiate-login", json_data=payload)
         logger.info("initiate-login: %s", resp.status_code)
         if resp.status_code not in (200, 202):
-            raise HondaAuthError(resp.status_code, f"initiate-login failed: {resp.text}")
+            raise _response_error(resp, HondaAuthError, "initiate-login failed")
         return resp.json()
 
     def complete_login(self, email: str, password: str,
@@ -313,7 +313,7 @@ class HondaAuth:
         resp = self._post("/auth/complete-login", json_data=payload)
         logger.info("complete-login: %s", resp.status_code)
         if resp.status_code not in (200, 202):
-            raise HondaAuthError(resp.status_code, f"complete-login failed: {resp.text}")
+            raise _response_error(resp, HondaAuthError, "complete-login failed")
         return resp.json()
 
     def login(self, email: str, password: str, locale: str = "it") -> dict:
@@ -345,11 +345,13 @@ class HondaAuth:
         except HondaAuthError as e:
             error_text = str(e)
             if "locked-account" in error_text:
-                raise HondaAuthError(
+                error = HondaAuthError(
                     e.status_code,
                     "Account is locked (too many attempts). "
                     "Wait a while or reset your password via the My Honda+ app."
-                ) from None
+                )
+                error.body = e.body
+                raise error from None
             if "device-authenticator-not-registered" in error_text:
                 logger.info("Device not registered, starting registration flow")
                 return self._handle_device_registration(email, password, locale)

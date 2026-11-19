@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-from pymyhondaplus.api import AuthTokens, HondaAPI, HondaAPIError, HondaAuthError
+from pymyhondaplus.api import AuthTokens, HondaAPI, HondaAPIError, HondaAuthError, _response_error
 
 
 def _make_api(**token_overrides):
@@ -227,6 +227,83 @@ class TestRefreshErrorClassification:
         with pytest.raises(HondaAPIError) as exc_info:
             api._refresh_auth_locked()
         assert not isinstance(exc_info.value, HondaAuthError)
+
+
+class TestResponseErrorDetails:
+    @pytest.mark.parametrize(("body", "expected"), [
+        ('{"errorCode":10001,"errorMessage":"Vehicle not found"}', "10001: Vehicle not found"),
+        ('{"error":"device-authenticator-not-registered","message":"Register device"}',
+         "device-authenticator-not-registered: Register device"),
+        ('{"data":"locked-account","errorMessage":"Too many attempts"}',
+         "locked-account: Too many attempts"),
+        ('{"errorCode":0,"data":"invalid-credentials"}', "invalid-credentials"),
+        ('"Reset is currently blocked"', "Reset is currently blocked"),
+        ("plain error", "plain error"),
+        ("", "the request failed."),
+        ("<html>bad gateway</html>", "the request failed."),
+        ('{"message":"<html>bad gateway</html>"}', "the request failed."),
+        ("[]", "the request failed."),
+    ])
+    def test_safe_details(self, body, expected):
+        resp = requests.Response()
+        resp.status_code = 400
+        resp._content = body.encode()
+
+        error = _response_error(resp)
+
+        assert str(error) == f"HTTP 400: {expected}"
+        assert error.body == body
+
+    def test_long_text_is_bounded(self):
+        resp = requests.Response()
+        resp.status_code = 400
+        resp._content = b"x" * 1000
+
+        error = _response_error(resp)
+
+        assert len(str(error)) < 220
+        assert error.body == "x" * 1000
+
+    @pytest.mark.parametrize(("status", "error_type"), [
+        (401, HondaAuthError), (502, HondaAPIError),
+    ])
+    def test_refresh_retains_html_without_displaying_it(self, status, error_type):
+        api = _make_api(expires_at=0)
+        resp = requests.Response()
+        resp.status_code = status
+        resp._content = b"<html>gateway error</html>"
+        api.session.post = MagicMock(return_value=resp)
+
+        with pytest.raises(error_type) as exc:
+            api._refresh_auth_locked()
+        assert type(exc.value) is error_type
+        assert exc.value.body == resp.text
+        assert "<html>" not in str(exc.value)
+
+    def test_401_after_refresh_retains_body(self):
+        api = _make_api()
+        resp = requests.Response()
+        resp.status_code = 401
+        resp._content = b"<html>unauthorized</html>"
+        api.session.request = MagicMock(return_value=resp)
+        api._refresh_auth_locked = MagicMock()
+
+        with pytest.raises(HondaAuthError) as exc:
+            api._request("GET", "/test")
+        assert str(exc.value) == "HTTP 401: Authentication failed after token refresh."
+        assert exc.value.body == resp.text
+
+    def test_api_endpoint_retains_html_without_displaying_it(self):
+        api = _make_api()
+        resp = requests.Response()
+        resp.status_code = 503
+        resp._content = b"<html>gateway error</html>"
+        api.session.request = MagicMock(return_value=resp)
+
+        with pytest.raises(HondaAPIError) as exc:
+            api.get_user_info()
+        assert exc.value.body == resp.text
+        assert "<html>" not in str(exc.value)
 
 
 class TestTimeoutAdapter:
