@@ -894,6 +894,7 @@ class UserAgreement:
 class HondaAPIError(Exception):
     def __init__(self, status_code: int, message: str):
         self.status_code = status_code
+        self.body: str | None = None
         super().__init__(f"HTTP {status_code}: {message}")
 
 
@@ -917,6 +918,65 @@ class HondaAgreementError(HondaAPIError):
             "Use the My Honda+ app, or run 'pymyhondaplus agreement-accept'.",
         )
         self.api_message = message
+
+
+def _response_error(
+    resp: requests.Response, error_class: type[HondaAPIError] = HondaAPIError,
+    context: str = "",
+) -> HondaAPIError:
+    """Build a concise error while retaining the complete response for debugging."""
+    body = resp.text
+    logger.debug("HTTP %s error response body: %s", resp.status_code, body)
+
+    def safe_text(value: object, limit: int) -> str:
+        if not isinstance(value, (str, int)) or isinstance(value, bool):
+            return ""
+        text = " ".join(str(value).split())
+        if "<" in text or ">" in text:
+            return ""
+        return text if len(text) <= limit else text[:limit - 3] + "..."
+
+    try:
+        data = resp.json()
+    except ValueError:
+        data = None
+
+    details = []
+    if isinstance(data, dict):
+        for keys in (
+            ("errorCode", "data", "code", "error"),
+            ("errorMessage", "message", "error_description"),
+        ):
+            for key in keys:
+                value = data.get(key)
+                if key == "errorCode" and str(value) == "0":
+                    continue
+                text = safe_text(value, 200)
+                if text:
+                    details.append(text)
+                    break
+    elif isinstance(data, str):
+        text = safe_text(data, 200)
+        if text:
+            details.append(text)
+    elif data is None:
+        text = safe_text(body, 200)
+        if text:
+            details.append(text)
+
+    if not details:
+        if resp.status_code == 504:
+            details.append("the server did not respond. Try again later.")
+        elif resp.status_code >= 500:
+            details.append("the server encountered an error. Try again later.")
+        elif not context:
+            details.append("the request failed.")
+    detail = ": ".join(details)
+    if context:
+        detail = f"{context}: {detail}" if detail else f"{context}."
+    error = error_class(resp.status_code, body if issubclass(error_class, HondaAgreementError) else detail)
+    error.body = body
+    return error
 
 
 # Honda error codes that carry a dedicated exception. Codes with no entry here
@@ -1027,8 +1087,8 @@ class HondaAPI:
 
         if resp.status_code != 200:
             if resp.status_code >= 500:
-                raise HondaAPIError(resp.status_code, resp.text)
-            raise HondaAuthError(resp.status_code, resp.text)
+                raise _response_error(resp)
+            raise _response_error(resp, HondaAuthError)
 
         data = resp.json()
         self.tokens.access_token = data["access_token"]
@@ -1120,14 +1180,15 @@ class HondaAPI:
                     method, f"{API_BASE}{path}", headers=headers, **kwargs,
                 )
                 if resp.status_code == 401:
-                    raise HondaAuthError(
-                        401, "Authentication failed after token refresh",
+                    raise _response_error(
+                        resp, HondaAuthError,
+                        "Authentication failed after token refresh",
                     )
 
             if resp.status_code >= 400 and not path.startswith(AGREEMENT_PATHS):
                 exc_class = ERROR_CODE_EXCEPTIONS.get(_api_error_code(resp))
                 if exc_class is not None:
-                    raise exc_class(resp.status_code, resp.text)
+                    raise _response_error(resp, exc_class)
 
             return resp
 
@@ -1143,7 +1204,7 @@ class HondaAPI:
             f"&agreementType=1&country={country}&language={language}",
         )
         if resp.status_code != 200:
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         return resp.json()
 
     def _require_personal_id(self) -> str:
@@ -1162,7 +1223,7 @@ class HondaAPI:
             f"&agreementType={agreement_type}&personalId={personal_id}",
         )
         if resp.status_code != 200:
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         return UserAgreement.from_api(resp.json())
 
     def accept_user_agreement(self, term_id: str = "", language: str = "it",
@@ -1184,7 +1245,7 @@ class HondaAPI:
             "language": language,
         })
         if resp.status_code != 200:
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         return self.get_user_agreement(language, agreement_type)
 
     def get_user_profile(self, **kwargs) -> UserProfile:
@@ -1211,7 +1272,7 @@ class HondaAPI:
             "GET", f"/tsp/dashboard-latest?vin={vin}&languageCode={language}",
         )
         if resp.status_code != 200:
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         return resp.json()
 
     def refresh_dashboard(self, vin: str) -> str:
@@ -1223,7 +1284,7 @@ class HondaAPI:
         """
         resp = self._request("POST", f"/tsp/dashboard?vin={vin}")
         if resp.status_code not in (200, 202):
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
 
         data = resp.json()
         status_url = data.get("statusQueryGetUri", "")
@@ -1300,7 +1361,7 @@ class HondaAPI:
         kwargs = {"json": json_body} if json_body else {}
         resp = self._request("POST", f"/tsp/{endpoint}?vin={vin}", **kwargs)
         if resp.status_code not in (200, 202):
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         data = resp.json()
         status_url = data.get("statusQueryGetUri", "")
         return status_url.split("id=")[-1] if "id=" in status_url else ""
@@ -1309,7 +1370,7 @@ class HondaAPI:
         """Send an async PUT command, return the command ID."""
         resp = self._request("PUT", path, json=json_body)
         if resp.status_code not in (200, 202):
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         data = resp.json()
         status_url = data.get("statusQueryGetUri", "")
         return status_url.split("id=")[-1] if "id=" in status_url else ""
@@ -1534,7 +1595,7 @@ class HondaAPI:
         self._check_capability(vin, "geo_fence")
         resp = self._request("GET", f"/tsp/geo-fence-config?vin={vin}")
         if resp.status_code != 200:
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         return Geofence.from_api(resp.json())
 
     def set_geofence(self, vin: str, latitude: float, longitude: float,
@@ -1569,7 +1630,7 @@ class HondaAPI:
         }
         resp = self._request("PUT", "/tsp/geo-fence-config", json=body)
         if resp.status_code != 200:
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         gf = Geofence.from_api(resp.json())
         if gf is None:
             raise HondaAPIError(200, "Geofence was not activated after set")
@@ -1609,7 +1670,7 @@ class HondaAPI:
         self._check_capability(vin, "geo_fence")
         resp = self._request("DELETE", f"/tsp/geo-fence-config?vin={vin}")
         if resp.status_code not in (200, 202):
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         data = resp.json()
         uri = data.get("statusQueryGetUri", "")
         return uri.split("id=")[-1] if "id=" in uri else ""
@@ -1620,7 +1681,7 @@ class HondaAPI:
         """Get drivers associated with the vehicle."""
         resp = self._request("GET", f"/tsp/drivers-by-vehicle?vin={vin}")
         if resp.status_code != 200:
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         return resp.json()
 
     def get_trips(self, vin: str, month_start: str = "", page: int = 1) -> dict:
@@ -1644,7 +1705,7 @@ class HondaAPI:
             f"/tsp/journey-history?vin={vin}&monthStart={encoded_month}&page={page}",
         )
         if resp.status_code != 200:
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         return resp.json()
 
     def get_trip_detail(self, vin: str, from_date: str, to_date: str,
@@ -1666,7 +1727,7 @@ class HondaAPI:
             f"&fromDate={enc_from}&toDate={enc_to}&type={trip_type}",
         )
         if resp.status_code != 200:
-            raise HondaAPIError(resp.status_code, resp.text)
+            raise _response_error(resp)
         return resp.json()
     def get_all_trips(self, vin: str, month_start: str = "",
                        ref_date: str = "") -> list[dict]:

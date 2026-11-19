@@ -603,6 +603,8 @@ Or via environment variables: `HONDA_REQUEST_TIMEOUT` (API) and `HONDA_AUTH_TIME
 
 Transient 5xx errors are automatically retried up to 3 times with backoff. Transport-level errors (timeouts, connection failures) are not retried.
 
+For errors backed by an HTTP response, `HondaAPIError.body` contains the complete response text; it is `None` when no response is available. The response body is also logged at debug level. It may contain sensitive information, so handle it and debug logs carefully.
+
 ### Thread safety
 
 `HondaAPI` is thread-safe: a single instance can be shared across multiple threads (e.g. Home Assistant's thread pool) without external locking. All HTTP requests and token refresh operations are serialized internally.

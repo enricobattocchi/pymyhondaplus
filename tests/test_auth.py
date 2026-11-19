@@ -2,9 +2,11 @@
 
 import base64
 import json
+import logging
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 
 from pymyhondaplus.api import HondaAPIError, HondaAuthError
 from pymyhondaplus.auth import DeviceKey, HondaAuth, encrypt_request
@@ -182,3 +184,81 @@ class TestHondaAuthErrorInheritance:
     def test_has_status_code(self):
         err = HondaAuthError(403, "forbidden")
         assert err.status_code == 403
+
+
+class TestResponseErrors:
+    @pytest.mark.parametrize(("method", "args", "context"), [
+        ("reset_device_authenticator", ("email", "password"), "reset-device-authenticator"),
+        ("request_verify_link", ("email",), "verify-link"),
+        ("register_device", ("email", "password"), "register"),
+        ("initiate_login", ("email", "password"), "initiate-login"),
+        ("complete_login", ("email", "password", "txn", "challenge"), "complete-login"),
+    ])
+    def test_auth_endpoints_hide_html_and_retain_body(self, method, args, context, caplog):
+        body = "<!DOCTYPE html><html>\n" + "gateway error\n" * 100 + "</html>"
+        response = requests.Response()
+        response.status_code = 504
+        response._content = body.encode()
+        auth = HondaAuth(device_key=DeviceKey())
+        auth.session.post = MagicMock(return_value=response)
+
+        with caplog.at_level(logging.DEBUG), pytest.raises(HondaAuthError) as exc:
+            getattr(auth, method)(*args)
+
+        assert str(exc.value) == (
+            f"HTTP 504: {context} failed: the server did not respond. Try again later."
+        )
+        assert exc.value.body == body
+        assert body in caplog.text
+
+    def test_client_error_without_details_names_only_the_step(self):
+        response = requests.Response()
+        response.status_code = 400
+        response._content = b"<html>bad request</html>"
+        auth = HondaAuth(device_key=DeviceKey())
+        auth.session.post = MagicMock(return_value=response)
+
+        with pytest.raises(HondaAuthError) as exc:
+            auth.request_verify_link("email")
+
+        assert str(exc.value) == "HTTP 400: verify-link failed."
+
+    def test_json_error_triggers_device_registration(self):
+        body = '{"errorCode":"device-authenticator-not-registered","errorMessage":"Register device"}'
+        response = requests.Response()
+        response.status_code = 401
+        response._content = body.encode()
+        auth = HondaAuth(device_key=DeviceKey())
+        auth.session.post = MagicMock(return_value=response)
+        auth._handle_device_registration = MagicMock(return_value={"registered": True})
+
+        assert auth.full_login("email", "password") == {"registered": True}
+        auth._handle_device_registration.assert_called_once_with("email", "password", "it")
+
+    def test_locked_account_keeps_body(self):
+        body = '{"errorCode":"locked-account","errorMessage":"Too many attempts"}'
+        response = requests.Response()
+        response.status_code = 403
+        response._content = body.encode()
+        auth = HondaAuth(device_key=DeviceKey())
+        auth.session.post = MagicMock(return_value=response)
+
+        with pytest.raises(HondaAuthError, match=r"^HTTP 403: Account is locked") as exc:
+            auth.full_login("email", "password")
+        assert exc.value.body == body
+
+    def test_blocked_reset_continues_registration(self, monkeypatch):
+        body = '{"errorMessage":"Reset is currently blocked"}'
+        response = requests.Response()
+        response.status_code = 400
+        response._content = body.encode()
+        auth = HondaAuth(device_key=DeviceKey())
+        auth.session.post = MagicMock(return_value=response)
+        auth.verify_magic_link = MagicMock(return_value={})
+        auth.initiate_login = MagicMock(return_value={
+            "transactionId": "txn", "signatureChallenge": "challenge",
+        })
+        auth.complete_login = MagicMock(return_value={"ok": True})
+        monkeypatch.setattr("builtins.input", lambda _: "https://example.com/?key=abc")
+
+        assert auth._handle_device_registration("email", "password", "it") == {"ok": True}
