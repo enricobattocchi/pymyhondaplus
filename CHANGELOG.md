@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.12.0b3 (2026-11-20)
+
+### Added
+
+- `SecretStorage.clear_tokens()` removes the saved tokens and keeps the device key.
+- `pymyhondaplus logout --forget-device` removes the device key too.
+- `HondaAPIError.body` holds the full response text of a failed request, and the library logs it at debug level.
+
+### Fixed
+
+- Logging back in after `pymyhondaplus logout` no longer asks for device verification (#40).
+- Error messages no longer include whole HTML pages when a Honda server fails (#41).
+
+### Changed
+
+- `pymyhondaplus logout` keeps the device key.
+- Error messages show Honda's error code and message instead of the raw response body.
+
+### Upgrade notes
+
+Code that parses the response out of `str(e)` must read `e.body` instead. Honda's error codes, such as `invalid-credentials`, still appear in `str(e)`. A custom `SecretStorage` backend that keeps tokens outside `token_file` must override `clear_tokens()`.
+
 ## 5.12.0b2 (2026-11-17)
 
 ### Breaking
