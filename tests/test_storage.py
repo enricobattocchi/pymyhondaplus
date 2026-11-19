@@ -64,6 +64,17 @@ class TestPlainFileStorage:
     def test_clear_no_files_ok(self, plain_storage):
         plain_storage.clear()  # Should not raise
 
+    def test_clear_tokens_keeps_device_key(self, plain_storage):
+        pem = b"-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n"
+        plain_storage.save_tokens(SAMPLE_TOKENS)
+        plain_storage.save_device_key(pem)
+        plain_storage.clear_tokens()
+        assert plain_storage.load_tokens() is None
+        assert plain_storage.load_device_key() == pem
+
+    def test_clear_tokens_no_files_ok(self, plain_storage):
+        plain_storage.clear_tokens()  # Should not raise
+
     def test_raises_on_encrypted_format(self, plain_storage):
         plain_storage.token_file.write_text(json.dumps({
             "v": 2, "enc": "fernet", "data": "abc"
@@ -112,6 +123,19 @@ class TestEncryptedFileStorage:
         encrypted_storage.clear()
         assert not encrypted_storage._salt_file.exists()
 
+    def test_clear_tokens_keeps_device_key_and_salt(self, tmp_path):
+        pem = b"-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n"
+        s1 = EncryptedFileStorage(tmp_path / "tokens.json", tmp_path / "key.pem")
+        s1.save_tokens(SAMPLE_TOKENS)
+        s1.save_device_key(pem)
+        s1.clear_tokens()
+        assert not s1.token_file.exists()
+        assert s1._salt_file.exists()
+        # A fresh instance, as after an app restart, still decrypts the key.
+        s2 = EncryptedFileStorage(tmp_path / "tokens.json", tmp_path / "key.pem")
+        assert s2.load_tokens() is None
+        assert s2.load_device_key() == pem
+
     def test_migrates_plain_tokens(self, encrypted_storage):
         """Plain-text token file should be auto-migrated to encrypted."""
         encrypted_storage.token_file.write_text(json.dumps(SAMPLE_TOKENS))
@@ -158,6 +182,49 @@ class TestEncryptedFileStorage:
             "tokens.json.broken-1700000000",
             "tokens.json.broken-1700000000-1",
         ]
+
+
+class _MemoryKeyring:
+    def __init__(self):
+        self.passwords = {}
+
+    def get_password(self, service, name):
+        return self.passwords.get((service, name))
+
+    def set_password(self, service, name, value):
+        self.passwords[(service, name)] = value
+
+    def delete_password(self, service, name):
+        del self.passwords[(service, name)]
+
+
+class TestKeyringStorage:
+
+    def test_clear_tokens_keeps_device_key_and_fernet_key(self, tmp_path):
+        pem = b"-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n"
+        backend = _MemoryKeyring()
+        s1 = KeyringStorage(tmp_path / "tokens.json", tmp_path / "key.pem",
+                            keyring_backend=backend)
+        s1.save_tokens(SAMPLE_TOKENS)
+        s1.save_device_key(pem)
+        s1.clear_tokens()
+        assert not s1.token_file.exists()
+        assert backend.passwords
+        s2 = KeyringStorage(tmp_path / "tokens.json", tmp_path / "key.pem",
+                            keyring_backend=backend)
+        assert s2.load_tokens() is None
+        assert s2.load_device_key() == pem
+
+    def test_clear_removes_fernet_key(self, tmp_path):
+        backend = _MemoryKeyring()
+        s = KeyringStorage(tmp_path / "tokens.json", tmp_path / "key.pem",
+                           keyring_backend=backend)
+        s.save_tokens(SAMPLE_TOKENS)
+        s.save_device_key(b"key")
+        s.clear()
+        assert not s.token_file.exists()
+        assert not s.key_file.exists()
+        assert not backend.passwords
 
 
 class TestGetStorage:

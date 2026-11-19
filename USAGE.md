@@ -25,7 +25,13 @@ On first login from a new device, Honda will send a verification email. **Do not
 pymyhondaplus logout
 ```
 
-Removes saved tokens and device key.
+Removes saved tokens and keeps the device key, so logging back in on this machine doesn't need device verification.
+
+To remove the device key too, add `--forget-device`. The next login then asks for device verification again.
+
+```bash
+pymyhondaplus logout --forget-device
+```
 
 ## Vehicle selection
 
