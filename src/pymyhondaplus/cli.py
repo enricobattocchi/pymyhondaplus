@@ -1011,7 +1011,9 @@ vehicle selection (only needed with multiple vehicles):
     login_parser.add_argument("--password", "-p", default=None, help="Honda account password (prompted if not given)")
     login_parser.add_argument("--locale", "-l", default="it", help="Locale (default: it)")
 
-    subparsers.add_parser("logout", parents=[_common], help="Remove saved tokens and device key")
+    logout_parser = subparsers.add_parser("logout", parents=[_common], help="Remove saved tokens")
+    logout_parser.add_argument("--forget-device", action="store_true",
+                               help="Also remove the device key; the next login needs device verification")
     list_parser = subparsers.add_parser("list", parents=[_common], help="List vehicles on your account")
     list_parser.add_argument("-v", "--verbose", action="store_true", help="Show model, grade, year, and images")
     subparsers.add_parser("capabilities", parents=[_common], help="Show vehicle capabilities")
@@ -1186,10 +1188,15 @@ def _run_main(args: argparse.Namespace, storage) -> int:
         return 0
 
     if args.command == "logout":
-        has_files = args.token_file.exists() or args.key_file.exists()
-        if has_files:
-            storage.clear()
-            print("Logged out (credentials removed)")
+        if args.forget_device:
+            if args.token_file.exists() or args.key_file.exists():
+                storage.clear()
+                print("Logged out (tokens and device key removed)")
+            else:
+                print("Nothing to remove (not logged in)")
+        elif args.token_file.exists():
+            storage.clear_tokens()
+            print("Logged out (tokens removed, device key kept)")
         else:
             print("Nothing to remove (not logged in)")
         return 0

@@ -71,7 +71,19 @@ class SecretStorage(ABC):
     def load_device_key(self) -> bytes | None: ...
 
     @abstractmethod
-    def clear(self) -> None: ...
+    def clear(self) -> None:
+        """Remove the tokens, the device key, and any encryption key."""
+
+    def clear_tokens(self) -> None:
+        """Remove the tokens and keep the device key.
+
+        Use this on logout. The next login reuses the device key, so Honda
+        doesn't ask for device verification again. Every built-in backend
+        keeps tokens in ``token_file``; a backend that stores them elsewhere
+        must override this method.
+        """
+        if self.token_file.exists():
+            self.token_file.unlink()
 
 
 class PlainFileStorage(SecretStorage):

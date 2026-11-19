@@ -923,3 +923,62 @@ def test_status_watch_json_reports_missing_temperatures_as_null(monkeypatch, cap
     ev = json.loads(line)
     assert ev["cabin_temp"] is None
     assert ev["interior_temp"] is None
+
+
+class _FakeStorage:
+    def __init__(self):
+        self.calls = []
+
+    def clear(self):
+        self.calls.append("clear")
+
+    def clear_tokens(self):
+        self.calls.append("clear_tokens")
+
+
+def _run_logout(monkeypatch, tmp_path, *extra, token=True, key=True):
+    token_file = tmp_path / "tokens.json"
+    key_file = tmp_path / "key.pem"
+    if token:
+        token_file.write_text("{}")
+    if key:
+        key_file.write_text("pem")
+    storage = _FakeStorage()
+    monkeypatch.setattr(importlib.metadata, "version", lambda _: "0.0")
+    monkeypatch.setattr(cli, "get_storage", lambda *args, **kwargs: storage)
+    monkeypatch.setattr(cli.sys, "argv", [
+        "pymyhondaplus", "--token-file", str(token_file), "--key-file", str(key_file),
+        "logout", *extra,
+    ])
+    return cli.main(), storage
+
+
+def test_logout_keeps_device_key(monkeypatch, tmp_path, capsys):
+    rc, storage = _run_logout(monkeypatch, tmp_path)
+
+    assert rc == 0
+    assert storage.calls == ["clear_tokens"]
+    assert "device key kept" in capsys.readouterr().out
+
+
+def test_logout_forget_device_removes_everything(monkeypatch, tmp_path, capsys):
+    rc, storage = _run_logout(monkeypatch, tmp_path, "--forget-device")
+
+    assert rc == 0
+    assert storage.calls == ["clear"]
+    assert "device key removed" in capsys.readouterr().out
+
+
+def test_logout_without_tokens_keeps_device_key(monkeypatch, tmp_path, capsys):
+    rc, storage = _run_logout(monkeypatch, tmp_path, token=False)
+
+    assert rc == 0
+    assert storage.calls == []
+    assert "Nothing to remove" in capsys.readouterr().out
+
+
+def test_logout_forget_device_with_only_device_key(monkeypatch, tmp_path, capsys):
+    rc, storage = _run_logout(monkeypatch, tmp_path, "--forget-device", token=False)
+
+    assert rc == 0
+    assert storage.calls == ["clear"]
