@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
+## 5.12.0 (2026-11-26)
+
+### Breaking
+
+- `EVStatus.cabin_temp` and `EVStatus.interior_temp` are `int | None` and default to `None`. They're `None` when Honda reports a missing or non-numeric value, instead of `0`.
+- `EVStatus.climate_defrost` is `bool | None` and defaults to `None`. It's `None` when Honda reports a missing or unrecognized `acDefAutoSetting`, instead of `False`.
+
+### Added
+
+- `HondaAPI.remote_climate_start()` takes a `temperature` in degrees Celsius on vehicles with the `specific_temperature` capability, and `pymyhondaplus climate-start --temperature` exposes it.
+- `EVStatus.climate_target_temp` reports the target temperature in degrees on those vehicles.
+- `UIConfiguration` exposes `climate_temp_min`, `climate_temp_max`, `climate_temp_step` and `climate_temp_default`, and `UIConfiguration.validate_climate_temperature()` checks a value against them.
+- `SecretStorage.clear_tokens()` removes the saved tokens and keeps the device key.
+- `pymyhondaplus logout --forget-device` removes the device key too.
+- `HondaAPIError.body` holds the full response text of a failed request, and the library logs it at debug level.
+- Tests run on Python 3.14.
+
+### Fixed
+
+- `pymyhondaplus climate-start` sends the vehicle's target or default temperature on vehicles with numeric climate control, so the cabin no longer goes to Lo.
+- `pymyhondaplus status`, `status --watch` and `climate-settings` show a missing temperature as unknown instead of 0.
+- `pymyhondaplus climate-settings` shows a missing auto defrost setting as unknown instead of off.
+- Logging back in after `pymyhondaplus logout` no longer asks for device verification (#40).
+- Error messages no longer include whole HTML pages when a Honda server fails (#41).
+
+### Changed
+
+- `pymyhondaplus logout` keeps the device key.
+- Error messages show Honda's error code and message instead of the raw response body.
+
+### Upgrade notes
+
+- Code that reads `cabin_temp`, `interior_temp` or `climate_defrost` must handle `None`. Map `climate_defrost` to a default before you pass it to `set_climate_settings()` or `remote_climate_start()`.
+- `remote_climate_start()` without `temperature` still sends 0 on vehicles with numeric climate control, so pass a temperature on those vehicles.
+- Code that parses the response out of `str(e)` must read `e.body` instead. Honda's error codes, such as `invalid-credentials`, still appear in `str(e)`.
+- A custom `SecretStorage` backend that keeps tokens outside `token_file` must override `clear_tokens()`.
+
 ## 5.12.0b3 (2026-11-20)
 
 ### Added
